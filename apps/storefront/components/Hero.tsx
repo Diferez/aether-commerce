@@ -39,7 +39,7 @@ export function Hero() {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("aether-open-assistant"))}
-              className="focus-ring inline-flex min-h-12 items-center gap-2 rounded-md border border-zinc-300 px-5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100"
+              className="focus-ring inline-flex min-h-12 items-center gap-2 rounded-md border border-border-strong bg-surface px-5 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent hover:text-white active:border-accent-hover active:bg-accent-hover active:text-white"
             >
               <MessageCircle size={16} aria-hidden />
               {t.heroCtaSecondary}

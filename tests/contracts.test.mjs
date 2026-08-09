@@ -163,3 +163,13 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.match(middleware, /digest\(authorization\)/);
   assert.match(middleware, /digest\(cartToken\)/);
 });
+
+test("storefront assistant CTA keeps readable active and hover colors", () => {
+  const hero = read("apps/storefront/components/Hero.tsx");
+
+  assert.match(hero, /heroCtaSecondary/);
+  assert.match(hero, /hover:bg-accent/);
+  assert.match(hero, /hover:text-white/);
+  assert.match(hero, /active:bg-accent-hover/);
+  assert.doesNotMatch(hero, /hover:bg-zinc-100/);
+});
