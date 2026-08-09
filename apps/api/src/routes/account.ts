@@ -6,17 +6,14 @@ export const accountRoutes = new Hono<AppBindings>();
 
 accountRoutes.get("/orders", async (c) => {
   const actor = c.get("actor");
-  const customerEmail = c.req.header("x-aether-customer-email")?.trim().toLowerCase();
-  if (!actor.userId && !customerEmail) {
+  if (!actor.userId) {
     return fail(c, 401, "AUTH_REQUIRED", "Sign in to view orders.");
   }
 
   const rows = await c.env.DB.prepare(
-    actor.userId
-      ? "select payload_json from orders where user_id = ? order by created_at desc"
-      : "select payload_json from orders where lower(email) = ? order by created_at desc"
+    "select payload_json from orders where user_id = ? order by created_at desc"
   )
-    .bind(actor.userId ?? customerEmail)
+    .bind(actor.userId)
     .all<{ payload_json: string }>();
 
   const data: Array<Record<string, unknown>> = rows.results.map(

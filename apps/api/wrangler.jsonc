@@ -10,6 +10,32 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER_GLOBAL",
+      "namespace_id": "4101",
+      "simple": {
+        "limit": 240,
+        "period": 60
+      }
+    },
+    {
+      "name": "RATE_LIMITER_MUTATION",
+      "namespace_id": "4102",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "RATE_LIMITER_SENSITIVE",
+      "namespace_id": "4103",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
   "vars": {
     "AETHER_ENV": "development",
     "APP_ORIGIN_STORE": "http://localhost:3000",

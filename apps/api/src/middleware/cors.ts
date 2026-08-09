@@ -19,7 +19,6 @@ export function aetherCors() {
       "content-type",
       "x-request-id",
       "x-idempotency-key",
-      "x-aether-customer-email",
       "x-aether-cart-token"
     ],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],

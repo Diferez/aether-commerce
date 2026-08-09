@@ -18,6 +18,23 @@ const config = {
   workers_dev: true,
   preview_urls: true,
   observability: { enabled: true, head_sampling_rate: 1 },
+  ratelimits: [
+    {
+      name: "RATE_LIMITER_GLOBAL",
+      namespace_id: process.env.AETHER_RATE_LIMIT_GLOBAL_NAMESPACE_ID || (deployEnvironment === "production" ? "4101" : "5101"),
+      simple: { limit: Number(process.env.AETHER_RATE_LIMIT_GLOBAL_PER_MINUTE || 240), period: 60 },
+    },
+    {
+      name: "RATE_LIMITER_MUTATION",
+      namespace_id: process.env.AETHER_RATE_LIMIT_MUTATION_NAMESPACE_ID || (deployEnvironment === "production" ? "4102" : "5102"),
+      simple: { limit: Number(process.env.AETHER_RATE_LIMIT_MUTATION_PER_MINUTE || 60), period: 60 },
+    },
+    {
+      name: "RATE_LIMITER_SENSITIVE",
+      namespace_id: process.env.AETHER_RATE_LIMIT_SENSITIVE_NAMESPACE_ID || (deployEnvironment === "production" ? "4103" : "5103"),
+      simple: { limit: Number(process.env.AETHER_RATE_LIMIT_SENSITIVE_PER_MINUTE || 20), period: 60 },
+    },
+  ],
   vars: {
     AETHER_ENV: deployEnvironment,
     APP_ORIGIN_STORE: process.env.APP_ORIGIN_STORE || "",

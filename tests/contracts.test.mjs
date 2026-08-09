@@ -122,8 +122,44 @@ test("cart reads and mutations require signed cart token", () => {
   assert.match(cartRoutes, /updateItemQuantity/);
   assert.match(cartRoutes, /cartRoutes\.delete\("\/:id\/items\/:itemId"/);
   assert.match(cartTokenService, /HMAC/);
+  assert.match(cartTokenService, /timingSafeEqualText/);
   assert.match(cartTokenService, /exp/);
   assert.match(storefrontCartClient, /x-aether-cart-token/);
   assert.match(cartPage, /getCartToken/);
   assert.match(cartPage, /x-aether-cart-token/);
+});
+
+test("sensitive signatures and account order lookup avoid enumeration paths", () => {
+  const secureCompare = read("apps/api/src/services/secure-compare.ts");
+  const stripeService = read("apps/api/src/services/stripe.ts");
+  const accountRoutes = read("apps/api/src/routes/account.ts");
+  const cors = read("apps/api/src/middleware/cors.ts");
+
+  assert.match(secureCompare, /timingSafeEqual/);
+  assert.match(stripeService, /STRIPE_SIGNATURE_TOLERANCE_SECONDS/);
+  assert.match(stripeService, /timingSafeEqualText/);
+  assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
+  assert.doesNotMatch(accountRoutes, /lower\(email\)/);
+  assert.doesNotMatch(cors, /x-aether-customer-email/);
+});
+
+test("API rate limiting uses Cloudflare bindings with local fallback", () => {
+  const middleware = read("apps/api/src/middleware/rate-limit.ts");
+  const types = read("apps/api/src/types.ts");
+  const wrangler = read("apps/api/wrangler.jsonc");
+  const deployConfig = read("scripts/write-api-wrangler-config.mjs");
+
+  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
+    assert.match(types, new RegExp(`${binding}\\?: RateLimit`));
+    assert.match(wrangler, new RegExp(`"name": "${binding}"`));
+    assert.match(deployConfig, new RegExp(`name: "${binding}"`));
+    assert.match(middleware, new RegExp(`c\\.env\\.${binding}`));
+  }
+
+  assert.match(middleware, /profileForRequest/);
+  assert.match(middleware, /normalizedRouteKey/);
+  assert.match(middleware, /Retry-After/);
+  assert.match(middleware, /localLimit/);
+  assert.match(middleware, /digest\(authorization\)/);
+  assert.match(middleware, /digest\(cartToken\)/);
 });

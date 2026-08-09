@@ -15,19 +15,32 @@
   admin reads.
 - Admin routes require `admin` or `staff` roles.
 - Private mutations are blocked in demo mode.
+- Cart ownership is enforced with signed, expiring cart tokens. Signature checks
+  use timing-safe comparison.
+- Order history requires an authenticated user session. The API does not support
+  order lookup by plain email headers because that enables enumeration.
 
 ## Webhooks and idempotency
 
-- Stripe webhooks require a valid signature.
+- Stripe webhooks require a valid signature with a fresh timestamp.
 - Every webhook event is stored in `webhook_events`.
 - Idempotency keys are stored and checked before mutating checkout, refunds, or
   order state.
 
 ## Rate limiting
 
-The Worker includes a lightweight IP and route rate limiter for free-tier-safe
-abuse protection. For a production store, move rate limits to Cloudflare WAF or
-a dedicated durable store if volume requires it.
+The API Worker uses Cloudflare Rate Limiting bindings for route-level abuse
+protection, with a local in-memory fallback for development and tests:
+
+- General reads: 240 requests/minute.
+- Mutations: 60 requests/minute.
+- Sensitive routes (`checkout`, `contact`, `webhooks`, `admin`): 20
+  requests/minute.
+
+Keys are built from a normalized route plus a hashed authenticated/cart actor
+when available, or the connecting IP as a public fallback. For a production
+store with real customer traffic, add Cloudflare WAF/API Shield rules at the
+zone level as a second layer.
 
 ## Data minimization
 

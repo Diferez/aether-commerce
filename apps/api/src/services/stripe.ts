@@ -1,5 +1,8 @@
 import type { Cart } from "@aether/schemas";
 import type { Env } from "../types";
+import { timingSafeEqualText } from "./secure-compare";
+
+const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
 type StripeErrorLog = {
   type?: string;
@@ -184,12 +187,18 @@ export async function verifyStripeSignature(secret: string, body: string, signat
     .split(",")
     .find((part) => part.startsWith("t="))
     ?.slice(2);
-  const expected = signatureHeader
+  const expectedSignatures = signatureHeader
     .split(",")
-    .find((part) => part.startsWith("v1="))
-    ?.slice(3);
+    .filter((part) => part.startsWith("v1="))
+    .map((part) => part.slice(3).toLowerCase());
 
-  if (!timestamp || !expected) {
+  if (!timestamp || expectedSignatures.length === 0) {
+    return false;
+  }
+
+  const timestampSeconds = Number(timestamp);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(timestampSeconds) || Math.abs(nowSeconds - timestampSeconds) > STRIPE_SIGNATURE_TOLERANCE_SECONDS) {
     return false;
   }
 
@@ -203,5 +212,6 @@ export async function verifyStripeSignature(secret: string, body: string, signat
   const signedPayload = `${timestamp}.${body}`;
   const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
   const actual = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return actual === expected;
+  const matches = await Promise.all(expectedSignatures.map((expected) => timingSafeEqualText(actual, expected)));
+  return matches.some(Boolean);
 }

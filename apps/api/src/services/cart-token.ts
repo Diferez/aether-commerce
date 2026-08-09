@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { timingSafeEqualText } from "./secure-compare";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -63,7 +64,7 @@ export async function verifyCartToken(env: Env, token: string | undefined, cartI
   }
 
   const expectedSignature = await hmac(secret, payload);
-  if (signature !== expectedSignature) {
+  if (!(await timingSafeEqualText(signature, expectedSignature))) {
     return false;
   }
 
