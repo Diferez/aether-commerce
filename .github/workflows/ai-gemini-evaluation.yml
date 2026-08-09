@@ -1,0 +1,53 @@
+name: AI Gemini evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum evaluation cases to run, capped by the script at 25"
+        required: false
+        default: "10"
+  schedule:
+    - cron: "0 9 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-gemini-evaluation
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    name: Limited real Gemini evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
+      GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite' }}
+      AI_EVAL_MAX_CASES: ${{ github.event.inputs.limit || vars.AI_EVAL_MAX_CASES || '10' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install assistant dependencies
+        working-directory: apps/ai-assistant
+        run: python -m pip install -r requirements-docker.txt
+
+      - name: Run limited Gemini evaluation
+        working-directory: apps/ai-assistant
+        env:
+          PYTHONPATH: "."
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY is not configured; skipping real Gemini evaluation."
+            exit 0
+          fi
+          python -m app.gemini_evaluation --limit "${AI_EVAL_MAX_CASES}"

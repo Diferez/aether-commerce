@@ -1,0 +1,558 @@
+openapi: 3.0.3
+info:
+  title: Aether API
+  version: 1.0.0
+  description: Worker API for the Aether premium commerce demo.
+servers:
+  - url: https://api.aether.example/api/v1
+  - url: http://localhost:8787/api/v1
+paths:
+  /products:
+    get:
+      tags: [Public]
+      summary: List products
+      responses:
+        "200":
+          description: Product collection
+  /products/{id}:
+    get:
+      tags: [Public]
+      summary: Product by public ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Product }
+  /products/slug/{slug}:
+    get:
+      tags: [Public]
+      summary: Product by slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Product }
+  /categories:
+    get:
+      tags: [Public]
+      summary: List categories
+      responses:
+        "200": { description: Categories }
+  /categories/{slug}/products:
+    get:
+      tags: [Public]
+      summary: Products by category
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Product collection }
+  /search:
+    get:
+      tags: [Public]
+      summary: Search products
+      responses:
+        "200": { description: Product collection }
+  /featured-products:
+    get:
+      tags: [Public]
+      summary: Featured products
+      responses:
+        "200": { description: Product collection }
+  /deals:
+    get:
+      tags: [Public]
+      summary: Deal products
+      responses:
+        "200": { description: Product collection }
+  /new-arrivals:
+    get:
+      tags: [Public]
+      summary: New arrival products
+      responses:
+        "200": { description: Product collection }
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+  /catalog/products:
+    get:
+      summary: List normalized products
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: flag
+          schema:
+            type: string
+            enum: [featured, new, deal, limited]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+            default: 12
+      responses:
+        "200":
+          description: Product collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductCollection"
+  /catalog/products/{slug}:
+    get:
+      summary: Product detail
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/Error"
+  /cart/{id}:
+    get:
+      summary: Read cart
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+  /cart/{id}/token:
+    get:
+      summary: Issue signed cart token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Signed cart token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+  /cart/{id}/items:
+    post:
+      summary: Add cart item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, quantity]
+              properties:
+                productId:
+                  type: string
+                variantId:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 25
+      responses:
+        "201":
+          description: Updated cart
+  /cart/{id}/items/{itemId}:
+    patch:
+      summary: Update cart item quantity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 25
+      responses:
+        "200":
+          description: Updated cart
+    delete:
+      summary: Remove cart item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated cart
+  /cart/items:
+    post:
+      tags: [User]
+      summary: Add item to authenticated or anonymous cart
+      responses:
+        "201": { description: Updated cart }
+  /cart/{id}/coupon:
+    post:
+      summary: Apply coupon
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Updated cart
+  /checkout/session:
+    post:
+      summary: Create Stripe test checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cartId]
+              properties:
+                cartId:
+                  type: string
+      responses:
+        "201":
+          description: Checkout URL
+  /contact:
+    post:
+      summary: Store contact message and queue Resend email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, subject, message]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                subject:
+                  type: string
+                message:
+                  type: string
+                locale:
+                  type: string
+                  enum: [en, es]
+      responses:
+        "201":
+          description: Message accepted
+  /account/orders:
+    get:
+      summary: Authenticated customer order history
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Orders
+        "401":
+          $ref: "#/components/responses/Error"
+  /admin/demo/summary:
+    get:
+      summary: Public demo admin summary
+      responses:
+        "200":
+          description: Demo summary
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Private admin dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        "200": { description: Dashboard }
+  /admin/products:
+    get:
+      tags: [Admin]
+      summary: Admin product list
+      security:
+        - bearerAuth: []
+      responses:
+        "200": { description: Products }
+  /admin/orders:
+    get:
+      tags: [Admin]
+      summary: Admin order list
+      security:
+        - bearerAuth: []
+      responses:
+        "200": { description: Orders }
+  /admin/summary:
+    get:
+      summary: Private admin summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Private summary
+        "403":
+          $ref: "#/components/responses/Error"
+  /admin/products/{id}/override:
+    patch:
+      summary: Update product override
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Override saved
+        "403":
+          $ref: "#/components/responses/Error"
+  /webhooks/stripe:
+    post:
+      summary: Stripe signed webhook
+      responses:
+        "200":
+          description: Webhook accepted
+        "401":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Success:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Error:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              nullable: true
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId:
+          type: string
+    Pagination:
+      type: object
+      required: [page, pageSize, total, pageCount]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        pageCount:
+          type: integer
+    ProductCollection:
+      type: object
+      required: [success, data, pagination, meta]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Product:
+      type: object
+      required:
+        - id
+        - sourceId
+        - slug
+        - name
+        - description
+        - price
+        - finalPrice
+        - discountPercentage
+        - currency
+        - category
+        - images
+        - flags
+        - variants
+        - inventory
+        - visibility
+      properties:
+        id:
+          type: string
+        sourceId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+        originalPrice:
+          type: integer
+        finalPrice:
+          type: integer
+        discountPercentage:
+          type: integer
+        currency:
+          type: string
+          enum: [USD]
+        category:
+          type: object
+        images:
+          type: array
+          items:
+            type: object
+        flags:
+          type: array
+          items:
+            type: string
+        variants:
+          type: array
+          items:
+            type: object
+        inventory:
+          type: object
+        visibility:
+          type: string

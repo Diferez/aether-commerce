@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "preserve",
+    "paths": {
+      "@aether/api-client": ["./packages/api-client/src/index.ts"],
+      "@aether/core": ["./packages/core/src/index.ts"],
+      "@aether/i18n": ["./packages/i18n/src/index.ts"],
+      "@aether/schemas": ["./packages/schemas/src/index.ts"],
+      "@aether/ui": ["./packages/ui/src/index.tsx"]
+    }
+  }
+}

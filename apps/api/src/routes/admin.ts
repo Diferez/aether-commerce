@@ -1,0 +1,215 @@
+import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
+import type { AppBindings } from "../types";
+import { ok } from "../http";
+import { requirePermission } from "../middleware/admin";
+import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
+
+const productOverrideSchema = z.object({
+  name: z.string().min(1).optional(),
+  visibility: z.enum(["visible", "hidden", "draft"]).optional(),
+  flags: z.array(z.enum(["featured", "new", "deal", "limited", "hidden"])).optional()
+});
+
+export const adminRoutes = new Hono<AppBindings>();
+
+adminRoutes.get("/demo/summary", (c) =>
+  ok(c, {
+    mode: "demo",
+    notice: {
+      en: "Public demo mode. Changes are disabled.",
+      es: "Modo de demostracion publica. Los cambios estan deshabilitados."
+    },
+    revenue: 1842500,
+    orders: 128,
+    conversionRate: 4.8,
+    lowStock: 7
+  })
+);
+
+adminRoutes.get("/summary", requirePermission("orders.read"), (c) =>
+  ok(c, {
+    mode: "private",
+    revenue: 1842500,
+    orders: 128,
+    conversionRate: 4.8,
+    lowStock: 7
+  })
+);
+
+adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
+  const lowStock = await c.env.DB.prepare("select count(*) as count from inventory where available <= low_stock_threshold").first<{
+    count: number;
+  }>();
+  return ok(c, {
+    revenue: 1842500,
+    orders: 128,
+    averageTicket: 14395,
+    productsSold: 344,
+    conversionRate: 4.8,
+    lowStock: lowStock?.count ?? 7,
+    orderStates: [
+      { state: "paid", count: 18 },
+      { state: "processing", count: 22 },
+      { state: "shipped", count: 31 },
+      { state: "delivered", count: 57 }
+    ],
+    serviceStatus: {
+      d1: "ok",
+      dummyjson: "cached",
+      stripe: c.env.STRIPE_SECRET_KEY ? "configured" : "sandbox_placeholder",
+      resend: c.env.RESEND_API_KEY ? "configured" : "not_configured"
+    }
+  });
+});
+
+adminRoutes.get("/products", requirePermission("products.read"), async (c) => {
+  const result = await getCatalogProducts(c.env, { page: 1, pageSize: 50, sort: "featured" });
+  return ok(c, result);
+});
+
+adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) => ok(c, await getProductById(c.env, c.req.param("id"))));
+
+adminRoutes.patch(
+  "/products/:id/override",
+  requirePermission("products.write"),
+  zValidator("json", productOverrideSchema),
+  async (c) => {
+    const id = crypto.randomUUID();
+    await c.env.DB.prepare(
+      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
+       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    )
+      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
+      .run();
+
+    return ok(c, { id, productId: c.req.param("id") });
+  }
+);
+
+adminRoutes.put(
+  "/products/:id/override",
+  requirePermission("products.write"),
+  zValidator("json", productOverrideSchema),
+  async (c) => {
+    const id = `override_${c.req.param("id")}`;
+    await c.env.DB.prepare(
+      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
+       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       on conflict(id) do update set payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP`
+    )
+      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
+      .run();
+    return ok(c, { id, productId: c.req.param("id"), saved: true });
+  }
+);
+
+adminRoutes.delete("/products/:id/override", requirePermission("products.write"), async (c) => {
+  await c.env.DB.prepare("delete from product_overrides where product_id = ?").bind(c.req.param("id")).run();
+  return ok(c, { productId: c.req.param("id"), restored: true });
+});
+
+adminRoutes.post("/products/:id/cache-refresh", requirePermission("products.write"), async (c) => {
+  await clearCatalogCache(c.env);
+  return ok(c, { productId: c.req.param("id"), refreshed: true });
+});
+
+adminRoutes.get("/inventory", requirePermission("inventory.read"), async (c) => {
+  const rows = await c.env.DB.prepare("select * from inventory order by updated_at desc limit 100").all<Record<string, unknown>>();
+  return ok(c, rows.results);
+});
+
+adminRoutes.post(
+  "/inventory/adjustments",
+  requirePermission("inventory.write"),
+  zValidator("json", z.object({ productId: z.string(), sku: z.string(), quantity: z.number().int(), reason: z.string().optional() })),
+  async (c) => {
+    const body = c.req.valid("json");
+    await c.env.DB.prepare(
+      "insert into inventory_movements (id, product_id, sku, type, quantity, reason, actor_id, request_id) values (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(
+        crypto.randomUUID(),
+        body.productId,
+        body.sku,
+        body.quantity >= 0 ? "adjustment_positive" : "adjustment_negative",
+        Math.abs(body.quantity),
+        body.reason ?? null,
+        c.get("actor").userId ?? "system",
+        c.get("requestId")
+      )
+      .run();
+    return ok(c, { adjusted: true }, 201);
+  }
+);
+
+adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), async (c) => {
+  const rows = await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
+  return ok(c, rows.results);
+});
+
+adminRoutes.get("/orders", requirePermission("orders.read"), async (c) => {
+  const rows = await c.env.DB.prepare("select id, number, email, state, total, currency, created_at from orders order by created_at desc limit 100").all();
+  return ok(c, rows.results);
+});
+
+adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
+  const row = await c.env.DB.prepare("select payload_json from orders where id = ?").bind(c.req.param("id")).first<{ payload_json: string }>();
+  return ok(c, row ? JSON.parse(row.payload_json) : null);
+});
+
+adminRoutes.patch(
+  "/orders/:id/status",
+  requirePermission("orders.write"),
+  zValidator("json", z.object({ state: z.string(), reason: z.string().optional() })),
+  async (c) => {
+    await c.env.DB.prepare(
+      "insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id) values (?, ?, null, ?, ?, ?, ?)"
+    )
+      .bind(crypto.randomUUID(), c.req.param("id"), c.req.valid("json").state, c.get("actor").userId ?? "admin", c.req.valid("json").reason ?? null, c.get("requestId"))
+      .run();
+    await c.env.DB.prepare("update orders set state = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
+      .bind(c.req.valid("json").state, c.req.param("id"))
+      .run();
+    return ok(c, { orderId: c.req.param("id"), state: c.req.valid("json").state });
+  }
+);
+
+adminRoutes.get("/users", requirePermission("users.read"), async (c) => ok(c, (await c.env.DB.prepare("select id, name, roles_json, created_at from users limit 100").all()).results));
+adminRoutes.patch("/users/:id/status", requirePermission("users.read"), (c) => ok(c, { userId: c.req.param("id"), status: "local_status_updated" }));
+
+adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from coupons").all()).results));
+adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {
+  const body = c.req.valid("json");
+  await c.env.DB.prepare("insert or replace into coupons (code, type, value, active, minimum_subtotal) values (?, ?, ?, 1, 0)")
+    .bind(body.code.toUpperCase(), body.type, body.value)
+    .run();
+  return ok(c, { code: body.code.toUpperCase() }, 201);
+});
+adminRoutes.patch("/coupons/:id", requirePermission("coupons.manage"), (c) => ok(c, { code: c.req.param("id"), updated: true }));
+adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c) => {
+  await c.env.DB.prepare("update coupons set active = 0 where code = ?").bind(c.req.param("id").toUpperCase()).run();
+  return ok(c, { code: c.req.param("id"), active: false });
+});
+
+adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, (await c.env.DB.prepare("select * from reviews order by created_at desc limit 100").all()).results));
+adminRoutes.patch("/reviews/:id/moderation", requirePermission("reviews.moderate"), zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })), async (c) => {
+  await c.env.DB.prepare("update reviews set status = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
+    .bind(c.req.valid("json").status, c.req.param("id"))
+    .run();
+  return ok(c, { id: c.req.param("id"), status: c.req.valid("json").status });
+});
+
+adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (c) => {
+  const rows = await c.env.DB.prepare(
+    "select id, name, email, subject, message, locale, email_status, created_at from contact_messages order by created_at desc limit 100"
+  ).all<Record<string, unknown>>();
+  return ok(c, rows.results);
+});
+
+adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, { simulated: true, provider: "stripe_sandbox" }, 201));
+adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, (await c.env.DB.prepare("select * from audit_logs order by created_at desc limit 100").all()).results));
+adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
+adminRoutes.patch("/settings", requirePermission("settings.manage"), (c) => ok(c, { updated: true }));
+adminRoutes.get("/export/orders", requirePermission("exports.create"), (c) => ok(c, { format: "csv", simulated: true, rows: 0 }));

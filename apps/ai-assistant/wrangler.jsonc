@@ -1,0 +1,44 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "aether-ai",
+  "main": "worker.ts",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "services": [
+    {
+      "binding": "AETHER_API",
+      "service": "aether-api"
+    }
+  ],
+  "vars": {
+    "AETHER_API_BASE_URL": "https://aether-api.pickofwow.workers.dev",
+    "AI_ASSISTANT_ENABLED": "true",
+    "AI_CATALOG_CACHE_TTL_SECONDS": "60",
+    "AI_CORS_ALLOWED_ORIGINS": "https://aether-storefront.pickofwow.workers.dev,http://localhost:3000,http://localhost:3010",
+    "AI_DEPLOYMENT_ENVIRONMENT": "production",
+    "AI_INTERNAL_CIRCUIT_FAILURE_THRESHOLD": "3",
+    "AI_INTERNAL_CIRCUIT_RESET_SECONDS": "30",
+    "AI_INTERNAL_HTTP_RETRIES": "2",
+    "AI_INTENT_CONFIDENCE_THRESHOLD": "0.75",
+    "AI_MAX_CONCURRENT_REQUESTS": "20",
+    "AI_MAX_INPUT_CHARACTERS": "4000",
+    "AI_MUTATION_CONFIDENCE_THRESHOLD": "0.90",
+    "AI_MUTATIONS_ENABLED": "true",
+    "AI_DAILY_REQUEST_BUDGET": "",
+    "AI_RATE_LIMIT_ANONYMOUS_PER_DAY": "40",
+    "AI_RATE_LIMIT_AUTHENTICATED_PER_DAY": "200",
+    "AI_RATE_LIMIT_MESSAGES_PER_HOUR": "80",
+    "AI_RATE_LIMIT_MESSAGES_PER_MINUTE": "8",
+    "AI_REQUEST_TIMEOUT_SECONDS": "25",
+    "AI_RUN_MIGRATIONS_ON_STARTUP": "false",
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    "GEMINI_TEMPERATURE": "0.1",
+    "GEMINI_MAX_OUTPUT_TOKENS": "600",
+    "OTEL_ENABLED": "false"
+  }
+}

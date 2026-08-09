@@ -1,0 +1,86 @@
+{
+  "title": "Aether AI Assistant",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["aether", "ai-assistant"],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests per second",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{ "expr": "rate(ai_requests_total[5m])", "legendFormat": "requests" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors per second",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{ "expr": "rate(ai_request_errors_total[5m])", "legendFormat": "errors" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request latency max",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [{ "expr": "ai_request_duration_seconds_max", "legendFormat": "max seconds" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "LLM and tool calls",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "rate(ai_llm_calls_total[5m])", "legendFormat": "llm calls" },
+        { "expr": "rate(ai_tool_calls_total[5m])", "legendFormat": "tool calls" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cart mutations",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "rate(ai_cart_mutations_total[5m])", "legendFormat": "mutations" },
+        { "expr": "rate(ai_cart_mutation_failures_total[5m])", "legendFormat": "failures" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Fallback and clarifications",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "rate(ai_fallback_total[5m])", "legendFormat": "fallback" },
+        { "expr": "rate(ai_clarifications_total[5m])", "legendFormat": "clarifications" }
+      ]
+    },
+    {
+      "type": "gauge",
+      "title": "Daily budget usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [{ "expr": "ai_daily_budget_usage_ratio", "legendFormat": "usage ratio" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "orange", "value": 0.85 },
+              { "color": "red", "value": 0.95 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Daily budget requests remaining",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [{ "expr": "ai_daily_budget_requests_remaining", "legendFormat": "remaining" }]
+    }
+  ]
+}

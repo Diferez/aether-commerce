@@ -1,0 +1,1 @@
+"""Aether AI assistant service."""

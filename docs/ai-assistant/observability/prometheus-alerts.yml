@@ -1,0 +1,83 @@
+groups:
+  - name: aether-ai-assistant
+    rules:
+      - alert: AetherAIAssistantDown
+        expr: up{job="aether-ai-assistant"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aether AI assistant is down"
+          description: "The assistant health endpoint or scrape target has been unavailable for more than 2 minutes."
+
+      - alert: AetherAIAssistantHighErrorRate
+        expr: rate(ai_request_errors_total[5m]) / clamp_min(rate(ai_requests_total[5m]), 1) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aether AI assistant error rate is high"
+          description: "More than 5 percent of assistant requests have failed for 10 minutes."
+
+      - alert: AetherAIAssistantHighLatency
+        expr: ai_request_duration_seconds_max > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aether AI assistant latency is high"
+          description: "The maximum observed assistant request duration is above 10 seconds."
+
+      - alert: AetherAIAssistantRateLimitSpike
+        expr: rate(ai_rate_limit_errors_total[5m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aether AI assistant rate-limit spike"
+          description: "Rate-limit rejections are elevated. Check abusive traffic or daily budget settings."
+
+      - alert: AetherAIAssistantCartMutationFailures
+        expr: rate(ai_cart_mutation_failures_total[5m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aether AI cart mutation failures detected"
+          description: "Cart mutation failures have occurred for 10 minutes. Check cart token, API availability, and authorization errors."
+
+      - alert: AetherAIAssistantGeminiFallback
+        expr: rate(ai_fallback_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aether AI assistant is using fallback"
+          description: "Gemini primary model failures or invalid responses are causing fallback activity."
+
+      - alert: AetherAIAssistantDailyBudget70
+        expr: ai_daily_budget_threshold_70_reached == 1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Aether AI assistant daily budget reached 70 percent"
+          description: "Review Gemini quota and expected daily traffic."
+
+      - alert: AetherAIAssistantDailyBudget85
+        expr: ai_daily_budget_threshold_85_reached == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aether AI assistant daily budget reached 85 percent"
+          description: "Consider reducing public exposure or lowering per-user limits."
+
+      - alert: AetherAIAssistantDailyBudget95
+        expr: ai_daily_budget_threshold_95_reached == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aether AI assistant daily budget reached 95 percent"
+          description: "Prepare to disable the assistant or raise quota before requests are rejected."

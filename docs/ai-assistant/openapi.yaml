@@ -1,0 +1,428 @@
+openapi: 3.1.0
+info:
+  title: Aether AI Assistant API
+  version: 0.1.0
+  description: FastAPI service for grounded Aether sales assistance, product discovery and controlled cart actions.
+servers:
+  - url: http://localhost:8090
+    description: Local development
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service is alive.
+  /readyz:
+    get:
+      summary: Readiness check
+      responses:
+        "200":
+          description: Service configuration state.
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        "200":
+          description: Prometheus text metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /v1/assistant/messages:
+    post:
+      summary: Send a non-streaming assistant message
+      parameters:
+        - $ref: "#/components/parameters/AetherCartId"
+        - $ref: "#/components/parameters/AetherCartToken"
+        - $ref: "#/components/parameters/AetherSessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantMessageRequest"
+      responses:
+        "200":
+          description: Structured assistant response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "413":
+          description: Message exceeded AI_MAX_INPUT_CHARACTERS.
+        "429":
+          description: Rate limit, daily budget or concurrency limit exceeded.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying when active graph concurrency is saturated.
+              schema:
+                type: integer
+  /v1/assistant/messages/stream:
+    post:
+      summary: Send a streaming assistant message
+      description: Emits Server-Sent Events. Event names are documented in `x-aether-sse-events`.
+      x-aether-sse-events:
+        - assistant.started
+        - assistant.status
+        - assistant.token
+        - assistant.products
+        - assistant.cart_updated
+        - assistant.clarification
+        - assistant.completed
+        - assistant.error
+      parameters:
+        - $ref: "#/components/parameters/AetherCartId"
+        - $ref: "#/components/parameters/AetherCartToken"
+        - $ref: "#/components/parameters/AetherSessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantMessageRequest"
+      responses:
+        "200":
+          description: SSE stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /v1/assistant/conversations/{thread_id}:
+    get:
+      summary: Read conversation messages
+      description: Requires the same anonymous session or validated user that owns the conversation.
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+        - $ref: "#/components/parameters/AetherSessionId"
+      responses:
+        "200":
+          description: Conversation messages.
+        "403":
+          description: Session or user does not own the conversation.
+        "404":
+          description: Conversation not found.
+    delete:
+      summary: Delete a conversation
+      description: Requires the same anonymous session or validated user that owns the conversation.
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+        - $ref: "#/components/parameters/AetherSessionId"
+      responses:
+        "200":
+          description: Conversation deleted.
+        "403":
+          description: Session or user does not own the conversation.
+        "404":
+          description: Conversation not found.
+  /v1/internal/audit/events:
+    get:
+      summary: List mutation audit events
+      description: Internal endpoint protected by AI_OPERATIONS_TOKEN.
+      parameters:
+        - $ref: "#/components/parameters/OperationsToken"
+        - name: thread_id
+          in: query
+          schema:
+            type: string
+        - name: request_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit events.
+        "403":
+          description: Invalid operations token.
+        "404":
+          description: Operations endpoint disabled.
+  /v1/internal/conversations/user/{user_hash}:
+    delete:
+      summary: Delete all conversations for a hashed user
+      parameters:
+        - $ref: "#/components/parameters/OperationsToken"
+        - name: user_hash
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User conversations deleted.
+        "403":
+          description: Invalid operations token.
+        "404":
+          description: Operations endpoint disabled.
+  /v1/internal/conversations/purge-expired:
+    post:
+      summary: Purge expired conversations
+      parameters:
+        - $ref: "#/components/parameters/OperationsToken"
+      responses:
+        "200":
+          description: Expired conversations purged.
+        "403":
+          description: Invalid operations token.
+        "404":
+          description: Operations endpoint disabled.
+components:
+  parameters:
+    AetherCartId:
+      name: x-aether-cart-id
+      in: header
+      required: false
+      schema:
+        type: string
+    AetherCartToken:
+      name: x-aether-cart-token
+      in: header
+      required: false
+      description: Signed cart token issued by the Aether Worker API.
+      schema:
+        type: string
+    AetherSessionId:
+      name: x-aether-session-id
+      in: header
+      required: false
+      schema:
+        type: string
+    OperationsToken:
+      name: x-aether-operations-token
+      in: header
+      required: true
+      schema:
+        type: string
+    ThreadId:
+      name: thread_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    AssistantMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        thread_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        message:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        locale:
+          type: string
+          default: es-CO
+        currency:
+          type: string
+          enum: [USD]
+        client_context:
+          $ref: "#/components/schemas/ClientContext"
+    ClientContext:
+      type: object
+      properties:
+        current_product_id:
+          type:
+            - string
+            - "null"
+        current_product_slug:
+          type:
+            - string
+            - "null"
+        current_category:
+          type:
+            - string
+            - "null"
+        current_path:
+          type:
+            - string
+            - "null"
+    ProductCard:
+      type: object
+      required:
+        - product_id
+        - name
+        - price
+        - currency
+        - product_url
+        - available
+      properties:
+        product_id:
+          type: string
+        variant_id:
+          type:
+            - string
+            - "null"
+        name:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        price:
+          type: string
+          description: Decimal USD amount derived from Aether integer cents.
+        currency:
+          type: string
+          enum: [USD]
+        image_url:
+          type:
+            - string
+            - "null"
+          format: uri
+        product_url:
+          type: string
+        available:
+          type: boolean
+        color:
+          type:
+            - string
+            - "null"
+        size:
+          type:
+            - string
+            - "null"
+        rating:
+          type:
+            - number
+            - "null"
+    ProductVariant:
+      type: object
+      required:
+        - variant_id
+        - available
+        - inventory
+        - attributes
+      properties:
+        variant_id:
+          type: string
+        label:
+          type:
+            - string
+            - "null"
+        sku:
+          type:
+            - string
+            - "null"
+        color:
+          type:
+            - string
+            - "null"
+        size:
+          type:
+            - string
+            - "null"
+        available:
+          type: boolean
+        inventory:
+          type: integer
+          minimum: 0
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+    CartSummary:
+      type: object
+      required:
+        - item_count
+        - subtotal
+        - currency
+        - items
+      properties:
+        item_count:
+          type: integer
+          minimum: 0
+        subtotal:
+          type: string
+          description: Decimal USD amount derived from Aether integer cents.
+        currency:
+          type: string
+          enum: [USD]
+        items:
+          type: array
+          items:
+            type: object
+    AssistantAction:
+      type: object
+      required:
+        - type
+        - status
+      properties:
+        type:
+          type: string
+          enum:
+            - NONE
+            - PRODUCTS_LISTED
+            - CART_ITEM_ADDED
+            - CART_ITEM_UPDATED
+            - CART_ITEM_REMOVED
+            - CART_CLEARED
+            - OPEN_CART
+            - OPEN_CHECKOUT
+            - ASK_CLARIFICATION
+        status:
+          type: string
+          enum:
+            - NOT_REQUESTED
+            - PENDING
+            - SUCCEEDED
+            - FAILED
+        entity_id:
+          type:
+            - string
+            - "null"
+        message:
+          type:
+            - string
+            - "null"
+    AssistantResponse:
+      type: object
+      required:
+        - request_id
+        - thread_id
+        - message
+        - intent
+        - products
+        - action
+        - suggested_replies
+      properties:
+        request_id:
+          type: string
+        thread_id:
+          type: string
+        message:
+          type: string
+        intent:
+          type: string
+          enum:
+            - SEARCH_PRODUCTS
+            - RECOMMEND_PRODUCTS
+            - GET_PRODUCT_DETAILS
+            - COMPARE_PRODUCTS
+            - CHECK_VARIANT_AVAILABILITY
+            - GET_CART
+            - ADD_TO_CART
+            - UPDATE_CART_ITEM
+            - REMOVE_FROM_CART
+            - CLEAR_CART
+            - GENERAL_STORE_QUESTION
+            - CHECKOUT_REQUEST
+            - UNSUPPORTED
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCard"
+        cart:
+          anyOf:
+            - $ref: "#/components/schemas/CartSummary"
+            - type: "null"
+        action:
+          $ref: "#/components/schemas/AssistantAction"
+        suggested_replies:
+          type: array
+          items:
+            type: string
