@@ -60,6 +60,16 @@ python tests/run_direct.py
 
 La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `DATABASE_URL`, `REDIS_URL` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Antes de una ejecución Python respaldada por PostgreSQL, aplica el esquema con `python -m app.migrate`. La evaluación real limitada vive en el workflow `AI Gemini evaluation`.
 
+## Ambiente de desarrollo previo a main
+
+El repo usa `develop` como ambiente de prueba antes de producción:
+
+- PRs de feature -> `develop`.
+- Merge a `develop` -> despliegue de storefront, API, asistente y admin de desarrollo.
+- PR `develop` -> `main` -> despliegue de producción.
+
+Consulta `docs/development.md` para variables, secrets, D1 de desarrollo y URLs.
+
 ## Despliegue en Cloudflare
 
 Consulta `docs/deployment.md`. El workflow de producción migra D1 y publica, en orden, API, asistente, storefront y admin. Los secretos se mantienen en GitHub Environments y Cloudflare; nunca se incluyen en variables públicas ni en archivos versionados.

@@ -11,9 +11,13 @@ dist
 .env
 .env.*
 !.env.example
+!.env.development.example
 coverage
 playwright-report
 test-results
 apps/api/wrangler.production.json
+apps/api/wrangler.development.json
 apps/ai-assistant/wrangler.production.json
+apps/ai-assistant/wrangler.development.json
+apps/storefront/wrangler.development.json
 apps/api/src/worker-configuration.d.ts

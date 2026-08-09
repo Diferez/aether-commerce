@@ -70,3 +70,15 @@ pnpm build
 ```
 
 El despliegue verifica las URLs públicas del storefront, API, asistente, admin y portafolio. Si cambia el dominio de la tienda, actualiza a la vez `APP_ORIGIN_STORE`, `AI_CORS_ALLOWED_ORIGINS` y `NEXT_PUBLIC_STORE_URL` en el repositorio del portafolio.
+
+## Ambiente de desarrollo
+
+El workflow `.github/workflows/deploy-development.yml` se ejecuta en `develop` y publica recursos separados:
+
+- `aether-storefront-dev`
+- `aether-api-dev`
+- `aether-ai-dev`
+- branch deploy `develop` de Cloudflare Pages para admin
+- D1 `aether-development`
+
+Consulta `docs/development.md` para configurar variables, secrets y el flujo PR -> `develop` -> `main`.

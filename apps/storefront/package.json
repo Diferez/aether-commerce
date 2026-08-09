@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
+    "deploy:development": "wrangler deploy --config ./wrangler.development.json",
     "deploy": "wrangler deploy --config ./wrangler.jsonc",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint app components"
