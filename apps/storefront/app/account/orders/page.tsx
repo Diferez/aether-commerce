@@ -16,12 +16,14 @@ export default function OrdersPage() {
   const { locale, t } = useLanguage();
   const { customer, isLoaded } = useCustomerSession();
   const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const customerId = customer?.id ?? "";
+  const customerEmail = customer?.email ?? "";
   const [orders, setOrders] = useState<Order[]>([]);
   const [status, setStatus] = useState<OrderStatus>("loading");
 
   useEffect(() => {
     if (!isLoaded || !isAuthLoaded) return;
-    if (!customer || !isSignedIn) {
+    if (!customerId || !isSignedIn) {
       setOrders([]);
       setStatus("signed-out");
       return;
@@ -52,7 +54,7 @@ export default function OrdersPage() {
     return () => {
       active = false;
     };
-  }, [isLoaded, isAuthLoaded, isSignedIn, customer, getToken]);
+  }, [isLoaded, isAuthLoaded, isSignedIn, customerId, customerEmail, getToken]);
 
   return (
     <main className="aether-shell py-8">
