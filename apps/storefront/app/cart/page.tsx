@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/react";
@@ -235,11 +236,11 @@ export default function CartPage() {
 
               return (
                 <div key={`${item.productId}-${item.variantId}`} className="flex gap-4 border-b border-zinc-200 p-4 last:border-b-0">
-                  <StorefrontLink href={`/products/detail?slug=${encodeURIComponent(item.slug)}`} className="shrink-0">
-                    <img src={item.imageUrl} alt={item.name} className="h-20 w-20 rounded-md border border-zinc-200 bg-zinc-50 object-contain p-1" />
+                  <StorefrontLink href={`/products/${encodeURIComponent(item.slug)}`} className="shrink-0">
+                    <Image src={item.imageUrl} alt={item.name} width={80} height={80} className="h-20 w-20 rounded-md border border-zinc-200 bg-zinc-50 object-contain p-1" />
                   </StorefrontLink>
                   <div className="min-w-0 flex-1">
-                    <StorefrontLink href={`/products/detail?slug=${encodeURIComponent(item.slug)}`} className="font-semibold text-zinc-950 hover:text-accent">
+                    <StorefrontLink href={`/products/${encodeURIComponent(item.slug)}`} className="font-semibold text-zinc-950 hover:text-accent">
                       {item.name}
                     </StorefrontLink>
                     <p className="mt-1 text-sm text-zinc-500">

@@ -9,7 +9,12 @@ const nextConfig = {
   output: "export",
   basePath,
   images: {
-    unoptimized: true
+    unoptimized: true,
+    remotePatterns: [
+      { protocol: "https", hostname: "aether-storefront.pickofwow.workers.dev" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "http", hostname: "localhost" }
+    ]
   },
   trailingSlash: true,
   turbopack: {

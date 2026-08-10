@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
@@ -79,8 +80,8 @@ export default function FavoritesPage() {
             const outOfStock = product.availableStock <= 0;
             return (
               <article key={product.id} className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-                <StorefrontLink href={`/products/detail?slug=${encodeURIComponent(product.slug)}`} className="relative block aspect-square bg-zinc-50">
-                  <img src={product.images[0]?.url ?? product.thumbnail} alt={product.name} className="h-full w-full object-contain p-4" />
+                <StorefrontLink href={`/products/${encodeURIComponent(product.slug)}`} className="relative block aspect-square bg-zinc-50">
+                  <Image src={product.images[0]?.url ?? product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="object-contain p-4" />
                   {outOfStock ? (
                     <Badge tone="danger" className="absolute right-2 top-2">
                       {t.availability.out_of_stock}
@@ -91,7 +92,7 @@ export default function FavoritesPage() {
                   <div>
                     <p className="text-xs font-semibold uppercase text-accent">{localized.category}</p>
                     <StorefrontLink
-                      href={`/products/detail?slug=${encodeURIComponent(product.slug)}`}
+                      href={`/products/${encodeURIComponent(product.slug)}`}
                       className="mt-1 block text-lg font-semibold text-zinc-950 hover:text-accent"
                     >
                       {product.name}

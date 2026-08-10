@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Loader2, RotateCcw, Send, ShoppingBag, X } from "lucide-react";
 import { formatUsd } from "@aether/core";
@@ -278,12 +279,14 @@ export function AssistantWidget() {
   function assistantClientContext() {
     const path = `${window.location.pathname}${window.location.search}`;
     const categoryMatch = window.location.pathname.match(/\/(?:store\/)?categories\/([^/?#]+)/);
+    const productMatch = window.location.pathname.match(/\/(?:store\/)?products\/([^/?#]+)/);
     const params = new URLSearchParams(window.location.search);
     const categorySlug = categoryMatch?.[1] ? decodeURIComponent(categoryMatch[1]) : null;
+    const productSlug = productMatch?.[1] && productMatch[1] !== "detail" ? decodeURIComponent(productMatch[1]) : params.get("slug");
     return {
       current_path: path,
       current_category: categorySlug,
-      current_product_slug: params.get("slug")
+      current_product_slug: productSlug
     };
   }
 
@@ -595,7 +598,7 @@ export function AssistantWidget() {
                     {message.products.map((product) => (
                       <div key={product.product_id} className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3">
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt object-cover" />
+                          <Image src={product.image_url} alt={product.name} width={64} height={64} className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt object-cover" />
                         ) : (
                           <div className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt" />
                         )}
@@ -621,7 +624,7 @@ export function AssistantWidget() {
                           </div>
                           <div className="mt-1 flex gap-2">
                             <StorefrontLink
-                              href={product.product_url}
+                              href={`/products/${encodeURIComponent(slugFromAssistantProduct(product))}`}
                               className="focus-ring rounded-chat border border-chat-border px-3 py-1.5 text-[13px] font-medium text-chat-text transition-colors active:scale-[0.97]"
                             >
                               {copy.view}
@@ -663,7 +666,7 @@ export function AssistantWidget() {
                           return (
                             <li key={index} className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted">
                               {imageUrl ? (
-                                <img src={imageUrl} alt={name} className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt object-cover" />
+                                <Image src={imageUrl} alt={name} width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt object-cover" />
                               ) : (
                                 <div className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt" />
                               )}

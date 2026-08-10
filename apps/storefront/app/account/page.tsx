@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Heart, LogOut, MapPin, PackageCheck, ShieldCheck, UserRound } from "lucide-react";
+import { Heart, LogOut, PackageCheck, UserRound } from "lucide-react";
 import { useCustomerSession, useSignOutCustomer } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
 import { StorefrontLink } from "../../components/StorefrontLink";
@@ -62,12 +62,10 @@ export default function AccountPage() {
         </button>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
         {[
           { href: "/account/favorites", icon: Heart, title: t.accountCards[0][0], body: t.accountCards[0][1] },
-          { href: "/account/orders", icon: PackageCheck, title: t.accountCards[1][0], body: t.accountCards[1][1] },
-          { href: "/account/addresses", icon: MapPin, title: t.accountCards[2][0], body: t.accountCards[2][1] },
-          { href: "/account/reviews", icon: ShieldCheck, title: t.accountCards[3][0], body: t.accountCards[3][1] }
+          { href: "/account/orders", icon: PackageCheck, title: t.accountCards[1][0], body: t.accountCards[1][1] }
         ].map((item) => (
           <StorefrontLink key={item.href} href={item.href} className="rounded-lg border border-zinc-200 bg-white p-5 hover:border-teal-700">
             <item.icon className="text-teal-700" aria-hidden />

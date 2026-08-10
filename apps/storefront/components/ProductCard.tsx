@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Bell, Check, Flame, Heart, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
@@ -29,7 +30,7 @@ export function ProductCard({
 }) {
   const { locale, t } = useLanguage();
   const localized = getLocalizedProduct(product, locale);
-  const detailHref = `/products/detail?slug=${encodeURIComponent(product.slug)}`;
+  const detailHref = `/products/${encodeURIComponent(product.slug)}`;
   const outOfStock = product.availableStock <= 0;
   const priceLocale = locale === "es" ? "es-CO" : "en-US";
   const imageBadge = getImageBadge(product);
@@ -42,14 +43,15 @@ export function ProductCard({
       }`}
     >
       <StorefrontLink href={detailHref} className="relative block aspect-square shrink-0 overflow-hidden bg-zinc-50">
-        <img
+        <Image
           src={product.thumbnail}
           alt={product.images[0]?.alt || product.name}
+          fill
+          sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           loading="lazy"
-          className={`h-full w-full object-contain p-2 transition group-hover:scale-[1.03] ${outOfStock ? "grayscale" : ""}`}
+          className={`object-contain p-2 transition group-hover:scale-[1.03] ${outOfStock ? "grayscale" : ""}`}
           onError={(event) => {
-            event.currentTarget.src =
-              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=60";
+            event.currentTarget.src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=60";
           }}
         />
 

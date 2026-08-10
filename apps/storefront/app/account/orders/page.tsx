@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
@@ -144,7 +145,7 @@ export default function OrdersPage() {
               <div className="mt-4 grid gap-3">
                 {order.items.map((item) => (
                   <div key={`${order.id}-${item.productId}-${item.variantId ?? "default"}`} className="flex items-center gap-3 rounded-md bg-zinc-50 p-3">
-                    <img src={item.imageUrl} alt={item.name} className="h-14 w-14 rounded object-cover" />
+                    <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded object-cover" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-zinc-950">{item.name}</p>
                       <p className="text-sm text-zinc-500">

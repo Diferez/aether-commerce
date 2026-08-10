@@ -9,7 +9,7 @@ import { AssistantWidget } from "../components/AssistantWidget";
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
   description: "A bilingual premium technology commerce demo powered by a Cloudflare Worker API.",
-  metadataBase: new URL("https://aether-demo.example"),
+  metadataBase: new URL("https://aether-storefront.pickofwow.workers.dev"),
   openGraph: {
     title: "Aether Premium Commerce Demo",
     description: "Premium technology shopping demo with static storefront and Worker API.",

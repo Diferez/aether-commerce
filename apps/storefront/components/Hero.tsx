@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import type { Product } from "@aether/schemas";
@@ -52,12 +53,12 @@ export function Hero() {
             product ? (
               <StorefrontLink
                 key={product.id}
-                href={`/products/detail?slug=${encodeURIComponent(product.slug)}`}
+                href={`/products/${encodeURIComponent(product.slug)}`}
                 className={`relative overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 ${
                   index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
                 }`}
               >
-                <img src={product.thumbnail} alt={product.name} loading="lazy" className="h-full w-full object-contain p-3" />
+                <Image src={product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 22vw, 50vw" className="object-contain p-3" />
               </StorefrontLink>
             ) : (
               <div

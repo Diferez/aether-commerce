@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { Badge, Button, Input, Select, Sheet } from "@aether/ui";
@@ -35,6 +36,7 @@ const catalogApiTimeoutMs = 12000;
 const debounceMs = 350;
 
 function useQueryState(enabled: boolean) {
+  const router = useRouter();
   const [params, setParamsState] = useState<URLSearchParams>(
     () => new URLSearchParams(enabled && typeof window !== "undefined" ? window.location.search : "")
   );
@@ -57,10 +59,15 @@ function useQueryState(enabled: boolean) {
           url.searchParams.set(key, value);
         }
       }
-      window.history[options?.replace ? "replaceState" : "pushState"]({}, "", url.toString());
+      const href = `${url.pathname}${url.search}`;
+      if (options?.replace) {
+        router.replace(href, { scroll: false });
+      } else {
+        router.push(href, { scroll: false });
+      }
       setParamsState(new URLSearchParams(url.search));
     },
-    [enabled]
+    [enabled, router]
   );
 
   return [params, setParams] as const;
