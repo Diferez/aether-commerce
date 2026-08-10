@@ -35,15 +35,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const scrollToProductWindow = useCallback((behavior: ScrollBehavior = "auto") => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const effectiveBehavior = prefersReducedMotion ? "auto" : behavior;
-    const target = productWindowRef.current;
-
-    if (!target) {
-      window.scrollTo({ top: 0, left: 0, behavior: effectiveBehavior });
-      return;
-    }
-
-    const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 12);
-    window.scrollTo({ top, left: 0, behavior: effectiveBehavior });
+    window.scrollTo({ top: 0, left: 0, behavior: effectiveBehavior });
   }, []);
 
   useLayoutEffect(() => {
