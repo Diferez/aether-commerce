@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
@@ -21,7 +22,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
   const router = useRouter();
   const { customer } = useCustomerSession();
-  const previousSlugRef = useRef<string | null>(null);
+  const productWindowRef = useRef<HTMLDivElement | null>(null);
   const fallback = useMemo(() => demoProducts.find((candidate) => candidate.slug === slug) ?? null, [slug]);
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">("loading");
@@ -31,15 +32,29 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [quantity, setQuantity] = useState(1);
   const localized = product ? getLocalizedProduct(product, locale) : null;
 
-  useEffect(() => {
-    const previousSlug = previousSlugRef.current;
-    previousSlugRef.current = slug;
-
-    if (!previousSlug || previousSlug === slug) return;
-
+  const scrollToProductWindow = useCallback((behavior: ScrollBehavior = "auto") => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
-  }, [slug]);
+    const effectiveBehavior = prefersReducedMotion ? "auto" : behavior;
+    const target = productWindowRef.current;
+
+    if (!target) {
+      window.scrollTo({ top: 0, left: 0, behavior: effectiveBehavior });
+      return;
+    }
+
+    const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 12);
+    window.scrollTo({ top, left: 0, behavior: effectiveBehavior });
+  }, []);
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => scrollToProductWindow("auto"));
+    const timeout = window.setTimeout(() => scrollToProductWindow("auto"), 80);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [scrollToProductWindow, slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -92,22 +107,29 @@ export function ProductDetailClient({ slug }: { slug: string }) {
     setIsFavorite(result === "added");
   }
 
+  function handleRelatedProductOpen(event: MouseEvent<HTMLAnchorElement>, nextProduct: Product) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+    if (nextProduct.slug === slug) return;
+    scrollToProductWindow("auto");
+  }
+
   const maxQuantity = product ? Math.max(1, Math.min(25, product.availableStock)) : 1;
   const outOfStock = Boolean(product && product.availableStock <= 0);
 
   return (
     <main className="aether-shell py-8">
-      {status === "not-found" ? (
-        <section className="mx-auto max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 text-center">
+      <div ref={productWindowRef} id="product-detail-window" className="scroll-mt-24">
+        {status === "not-found" ? (
+          <section className="mx-auto max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 text-center">
           <p className="text-sm font-semibold uppercase text-accent">{t.productNotFoundTitle}</p>
           <h1 className="mt-2 text-4xl font-semibold text-zinc-950">{t.productNotFoundTitle}</h1>
           <p className="mt-4 text-zinc-600">{t.productNotFoundDescription}</p>
           <StorefrontLink href="/products" className="focus-ring mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
             {t.browseProducts}
           </StorefrontLink>
-        </section>
-      ) : status === "loading" || !product || !localized ? (
-        <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]" aria-label={locale === "es" ? "Cargando producto" : "Loading product"}>
+          </section>
+        ) : status === "loading" || !product || !localized ? (
+          <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]" aria-label={locale === "es" ? "Cargando producto" : "Loading product"}>
           <div className="skeleton aspect-square w-full rounded-lg" />
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <div className="skeleton h-4 w-36 rounded" />
@@ -120,9 +142,9 @@ export function ProductDetailClient({ slug }: { slug: string }) {
             <div className="skeleton mt-6 h-9 w-32 rounded" />
             <div className="skeleton mt-6 h-11 w-36 rounded" />
           </div>
-        </section>
-      ) : (
-        <section className="grid animate-[fadeIn_0.22s_ease-out] gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+          </section>
+        ) : (
+          <section className="grid animate-[fadeIn_0.22s_ease-out] gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
               <Image
@@ -319,14 +341,16 @@ export function ProductDetailClient({ slug }: { slug: string }) {
               </ul>
             )}
           </div>
-        </section>
-      )}
+          </section>
+        )}
+      </div>
       <ProductGrid
         compact
         {...(product?.slug ? { excludeSlug: product.slug } : {})}
         {...(product?.category.slug ? { fixedCategory: product.category.slug } : {})}
         heading={t.relatedProducts}
         description={t.relatedDescription}
+        onProductOpen={handleRelatedProductOpen}
       />
     </main>
   );

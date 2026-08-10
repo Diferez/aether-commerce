@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import type { Product } from "@aether/schemas";
@@ -82,7 +83,8 @@ export function ProductGrid({
   heading,
   eyebrow,
   description,
-  pageSize = 12
+  pageSize = 12,
+  onProductOpen
 }: {
   compact?: boolean;
   fixedCategory?: string;
@@ -93,6 +95,7 @@ export function ProductGrid({
   eyebrow?: string;
   description?: string;
   pageSize?: number;
+  onProductOpen?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const syncUrl = !compact;
   const { locale, t } = useLanguage();
@@ -449,6 +452,7 @@ export function ProductGrid({
                   isAdded={addedProduct?.id === product.id}
                   onToggleFavorite={toggleFavorite}
                   onAddToCart={(item) => void addToCart(item)}
+                  {...(onProductOpen ? { onOpenProduct: onProductOpen } : {})}
                 />
               ))}
             </div>

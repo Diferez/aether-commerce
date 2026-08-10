@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Bell, Check, Flame, Heart, ShoppingBag, Star } from "lucide-react";
+import type { MouseEvent } from "react";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
 import { Skeleton } from "@aether/ui";
@@ -18,7 +19,8 @@ export function ProductCard({
   isAdded,
   onToggleFavorite,
   onAddToCart,
-  onNotifyRestock
+  onNotifyRestock,
+  onOpenProduct
 }: {
   product: Product;
   isFavorite: boolean;
@@ -27,6 +29,7 @@ export function ProductCard({
   onToggleFavorite: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onNotifyRestock?: (product: Product) => void;
+  onOpenProduct?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const { locale, t } = useLanguage();
   const localized = getLocalizedProduct(product, locale);
@@ -42,7 +45,7 @@ export function ProductCard({
         isAdded ? "border-accent ring-2 ring-accent-soft" : "border-zinc-200 hover:border-border-strong"
       }`}
     >
-      <StorefrontLink href={detailHref} className="relative block aspect-square shrink-0 overflow-hidden bg-zinc-50">
+      <StorefrontLink href={detailHref} onClick={(event) => onOpenProduct?.(event, product)} className="relative block aspect-square shrink-0 overflow-hidden bg-zinc-50">
         <Image
           src={product.thumbnail}
           alt={product.images[0]?.alt || product.name}
@@ -85,6 +88,7 @@ export function ProductCard({
         </p>
         <StorefrontLink
           href={detailHref}
+          onClick={(event) => onOpenProduct?.(event, product)}
           className={`line-clamp-2 min-h-[2.5em] text-sm font-semibold leading-tight ${
             outOfStock ? "text-ink-muted" : "text-zinc-950 hover:text-accent"
           }`}
