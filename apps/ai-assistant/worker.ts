@@ -329,7 +329,9 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     return finish(responsePayload(requestId, threadId, spanish ? `Listo. Actualice la cantidad a ${quantity}.` : `Done. I updated the quantity to ${quantity}.`, intent, [], updated || cart, updated ? "CART_ITEM_UPDATED" : "ASK_CLARIFICATION", updated ? "SUCCEEDED" : "FAILED"));
   }
 
-  const contextProduct = await currentContextProduct(env, body);
+  const contextProduct = shouldUseCurrentProductContext(intent, message)
+    ? await currentContextProduct(env, body)
+    : null;
   const products = contextProduct ? [contextProduct] : await searchProducts(env, message, sessionHash);
   if (intent === "ADD_TO_CART") {
     if (env.AI_MUTATIONS_ENABLED === "false") {
@@ -1042,6 +1044,42 @@ async function currentContextProduct(env: Env, body: AssistantRequest): Promise<
   return toAssistantProduct(payload.data);
 }
 
+function shouldUseCurrentProductContext(intent: IntentName, message: string): boolean {
+  if (intent !== "ADD_TO_CART" && intent !== "GET_PRODUCT_DETAILS" && intent !== "CHECK_VARIANT_AVAILABILITY") {
+    return false;
+  }
+
+  if (matchCategorySynonym(message) || hasExplicitProductSearchTarget(message)) {
+    return false;
+  }
+
+  const folded = foldText(message);
+  return /\b(este|esta|ese|esa|actual|aqui|producto|opcion|it|this|that|current|option|product)\b/.test(folded);
+}
+
+function hasExplicitProductSearchTarget(message: string): boolean {
+  const query = foldText(extractQueryHeuristic(message));
+  if (!query) return false;
+  const contextualOnly = new Set([
+    "este",
+    "esta",
+    "ese",
+    "esa",
+    "actual",
+    "aqui",
+    "producto",
+    "opcion",
+    "it",
+    "this",
+    "that",
+    "current",
+    "option",
+    "product",
+  ]);
+  const words = query.split(/\s+/).filter(Boolean);
+  return words.some((word) => !contextualOnly.has(word));
+}
+
 function isDealsQuery(message: string): boolean {
   return /(deal|oferta|descuento|discount)/i.test(message);
 }
@@ -1236,6 +1274,8 @@ const CATEGORY_SYNONYMS: Record<string, string> = {
   tabletas: "tablets",
   tableta: "tablets",
   laptops: "laptops",
+  computadores: "laptops",
+  computador: "laptops",
   computadoras: "laptops",
   computadora: "laptops",
   notebooks: "laptops",
