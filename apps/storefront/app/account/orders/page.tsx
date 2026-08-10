@@ -15,17 +15,19 @@ type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
 export default function OrdersPage() {
   const { locale, t } = useLanguage();
   const { customer, isLoaded } = useCustomerSession();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [status, setStatus] = useState<OrderStatus>("loading");
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!customer) {
+    if (!isLoaded || !isAuthLoaded) return;
+    if (!customer || !isSignedIn) {
+      setOrders([]);
       setStatus("signed-out");
       return;
     }
 
+    let active = true;
     setStatus("loading");
     const client = createAetherClient({
       baseUrl: apiBaseUrl,
@@ -34,6 +36,7 @@ export default function OrdersPage() {
     client
       .orders()
       .then((payload) => {
+        if (!active) return;
         if (!payload.success) {
           setStatus("error");
           return;
@@ -42,8 +45,14 @@ export default function OrdersPage() {
         setOrders(nextOrders);
         setStatus(nextOrders.length > 0 ? "ready" : "empty");
       })
-      .catch(() => setStatus("error"));
-  }, [isLoaded, customer, getToken]);
+      .catch(() => {
+        if (active) setStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isAuthLoaded, isSignedIn, customer, getToken]);
 
   return (
     <main className="aether-shell py-8">
