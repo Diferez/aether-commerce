@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
@@ -21,6 +21,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
   const router = useRouter();
   const { customer } = useCustomerSession();
+  const previousSlugRef = useRef<string | null>(null);
   const fallback = useMemo(() => demoProducts.find((candidate) => candidate.slug === slug) ?? null, [slug]);
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">("loading");
@@ -29,6 +30,16 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const localized = product ? getLocalizedProduct(product, locale) : null;
+
+  useEffect(() => {
+    const previousSlug = previousSlugRef.current;
+    previousSlugRef.current = slug;
+
+    if (!previousSlug || previousSlug === slug) return;
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
