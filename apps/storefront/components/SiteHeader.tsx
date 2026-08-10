@@ -72,6 +72,7 @@ export function SiteHeader() {
     return () => window.removeEventListener("aether-favorites-changed", syncFavorites);
   }, [customerLoaded, customer]);
 
+  const accountPending = !customerLoaded;
   const accountHref = customer ? "/account" : "/login";
   const accountLabel = customer ? customer.name.split(" ")[0] : t.signIn;
 
@@ -151,13 +152,23 @@ export function SiteHeader() {
         </nav>
 
         <SettingsMenu locale={locale} setLocale={setLocale} />
-        <a
-          href={storefrontPath(accountHref)}
-          className="focus-ring hidden min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover lg:inline-flex"
-        >
-          <UserRound size={16} aria-hidden />
-          {accountLabel}
-        </a>
+        {accountPending ? (
+          <span
+            aria-hidden="true"
+            className="hidden min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold text-ink lg:inline-flex"
+          >
+            <UserRound size={16} aria-hidden />
+            <span className="h-4 w-14 rounded bg-surface-hover" />
+          </span>
+        ) : (
+          <a
+            href={storefrontPath(accountHref)}
+            className="focus-ring hidden min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover lg:inline-flex"
+          >
+            <UserRound size={16} aria-hidden />
+            {accountLabel}
+          </a>
+        )}
 
         <button
           type="button"
@@ -258,14 +269,24 @@ export function SiteHeader() {
               </a>
             </nav>
             <div className="grid gap-2 sm:grid-cols-2">
-              <a
-                href={storefrontPath(accountHref)}
-                onClick={() => setMenuOpen(false)}
-                className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-semibold text-white"
-              >
-                <UserRound size={17} aria-hidden />
-                {accountLabel}
-              </a>
+              {accountPending ? (
+                <span
+                  aria-hidden="true"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent/70 px-3 text-sm font-semibold text-white"
+                >
+                  <UserRound size={17} aria-hidden />
+                  <span className="h-4 w-16 rounded bg-white/25" />
+                </span>
+              ) : (
+                <a
+                  href={storefrontPath(accountHref)}
+                  onClick={() => setMenuOpen(false)}
+                  className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-semibold text-white"
+                >
+                  <UserRound size={17} aria-hidden />
+                  {accountLabel}
+                </a>
+              )}
               {portfolioUrl ? (
                 <a
                   href={portfolioUrl}

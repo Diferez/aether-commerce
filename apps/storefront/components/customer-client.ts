@@ -1,6 +1,7 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/react";
+import { useMemo } from "react";
 
 export type CustomerSession = {
   id: string;
@@ -12,22 +13,23 @@ export type CustomerSession = {
 export function useCustomerSession(): { customer: CustomerSession | null; isLoaded: boolean } {
   const { user, isLoaded } = useUser();
 
-  if (!isLoaded || !user) {
-    return { customer: null, isLoaded };
-  }
+  const userId = user?.id ?? "";
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  const name = user?.fullName?.trim() || email || "Account";
+  const createdAt = user?.createdAt?.toISOString() ?? "";
 
-  const email = user.primaryEmailAddress?.emailAddress ?? "";
-  const name = user.fullName?.trim() || email || "Account";
+  const customer = useMemo<CustomerSession | null>(() => {
+    if (!isLoaded || !userId) return null;
 
-  return {
-    customer: {
-      id: user.id,
+    return {
+      id: userId,
       name,
       email,
-      createdAt: (user.createdAt ?? new Date()).toISOString()
-    },
-    isLoaded: true
-  };
+      createdAt: createdAt || new Date().toISOString()
+    };
+  }, [createdAt, email, isLoaded, name, userId]);
+
+  return { customer, isLoaded };
 }
 
 export function useSignOutCustomer() {
