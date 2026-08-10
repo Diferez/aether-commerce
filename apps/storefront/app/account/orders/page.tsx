@@ -6,9 +6,10 @@ import { PackageCheck, ShoppingBag } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import { createAetherClient } from "@aether/api-client";
 import type { Order } from "@aether/schemas";
-import { apiBaseUrl, storefrontPath } from "../../../components/config";
+import { apiBaseUrl } from "../../../components/config";
 import { useCustomerSession } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
+import { StorefrontLink } from "../../../components/StorefrontLink";
 
 type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
 
@@ -77,13 +78,13 @@ export default function OrdersPage() {
                 : "Sign in to view your orders."}
           </p>
         </div>
-        <a
-          href={storefrontPath("/products")}
+        <StorefrontLink
+          href="/products"
           className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white"
         >
           <ShoppingBag size={17} aria-hidden />
           {t.browseProducts}
-        </a>
+        </StorefrontLink>
       </div>
 
       {status === "loading" ? (
@@ -96,12 +97,12 @@ export default function OrdersPage() {
       {status === "signed-out" ? (
         <section className="rounded-lg border border-zinc-200 bg-white p-6">
           <p className="text-zinc-600">{t.accountRequiredDescription}</p>
-          <a
-            href={storefrontPath("/login")}
+          <StorefrontLink
+            href="/login"
             className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white"
           >
             {t.signIn}
-          </a>
+          </StorefrontLink>
         </section>
       ) : null}
 

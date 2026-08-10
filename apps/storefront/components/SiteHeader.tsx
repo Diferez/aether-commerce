@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, Heart, Menu, Search, Settings2, ShoppingCart, Sparkles, UserRound, X } from "lucide-react";
 import { Badge } from "@aether/ui";
 import { portfolioUrl, storefrontPath } from "./config";
@@ -9,6 +10,7 @@ import { useCustomerSession } from "./customer-client";
 import { migrateGuestFavoritesToCustomer, readFavoriteProducts } from "./favorites-client";
 import { useLanguage } from "./LanguageProvider";
 import { migrateLegacyAetherStorage } from "./legacy-storage";
+import { StorefrontLink } from "./StorefrontLink";
 import { ThemeToggle } from "./ThemeToggle";
 
 function useQueryParam(name: string) {
@@ -24,6 +26,7 @@ function useQueryParam(name: string) {
 
 export function SiteHeader() {
   const { locale, setLocale, t } = useLanguage();
+  const router = useRouter();
   const { customer, isLoaded: customerLoaded } = useCustomerSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -80,7 +83,7 @@ export function SiteHeader() {
     event.preventDefault();
     const target = new URL(storefrontPath("/search"), window.location.origin);
     if (searchValue.trim()) target.searchParams.set("q", searchValue.trim());
-    window.location.assign(`${target.pathname}${target.search}`);
+    router.push(`${target.pathname}${target.search}`);
   }
 
   return (
@@ -94,7 +97,7 @@ export function SiteHeader() {
         </div>
       ) : null}
       <div className="aether-shell flex min-h-16 items-center justify-between gap-3">
-        <a className="flex shrink-0 items-center gap-3 font-semibold" href={storefrontPath("/")}>
+        <StorefrontLink className="flex shrink-0 items-center gap-3 font-semibold" href="/">
           <span className="grid h-9 w-9 place-items-center rounded-md bg-accent text-white">
             <Sparkles size={18} aria-hidden />
           </span>
@@ -102,7 +105,7 @@ export function SiteHeader() {
             <span className="block text-base leading-tight">{t.brand}</span>
             <span className="block text-xs font-normal text-ink-muted">{t.tagline}</span>
           </span>
-        </a>
+        </StorefrontLink>
 
         <form onSubmit={submitSearch} className="hidden min-w-0 flex-1 max-w-lg lg:flex">
           <label className="focus-within:ring-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-surface-hover px-3 text-sm">
@@ -118,14 +121,14 @@ export function SiteHeader() {
         </form>
 
         <nav className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Primary">
-          <a href={storefrontPath("/products")} className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
+          <StorefrontLink href="/products" className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
             {t.shop}
-          </a>
-          <a href={storefrontPath("/categories")} className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
+          </StorefrontLink>
+          <StorefrontLink href="/categories" className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
             {t.categories}
-          </a>
-          <a
-            href={storefrontPath("/account/favorites")}
+          </StorefrontLink>
+          <StorefrontLink
+            href="/account/favorites"
             className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
             aria-label={t.favorites}
           >
@@ -138,9 +141,9 @@ export function SiteHeader() {
             <Badge tone="accent" className={favoriteCount > 0 ? "" : "invisible"}>
               {favoriteCount}
             </Badge>
-          </a>
-          <a
-            href={storefrontPath("/cart")}
+          </StorefrontLink>
+          <StorefrontLink
+            href="/cart"
             className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
             aria-label={t.cart}
           >
@@ -148,7 +151,7 @@ export function SiteHeader() {
             <Badge tone="accent" className={cartCount > 0 ? "" : "invisible"}>
               {cartCount}
             </Badge>
-          </a>
+          </StorefrontLink>
         </nav>
 
         <SettingsMenu locale={locale} setLocale={setLocale} />
@@ -161,13 +164,13 @@ export function SiteHeader() {
             <span className="h-4 w-14 rounded bg-surface-hover" />
           </span>
         ) : (
-          <a
-            href={storefrontPath(accountHref)}
+          <StorefrontLink
+            href={accountHref}
             className="focus-ring hidden min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover lg:inline-flex"
           >
             <UserRound size={16} aria-hidden />
             {accountLabel}
-          </a>
+          </StorefrontLink>
         )}
 
         <button
@@ -179,8 +182,8 @@ export function SiteHeader() {
         >
           <Search size={19} aria-hidden />
         </button>
-        <a
-          href={storefrontPath("/cart")}
+        <StorefrontLink
+          href="/cart"
           className="focus-ring relative inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-ink hover:bg-surface-hover md:hidden"
           aria-label={t.cart}
         >
@@ -190,7 +193,7 @@ export function SiteHeader() {
               {cartCount}
             </span>
           ) : null}
-        </a>
+        </StorefrontLink>
         <button
           type="button"
           onClick={() => setMenuOpen((value) => !value)}
@@ -231,22 +234,22 @@ export function SiteHeader() {
               <ThemeToggle />
             </div>
             <nav className="grid gap-2" aria-label="Mobile primary">
-              <a
-                href={storefrontPath("/products")}
+              <StorefrontLink
+                href="/products"
                 onClick={() => setMenuOpen(false)}
                 className="focus-ring inline-flex min-h-11 items-center gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 {t.shop}
-              </a>
-              <a
-                href={storefrontPath("/categories")}
+              </StorefrontLink>
+              <StorefrontLink
+                href="/categories"
                 onClick={() => setMenuOpen(false)}
                 className="focus-ring inline-flex min-h-11 items-center gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 {t.categories}
-              </a>
-              <a
-                href={storefrontPath("/account/favorites")}
+              </StorefrontLink>
+              <StorefrontLink
+                href="/account/favorites"
                 onClick={() => setMenuOpen(false)}
                 className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
@@ -255,9 +258,9 @@ export function SiteHeader() {
                   {t.favorites}
                 </span>
                 {favoriteCount > 0 ? <Badge tone="accent">{favoriteCount}</Badge> : null}
-              </a>
-              <a
-                href={storefrontPath("/cart")}
+              </StorefrontLink>
+              <StorefrontLink
+                href="/cart"
                 onClick={() => setMenuOpen(false)}
                 className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
@@ -266,7 +269,7 @@ export function SiteHeader() {
                   {t.cart}
                 </span>
                 {cartCount > 0 ? <Badge tone="accent">{cartCount}</Badge> : null}
-              </a>
+              </StorefrontLink>
             </nav>
             <div className="grid gap-2 sm:grid-cols-2">
               {accountPending ? (
@@ -278,14 +281,14 @@ export function SiteHeader() {
                   <span className="h-4 w-16 rounded bg-white/25" />
                 </span>
               ) : (
-                <a
-                  href={storefrontPath(accountHref)}
+                <StorefrontLink
+                  href={accountHref}
                   onClick={() => setMenuOpen(false)}
                   className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-semibold text-white"
                 >
                   <UserRound size={17} aria-hidden />
                   {accountLabel}
-                </a>
+                </StorefrontLink>
               )}
               {portfolioUrl ? (
                 <a

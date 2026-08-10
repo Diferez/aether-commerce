@@ -5,8 +5,8 @@ import { ChevronRight, ShoppingCart, Trash2, X } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import type { Cart } from "@aether/schemas";
 import { readLocalCart, removeProductFromCart } from "./cart-client";
-import { storefrontPath } from "./config";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
 export function FloatingCart() {
   const { locale, t } = useLanguage();
@@ -99,13 +99,13 @@ export function FloatingCart() {
                 {formatUsd(cart.totals.total, locale === "es" ? "es-CO" : "en-US")}
               </strong>
             </div>
-            <a
-              href={storefrontPath("/cart")}
+            <StorefrontLink
+              href="/cart"
               className="focus-ring mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-chat bg-chat-accent px-4 text-sm font-semibold text-white"
             >
               {locale === "es" ? "Ver carrito" : "View cart"}
               <ChevronRight size={17} aria-hidden />
-            </a>
+            </StorefrontLink>
           </div>
         </div>
       ) : null}

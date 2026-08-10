@@ -5,9 +5,10 @@ import { Bot, Check, Loader2, RotateCcw, Send, ShoppingBag, X } from "lucide-rea
 import { formatUsd } from "@aether/core";
 import { addProductReferenceToCart, getCartId, getCartToken, readLocalCart, replaceLocalCartItems } from "./cart-client";
 import type { Cart, CartItem } from "@aether/schemas";
-import { aiAssistantUrl, storefrontPath } from "./config";
+import { aiAssistantUrl } from "./config";
 import { useCustomerSession } from "./customer-client";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
 type AssistantProduct = {
   product_id: string;
@@ -619,12 +620,12 @@ export function AssistantWidget() {
                             ) : null}
                           </div>
                           <div className="mt-1 flex gap-2">
-                            <a
-                              href={storefrontPath(product.product_url)}
+                            <StorefrontLink
+                              href={product.product_url}
                               className="focus-ring rounded-chat border border-chat-border px-3 py-1.5 text-[13px] font-medium text-chat-text transition-colors active:scale-[0.97]"
                             >
                               {copy.view}
-                            </a>
+                            </StorefrontLink>
                             <button
                               type="button"
                               onClick={() => void addAssistantProduct(product)}
@@ -679,9 +680,9 @@ export function AssistantWidget() {
                       </ul>
                     ) : null}
                     {message.action?.type === "OPEN_CART" || message.action?.type?.startsWith("CART_") ? (
-                      <a href={storefrontPath("/cart")} className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white">
+                      <StorefrontLink href="/cart" className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white">
                         {copy.openCart}
-                      </a>
+                      </StorefrontLink>
                     ) : null}
                   </div>
                 ) : null}

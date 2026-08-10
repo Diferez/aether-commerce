@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/react";
 import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
 import { formatUsd } from "@aether/core";
@@ -19,6 +20,7 @@ import {
 } from "../../components/cart-client";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
+import { StorefrontLink } from "../../components/StorefrontLink";
 
 type CheckoutPayload = {
   success: boolean;
@@ -28,6 +30,7 @@ type CheckoutPayload = {
 
 export default function CartPage() {
   const { locale, t } = useLanguage();
+  const router = useRouter();
   const { customer } = useCustomerSession();
   const { getToken } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
@@ -140,7 +143,7 @@ export default function CartPage() {
 
   async function checkout() {
     if (!customer) {
-      window.location.href = storefrontPath("/register?next=/cart&checkout=1");
+      router.push(storefrontPath("/register?next=/cart&checkout=1"));
       return;
     }
 
@@ -218,9 +221,9 @@ export default function CartPage() {
             <div className="grid place-items-center gap-3 p-10 text-center">
               <ShoppingBag size={32} className="text-zinc-400" aria-hidden />
               <p className="text-zinc-600">{t.emptyCart}</p>
-              <a href={storefrontPath("/products")} className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
+              <StorefrontLink href="/products" className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
                 {t.browseProducts}
-              </a>
+              </StorefrontLink>
             </div>
           ) : (
             items.map((item) => {
@@ -232,13 +235,13 @@ export default function CartPage() {
 
               return (
                 <div key={`${item.productId}-${item.variantId}`} className="flex gap-4 border-b border-zinc-200 p-4 last:border-b-0">
-                  <a href={storefrontPath(`/products/detail?slug=${encodeURIComponent(item.slug)}`)} className="shrink-0">
+                  <StorefrontLink href={`/products/detail?slug=${encodeURIComponent(item.slug)}`} className="shrink-0">
                     <img src={item.imageUrl} alt={item.name} className="h-20 w-20 rounded-md border border-zinc-200 bg-zinc-50 object-contain p-1" />
-                  </a>
+                  </StorefrontLink>
                   <div className="min-w-0 flex-1">
-                    <a href={storefrontPath(`/products/detail?slug=${encodeURIComponent(item.slug)}`)} className="font-semibold text-zinc-950 hover:text-accent">
+                    <StorefrontLink href={`/products/detail?slug=${encodeURIComponent(item.slug)}`} className="font-semibold text-zinc-950 hover:text-accent">
                       {item.name}
-                    </a>
+                    </StorefrontLink>
                     <p className="mt-1 text-sm text-zinc-500">
                       {formatUsd(item.finalUnitPrice, locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
                     </p>

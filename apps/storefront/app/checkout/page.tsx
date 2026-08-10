@@ -1,6 +1,6 @@
 import { CreditCard, ShieldCheck, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { storefrontPath } from "../../components/config";
+import { StorefrontLink } from "../../components/StorefrontLink";
 
 const checkoutHighlights: Array<[string, string, LucideIcon]> = [
   ["Backend totals", "The Worker recalculates prices, coupons, shipping and inventory.", ShieldCheck],
@@ -22,9 +22,9 @@ export default function CheckoutPage() {
           </section>
         ))}
       </div>
-      <a href={storefrontPath("/cart")} className="focus-ring mt-6 inline-flex min-h-11 items-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white">
+      <StorefrontLink href="/cart" className="focus-ring mt-6 inline-flex min-h-11 items-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white">
         Continue from cart
-      </a>
+      </StorefrontLink>
     </main>
   );
 }

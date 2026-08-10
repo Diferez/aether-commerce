@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
@@ -13,6 +14,7 @@ import { readFavoriteProducts, toggleFavoriteProduct } from "../../../components
 import { useLanguage } from "../../../components/LanguageProvider";
 import { ProductGrid } from "../../../components/ProductGrid";
 import { getLocalizedProduct } from "../../../components/product-localization";
+import { StorefrontLink } from "../../../components/StorefrontLink";
 
 function useSlug() {
   const [slug, setSlug] = useState("");
@@ -35,6 +37,7 @@ function useSlug() {
 
 export default function ProductDetailByQueryPage() {
   const { locale, t } = useLanguage();
+  const router = useRouter();
   const { customer } = useCustomerSession();
   const slug = useSlug();
   const fallback = useMemo(() => demoProducts.find((candidate) => candidate.slug === slug) ?? null, [slug]);
@@ -85,7 +88,7 @@ export default function ProductDetailByQueryPage() {
       for (let i = 0; i < quantity; i += 1) {
         await addProductToCart(product);
       }
-      window.location.assign(storefrontPath("/cart"));
+      router.push(storefrontPath("/cart"));
     } finally {
       setIsAdding(false);
     }
@@ -107,9 +110,9 @@ export default function ProductDetailByQueryPage() {
           <p className="text-sm font-semibold uppercase text-accent">{t.productNotFoundTitle}</p>
           <h1 className="mt-2 text-4xl font-semibold text-zinc-950">{t.productNotFoundTitle}</h1>
           <p className="mt-4 text-zinc-600">{t.productNotFoundDescription}</p>
-          <a href={storefrontPath("/products")} className="focus-ring mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
+          <StorefrontLink href="/products" className="focus-ring mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
             {t.browseProducts}
-          </a>
+          </StorefrontLink>
         </section>
       ) : status === "loading" || !product || !localized ? (
         <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]" aria-label={locale === "es" ? "Cargando producto" : "Loading product"}>

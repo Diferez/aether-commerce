@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { SignUp, useAuth } from "@clerk/react";
 import { UserPlus } from "lucide-react";
 import { storefrontPath } from "../../components/config";
@@ -28,6 +29,7 @@ const clerkAppearance = {
 
 export default function RegisterPage() {
   const { t } = useLanguage();
+  const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
 
   function nextPath() {
@@ -38,9 +40,9 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (isSignedIn) {
-      window.location.href = storefrontPath(nextPath());
+      router.push(storefrontPath(nextPath()));
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, router]);
 
   return (
     <main className="aether-shell py-8">

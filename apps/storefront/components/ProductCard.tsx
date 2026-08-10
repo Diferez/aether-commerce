@@ -4,11 +4,11 @@ import { Bell, Check, Flame, Heart, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
 import { Skeleton } from "@aether/ui";
-import { storefrontPath } from "./config";
 import { useLanguage } from "./LanguageProvider";
 import { getLocalizedProduct } from "./product-localization";
 import { ProductBadge } from "./ProductBadge";
 import { getImageBadge, getLowStockLabel, isLowStock } from "./product-badge-logic";
+import { StorefrontLink } from "./StorefrontLink";
 
 export function ProductCard({
   product,
@@ -29,7 +29,7 @@ export function ProductCard({
 }) {
   const { locale, t } = useLanguage();
   const localized = getLocalizedProduct(product, locale);
-  const detailHref = storefrontPath(`/products/detail?slug=${encodeURIComponent(product.slug)}`);
+  const detailHref = `/products/detail?slug=${encodeURIComponent(product.slug)}`;
   const outOfStock = product.availableStock <= 0;
   const priceLocale = locale === "es" ? "es-CO" : "en-US";
   const imageBadge = getImageBadge(product);
@@ -41,7 +41,7 @@ export function ProductCard({
         isAdded ? "border-accent ring-2 ring-accent-soft" : "border-zinc-200 hover:border-border-strong"
       }`}
     >
-      <a href={detailHref} className="relative block aspect-square shrink-0 overflow-hidden bg-zinc-50">
+      <StorefrontLink href={detailHref} className="relative block aspect-square shrink-0 overflow-hidden bg-zinc-50">
         <img
           src={product.thumbnail}
           alt={product.images[0]?.alt || product.name}
@@ -68,7 +68,7 @@ export function ProductCard({
             {t.availability.out_of_stock}
           </ProductBadge>
         ) : null}
-      </a>
+      </StorefrontLink>
       <div className="flex flex-1 flex-col gap-2 p-4">
         {/* Redundant with the "out of stock" chip over the image so screen
             reader users get the status even if they don't reach the image's
@@ -81,14 +81,14 @@ export function ProductCard({
         >
           {product.brand && product.brand !== "Aether" ? product.brand : localized.category}
         </p>
-        <a
+        <StorefrontLink
           href={detailHref}
           className={`line-clamp-2 min-h-[2.5em] text-sm font-semibold leading-tight ${
             outOfStock ? "text-ink-muted" : "text-zinc-950 hover:text-accent"
           }`}
         >
           {product.name}
-        </a>
+        </StorefrontLink>
         <div className={`flex items-center gap-1 text-xs ${outOfStock ? "text-ink-subtle" : "text-zinc-600"}`}>
           <Star
             size={13}

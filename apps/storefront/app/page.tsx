@@ -6,8 +6,8 @@ import { CategoryGrid } from "../components/CategoryGrid";
 import { ContactForm } from "../components/ContactForm";
 import { Hero } from "../components/Hero";
 import { ProductGrid } from "../components/ProductGrid";
-import { storefrontPath } from "../components/config";
 import { useLanguage } from "../components/LanguageProvider";
+import { StorefrontLink } from "../components/StorefrontLink";
 
 export default function HomePage() {
   const { t } = useLanguage();
@@ -51,13 +51,13 @@ export default function HomePage() {
         <div className="aether-shell rounded-lg border border-zinc-200 bg-white p-8 text-center sm:p-12">
           <h2 className="text-2xl font-semibold text-zinc-950 sm:text-3xl">{t.finalCtaTitle}</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-600">{t.finalCtaDescription}</p>
-          <a
-            href={storefrontPath("/products")}
+          <StorefrontLink
+            href="/products"
             className="focus-ring mt-6 inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-6 text-sm font-semibold text-white hover:bg-accent-hover"
           >
             {t.finalCtaButton}
             <ArrowRight size={16} aria-hidden />
-          </a>
+          </StorefrontLink>
         </div>
       </section>
 

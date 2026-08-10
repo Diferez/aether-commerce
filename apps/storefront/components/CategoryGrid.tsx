@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Glasses, Headphones, Laptop, Lamp, Smartphone, Sofa, Sparkles, Tablet, Timer, Watch } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { apiBaseUrl, storefrontPath } from "./config";
+import { apiBaseUrl } from "./config";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
 const categoryIcons: Record<string, LucideIcon> = {
   smartphones: Smartphone,
@@ -44,9 +45,9 @@ export function CategoryGrid({ limit }: { limit?: number }) {
         const Icon = categoryIcons[slug] ?? Sparkles;
         const count = counts[slug] ?? 0;
         return (
-          <a
+          <StorefrontLink
             key={slug}
-            href={storefrontPath(`/categories/${slug}`)}
+            href={`/categories/${slug}`}
             className="group rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-accent hover:shadow-md"
           >
             <span className="grid h-11 w-11 place-items-center rounded-md bg-accent-soft text-accent">
@@ -60,7 +61,7 @@ export function CategoryGrid({ limit }: { limit?: number }) {
             <div className="mt-3 min-h-[1rem]">
               {count > 0 ? <p className="text-xs font-medium text-zinc-500">{t.productsCount.replace("{count}", String(count))}</p> : null}
             </div>
-          </a>
+          </StorefrontLink>
         );
       })}
     </div>

@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { Badge, Button, Input, Select, Sheet } from "@aether/ui";
-import { apiBaseUrl, storefrontPath } from "./config";
+import { apiBaseUrl } from "./config";
 import { addProductToCart } from "./cart-client";
 import { useCustomerSession } from "./customer-client";
 import { demoProducts } from "./demo-products";
 import { readFavoriteProducts, toggleFavoriteProduct } from "./favorites-client";
 import { useLanguage } from "./LanguageProvider";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
+import { StorefrontLink } from "./StorefrontLink";
 
 type ApiPagination = {
   page: number;
@@ -491,9 +492,9 @@ export function ProductGrid({
               <p className="truncate text-sm font-semibold text-zinc-950">{locale === "es" ? "Agregado al carrito" : "Added to cart"}</p>
               <p className="truncate text-sm text-zinc-600">{addedProduct.name}</p>
             </div>
-            <a href={storefrontPath("/cart")} className="focus-ring shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">
+            <StorefrontLink href="/cart" className="focus-ring shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">
               {t.cart}
-            </a>
+            </StorefrontLink>
           </div>
         </div>
       ) : null}
