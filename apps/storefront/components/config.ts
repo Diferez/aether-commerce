@@ -1,4 +1,5 @@
 const productionApiBaseUrl = "https://aether-api.pickofwow.workers.dev";
+const productionAiAssistantUrl = "https://aether-ai.pickofwow.workers.dev";
 const productionPortfolioUrl = "https://portafolio-aether-commerce.pickofwow.workers.dev";
 
 function resolveApiBaseUrl() {
@@ -12,9 +13,20 @@ function resolveApiBaseUrl() {
   return "http://localhost:8787";
 }
 
+function resolveAiAssistantUrl() {
+  const configured = process.env.NEXT_PUBLIC_AETHER_AI_URL?.trim();
+  if (configured) return configured;
+
+  if (typeof window !== "undefined" && window.location.hostname.endsWith("pickofwow.workers.dev")) {
+    return productionAiAssistantUrl;
+  }
+
+  return "";
+}
+
 export const apiBaseUrl = resolveApiBaseUrl();
 
-export const aiAssistantUrl = process.env.NEXT_PUBLIC_AETHER_AI_URL?.trim() || "";
+export const aiAssistantUrl = resolveAiAssistantUrl();
 
 export const storefrontBasePath = (process.env.NEXT_PUBLIC_AETHER_BASE_PATH || "").replace(/\/$/, "");
 
