@@ -136,6 +136,8 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
   const cartPage = read("apps/storefront/app/cart/page.tsx");
   const clerkService = read("apps/api/src/services/clerk.ts");
+  const publicRoutes = read("apps/api/src/routes/public.ts");
+  const clerkProvider = read("apps/storefront/components/ClerkAuthProvider.tsx");
   const cors = read("apps/api/src/middleware/cors.ts");
 
   assert.match(secureCompare, /timingSafeEqual/);
@@ -150,6 +152,11 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(accountRoutes, /email = \? collate nocase/);
   assert.match(clerkService, /https:\/\/api\.clerk\.com\/v1\/users/);
   assert.match(clerkService, /CLERK_SECRET_KEY/);
+  assert.match(publicRoutes, /runtime-config/);
+  assert.match(publicRoutes, /clerkPublishableKey/);
+  assert.match(publicRoutes, /CLERK_JWT_ISSUER/);
+  assert.match(clerkProvider, /runtime-config/);
+  assert.match(clerkProvider, /clerk\.example\.com/);
   assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
   assert.doesNotMatch(accountRoutes, /lower\(email\)/);
   assert.doesNotMatch(cors, /x-aether-customer-email/);

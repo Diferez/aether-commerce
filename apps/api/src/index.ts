@@ -13,7 +13,7 @@ import { cartRoutes } from "./routes/cart";
 import { catalogRoutes } from "./routes/catalog";
 import { checkoutRoutes } from "./routes/checkout";
 import { contactRoutes } from "./routes/contact";
-import { publicRoutes } from "./routes/public";
+import { clerkPublishableKey, publicRoutes } from "./routes/public";
 import { userRoutes } from "./routes/user";
 import { webhookRoutes } from "./routes/webhooks";
 import { getStripeSecretKeyStatus } from "./services/stripe";
@@ -30,6 +30,13 @@ app.use("*", rateLimit());
 app.get("/", (c) => ok(c, { name: "Aether API", version: "v1", basePath: "/api/v1" }));
 
 const api = new Hono<AppBindings>().basePath("/api/v1");
+api.get("/runtime-config", (c) => {
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300");
+  return ok(c, {
+    clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY)
+  });
+});
+
 api.get("/health", async (c) => {
   let d1 = "unknown";
   try {
