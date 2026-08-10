@@ -6,6 +6,7 @@ import { addressSchema, cartItemInputSchema, contactMessageSchema } from "@aethe
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from "../services/cart";
+import { resolveActorEmail } from "../services/clerk";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -208,11 +209,21 @@ userRoutes.delete("/addresses/:id", async (c) => {
 });
 
 userRoutes.get("/orders", async (c) => {
-  const userId = requireUserId(c);
+  const actor = c.get("actor");
+  const userId = actor.userId;
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your orders.");
-  const rows = await c.env.DB.prepare("select payload_json from orders where user_id = ? order by created_at desc")
-    .bind(userId)
-    .all<{ payload_json: string }>();
+  const email = await resolveActorEmail(c.env, actor);
+  const rows = email
+    ? await c.env.DB.prepare(
+        `select payload_json from orders
+         where user_id = ? or email = ? collate nocase
+         order by created_at desc`
+      )
+        .bind(userId, email)
+        .all<{ payload_json: string }>()
+    : await c.env.DB.prepare("select payload_json from orders where user_id = ? order by created_at desc")
+        .bind(userId)
+        .all<{ payload_json: string }>();
   return collection(c, rows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>), {
     page: 1,
     pageSize: rows.results.length,
@@ -222,11 +233,17 @@ userRoutes.get("/orders", async (c) => {
 });
 
 userRoutes.get("/orders/:id", async (c) => {
-  const userId = requireUserId(c);
+  const actor = c.get("actor");
+  const userId = actor.userId;
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view this order.");
-  const row = await c.env.DB.prepare("select payload_json from orders where id = ? and user_id = ?")
-    .bind(c.req.param("id"), userId)
-    .first<{ payload_json: string }>();
+  const email = await resolveActorEmail(c.env, actor);
+  const row = email
+    ? await c.env.DB.prepare("select payload_json from orders where id = ? and (user_id = ? or email = ? collate nocase)")
+        .bind(c.req.param("id"), userId, email)
+        .first<{ payload_json: string }>()
+    : await c.env.DB.prepare("select payload_json from orders where id = ? and user_id = ?")
+        .bind(c.req.param("id"), userId)
+        .first<{ payload_json: string }>();
   return row ? ok(c, JSON.parse(row.payload_json)) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 });
 

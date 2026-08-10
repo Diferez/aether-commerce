@@ -15,7 +15,7 @@ accountRoutes.get("/orders", async (c) => {
   const rows = email
     ? await c.env.DB.prepare(
         `select payload_json from orders
-         where user_id = ? or (user_id is null and email = ? collate nocase)
+         where user_id = ? or email = ? collate nocase
          order by created_at desc`
       )
         .bind(actor.userId, email)
