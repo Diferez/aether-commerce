@@ -133,11 +133,23 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   const secureCompare = read("apps/api/src/services/secure-compare.ts");
   const stripeService = read("apps/api/src/services/stripe.ts");
   const accountRoutes = read("apps/api/src/routes/account.ts");
+  const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
+  const cartPage = read("apps/storefront/app/cart/page.tsx");
+  const clerkService = read("apps/api/src/services/clerk.ts");
   const cors = read("apps/api/src/middleware/cors.ts");
 
   assert.match(secureCompare, /timingSafeEqual/);
   assert.match(stripeService, /STRIPE_SIGNATURE_TOLERANCE_SECONDS/);
   assert.match(stripeService, /timingSafeEqualText/);
+  assert.match(stripeService, /metadata\[userId\]/);
+  assert.match(stripeService, /customer_email/);
+  assert.match(checkoutRoutes, /AUTH_REQUIRED/);
+  assert.match(checkoutRoutes, /writeCart\(c\.env, \{ \.\.\.cart, userId: actor\.userId \}\)/);
+  assert.match(cartPage, /authorization: `Bearer \$\{token\}`/);
+  assert.match(accountRoutes, /resolveActorEmail/);
+  assert.match(accountRoutes, /email = \? collate nocase/);
+  assert.match(clerkService, /https:\/\/api\.clerk\.com\/v1\/users/);
+  assert.match(clerkService, /CLERK_SECRET_KEY/);
   assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
   assert.doesNotMatch(accountRoutes, /lower\(email\)/);
   assert.doesNotMatch(cors, /x-aether-customer-email/);

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
-import { readCart } from "../services/cart";
+import { readCart, writeCart } from "../services/cart";
+import { resolveActorEmail } from "../services/clerk";
 import { createCheckoutSession, retrieveCheckoutSession } from "../services/stripe";
 import { createOrderFromStripeSession } from "../services/orders";
 
@@ -13,13 +14,20 @@ checkoutRoutes.post(
   "/session",
   zValidator("json", z.object({ cartId: z.string().min(1) })),
   async (c) => {
+    const actor = c.get("actor");
+    if (!actor.userId) {
+      return fail(c, 401, "AUTH_REQUIRED", "Sign in before starting checkout.");
+    }
+
     const cart = await readCart(c.env, c.req.valid("json").cartId);
     if (cart.items.length === 0) {
       return fail(c, 422, "EMPTY_CART", "Add at least one item before checkout.");
     }
 
     try {
-      return ok(c, await createCheckoutSession(c.env, cart), 201);
+      const checkoutCart = await writeCart(c.env, { ...cart, userId: actor.userId });
+      const customerEmail = await resolveActorEmail(c.env, actor);
+      return ok(c, await createCheckoutSession(c.env, checkoutCart, customerEmail), 201);
     } catch {
       return fail(
         c,

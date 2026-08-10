@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import type { Cart, Product } from "@aether/schemas";
@@ -28,6 +29,7 @@ type CheckoutPayload = {
 export default function CartPage() {
   const { locale, t } = useLanguage();
   const { customer } = useCustomerSession();
+  const { getToken } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [status, setStatus] = useState<string>(t.loadingCart);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,9 +126,13 @@ export default function CartPage() {
 
   async function createCheckoutSession() {
     const id = getCartId();
+    const token = await getToken();
     const response = await fetch(`${apiBaseUrl}/api/v1/checkout/session`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({ cartId: id })
     });
     return (await response.json()) as CheckoutPayload;

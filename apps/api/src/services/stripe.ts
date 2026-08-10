@@ -71,7 +71,7 @@ function storefrontUrl(origin: string, basePath: string | undefined, path: strin
   return `${normalizedOrigin}${normalizedBasePath === "/" ? "" : normalizedBasePath}${normalizedPath}`;
 }
 
-export async function createCheckoutSession(env: Env, cart: Cart) {
+export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string) {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
     checkoutUrl: storefrontUrl(
@@ -99,6 +99,9 @@ export async function createCheckoutSession(env: Env, cart: Cart) {
   params.set("metadata[cartId]", cart.id);
   if (cart.userId) {
     params.set("metadata[userId]", cart.userId);
+  }
+  if (customerEmail) {
+    params.set("customer_email", customerEmail);
   }
 
   cart.items.forEach((item, index) => {
