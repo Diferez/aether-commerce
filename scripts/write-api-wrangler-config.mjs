@@ -25,6 +25,11 @@ const config = {
       simple: { limit: Number(process.env.AETHER_RATE_LIMIT_GLOBAL_PER_MINUTE || 240), period: 60 },
     },
     {
+      name: "RATE_LIMITER_ACCOUNT",
+      namespace_id: process.env.AETHER_RATE_LIMIT_ACCOUNT_NAMESPACE_ID || (deployEnvironment === "production" ? "4104" : "5104"),
+      simple: { limit: Number(process.env.AETHER_RATE_LIMIT_ACCOUNT_PER_MINUTE || 600), period: 60 },
+    },
+    {
       name: "RATE_LIMITER_MUTATION",
       namespace_id: process.env.AETHER_RATE_LIMIT_MUTATION_NAMESPACE_ID || (deployEnvironment === "production" ? "4102" : "5102"),
       simple: { limit: Number(process.env.AETHER_RATE_LIMIT_MUTATION_PER_MINUTE || 60), period: 60 },

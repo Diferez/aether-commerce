@@ -24,8 +24,8 @@ app.use("*", errorBoundary());
 app.use("*", requestId());
 app.use("*", secureHeaders());
 app.use("*", aetherCors());
-app.use("*", rateLimit());
 app.use("*", auth());
+app.use("*", rateLimit());
 
 app.get("/", (c) => ok(c, { name: "Aether API", version: "v1", basePath: "/api/v1" }));
 

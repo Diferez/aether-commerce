@@ -3,6 +3,7 @@ import type { Actor } from "@aether/schemas";
 export type Env = {
   DB: D1Database;
   RATE_LIMITER_GLOBAL?: RateLimit;
+  RATE_LIMITER_ACCOUNT?: RateLimit;
   RATE_LIMITER_MUTATION?: RateLimit;
   RATE_LIMITER_SENSITIVE?: RateLimit;
   APP_ORIGIN_STORE?: string;

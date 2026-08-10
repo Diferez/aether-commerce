@@ -145,11 +145,12 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
 
 test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   const middleware = read("apps/api/src/middleware/rate-limit.ts");
+  const index = read("apps/api/src/index.ts");
   const types = read("apps/api/src/types.ts");
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
 
-  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
+  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_ACCOUNT", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
     assert.match(types, new RegExp(`${binding}\\?: RateLimit`));
     assert.match(wrangler, new RegExp(`"name": "${binding}"`));
     assert.match(deployConfig, new RegExp(`name: "${binding}"`));
@@ -160,8 +161,11 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.match(middleware, /normalizedRouteKey/);
   assert.match(middleware, /Retry-After/);
   assert.match(middleware, /localLimit/);
+  assert.match(middleware, /profile === "account" && !actor\.userId/);
+  assert.match(middleware, /user:\$\{await digest\(actor\.userId\)\}/);
   assert.match(middleware, /digest\(authorization\)/);
   assert.match(middleware, /digest\(cartToken\)/);
+  assert.ok(index.indexOf("app.use(\"*\", auth())") < index.indexOf("app.use(\"*\", rateLimit())"));
 });
 
 test("storefront assistant CTA keeps readable active and hover colors", () => {
