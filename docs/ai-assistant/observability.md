@@ -47,18 +47,16 @@ The service emits daily-budget gauges whenever `AI_DAILY_REQUEST_BUDGET` is conf
 
 ## Structured Logs
 
-The assistant emits JSON logs from the FastAPI middleware and from key LangGraph nodes. Graph node logs use the message `assistant_graph_node` and include operational fields only:
+Cloudflare observability captures Worker request logs. Application persistence records operational fields in D1 without storing authentication secrets:
 
 - `request_id`
 - `thread_id`
 - `session_hash`
 - `intent`
 - `confidence`
-- `node`
 - `tool_name`
 - `status`
 - `error_code`
-- `llm_call_count`
-- `tool_call_count`
+- daily LLM and tool call counters
 
 They do not include full user messages, prompts, tool arguments, authentication tokens or payment data by default.

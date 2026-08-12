@@ -103,7 +103,16 @@ test("public API includes the requested route groups", () => {
 
 test("order state machine includes required commerce states", () => {
   const schema = read("packages/schemas/src/order.ts");
-  for (const state of ["pending_payment", "payment_processing", "paid", "processing", "shipped", "refund_requested", "returned", "closed"]) {
+  for (const state of [
+    "pending_payment",
+    "payment_processing",
+    "paid",
+    "processing",
+    "shipped",
+    "refund_requested",
+    "returned",
+    "closed"
+  ]) {
     assert.match(schema, new RegExp(`"${state}"`));
   }
 });
@@ -190,21 +199,34 @@ test("readiness and order status updates fail safely", () => {
   assert.match(admin, /ORDER_STATE_CONFLICT/);
 });
 
-test("CI uses deterministic guest auth and Python dependencies are hash locked", () => {
+test("CI uses deterministic guest auth and the assistant is a LangGraph Worker", () => {
   const packageJson = read("package.json");
   const workflow = read(".github/workflows/ci.yml");
-  const requirements = read("apps/ai-assistant/requirements-docker.txt");
-  const requirementsInput = read("apps/ai-assistant/requirements.in");
-  const dockerfile = read("apps/ai-assistant/Dockerfile");
+  const evaluationWorkflow = read(".github/workflows/ai-gemini-evaluation.yml");
+  const assistantPackage = read("apps/ai-assistant/package.json");
+  const worker = read("apps/ai-assistant/worker.ts");
+  const widget = read("apps/storefront/components/AssistantWidget.tsx");
 
   assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
-  assert.doesNotMatch(packageJson, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
+  assert.doesNotMatch(
+    packageJson,
+    /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/
+  );
   assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
-  assert.match(requirements, /--hash=sha256:/);
-  assert.match(requirements, /uvloop==0\.22\.1/);
-  assert.match(requirementsInput, /uvloop==0\.22\.1/);
-  assert.doesNotMatch(requirements, />=/);
-  assert.match(dockerfile, /--require-hashes/);
+  assert.doesNotMatch(evaluationWorkflow, /GEMINI_API_KEY/);
+  assert.match(evaluationWorkflow, /AETHER_AI_EVAL_URL/);
+  assert.match(assistantPackage, /@langchain\/langgraph/);
+  assert.match(worker, /new StateGraph/);
+  assert.match(worker, /GET_MY_ORDERS/);
+  assert.match(worker, /new URL\("\/api\/v1\/orders"/);
+  assert.match(worker, /validBearerAuthorization/);
+  assert.match(worker, /content-type,authorization,x-aether-cart-id/);
+  assert.match(worker, /numberEnv\(env\.AI_RATE_LIMIT_ANONYMOUS_PER_DAY\)/);
+  assert.doesNotMatch(worker, /AI_RATE_LIMIT_AUTHENTICATED_PER_DAY/);
+  assert.match(widget, /useAetherAuth/);
+  assert.match(widget, /const sessionToken = await getToken\(\)/);
+  assert.match(widget, /headers\.authorization = `Bearer \$\{sessionToken\}`/);
+  assert.match(widget, /message\.orders\?\.length/);
 });
 
 test("API rate limiting uses Cloudflare bindings with local fallback", () => {
@@ -214,7 +236,12 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
 
-  for (const binding of ["RATE_LIMITER_GLOBAL", "RATE_LIMITER_ACCOUNT", "RATE_LIMITER_MUTATION", "RATE_LIMITER_SENSITIVE"]) {
+  for (const binding of [
+    "RATE_LIMITER_GLOBAL",
+    "RATE_LIMITER_ACCOUNT",
+    "RATE_LIMITER_MUTATION",
+    "RATE_LIMITER_SENSITIVE"
+  ]) {
     assert.match(types, new RegExp(`${binding}\\?: RateLimit`));
     assert.match(wrangler, new RegExp(`"name": "${binding}"`));
     assert.match(deployConfig, new RegExp(`name: "${binding}"`));
@@ -229,7 +256,7 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.match(middleware, /user:\$\{await digest\(actor\.userId\)\}/);
   assert.match(middleware, /digest\(authorization\)/);
   assert.match(middleware, /digest\(cartToken\)/);
-  assert.ok(index.indexOf("app.use(\"*\", auth())") < index.indexOf("app.use(\"*\", rateLimit())"));
+  assert.ok(index.indexOf('app.use("*", auth())') < index.indexOf('app.use("*", rateLimit())'));
 });
 
 test("storefront assistant CTA keeps readable active and hover colors", () => {

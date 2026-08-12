@@ -15,16 +15,15 @@
 - `AI_STORE_CONVERSATIONS=false` disables persisted conversations and message payloads. Mutable cart attempts are still audited without storing user message content.
 - Input length is enforced from `AI_MAX_INPUT_CHARACTERS` before the graph executes.
 - Checkout and payment collection are outside the assistant. Payment requests are redirected to Aether checkout.
-- Rate limiting runs across project, IP, session, conversation and principal scopes. The Docker/FastAPI deployment should configure Redis so limits work across service replicas. The Cloudflare Worker deployment uses D1 hashed buckets for the same short-window controls on the free-tier path.
-- Conversations and audit records can use PostgreSQL in production through `DATABASE_URL`.
-- Cart reads and mutations from the assistant require a signed cart token. The storefront obtains it from the Worker API and the assistant validates it with the shared `AETHER_CART_TOKEN_SECRET`. Missing or mismatched cart tokens produce a clarification response instead of returning a potentially misleading empty cart.
+- Rate limiting runs across project, IP, session, conversation and presented bearer scopes using hashed D1 buckets; raw tokens and addresses are not persisted.
+- Conversations, usage and audit records are stored in the assistant's D1 binding.
+- Cart reads and mutations from the assistant require a signed cart token. The storefront obtains it from the Aether API, and the assistant forwards it only to that API through a service binding; the API performs signature and ownership validation. Missing or mismatched cart tokens produce a clarification response instead of returning a potentially misleading empty cart.
 - Denied cart mutations are audited even when no tool is executed. Missing/invalid cart tokens, low mutation confidence and missing clear-cart confirmation produce blocked audit events.
-- Authenticated identity is resolved through Aether `/api/v1/me`. The Worker validates Clerk/JWKS, then the assistant stores only a stable hash of the validated `userId`.
-- If `/api/v1/me` does not return a validated user, the request is treated as anonymous and isolated by session/cart headers.
-- Public conversation read/delete endpoints authorize access before returning messages. User-owned conversations require the validated user hash; anonymous conversations require the matching session hash.
+- Own-order tools forward the browser's Clerk bearer to Aether `/api/v1/orders`; the API validates Clerk/JWKS and scopes queries to the verified shopper.
+- Public conversation read/delete endpoints require the same hashed session/cart identifier that created the conversation.
 - Conversation payloads may include a compact `context_summary` with recent product IDs, URLs and display fields. This summary is used only to resolve follow-up references and does not include secrets, payment data, authentication tokens or full user message text when `AI_LOG_MESSAGE_CONTENT=false`.
-- Stored user conversations can be deleted by hashed user ID through an internal endpoint protected by `AI_OPERATIONS_TOKEN`.
+- The storefront can delete the active stored conversation through the public owner-scoped endpoint. Expired messages are purged by the Worker's retention routine.
 - Security tests assert that the prompt keeps the core injection controls and that adversarial requests like leaking the Gemini key, revealing internal tools, using fake prices, accessing another cart or adding nonexistent products are rejected as unsupported.
-- CI runs `python scripts/security_scan.py` inside the assistant app. The scan fails on secret-like values such as Stripe keys, Google API keys, Clerk secrets, GitHub tokens and JWTs while allowing empty placeholders in `.env.example`.
+- CI runs the repository secret scan plus strict TypeScript lint, types, tests and a Wrangler dry-run build.
 
 The standard storefront cart display also sends the signed cart token for `GET /api/v1/cart/:id`, so public cart reads and assistant cart reads share the same ownership check.

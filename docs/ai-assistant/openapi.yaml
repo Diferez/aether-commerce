@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Aether AI Assistant API
-  version: 0.1.0
-  description: FastAPI service for grounded Aether sales assistance, product discovery and controlled cart actions.
+  version: 0.2.0
+  description: LangGraph.js Cloudflare Worker for grounded Aether sales assistance, product discovery, own-order reads and controlled cart actions.
 servers:
   - url: http://localhost:8090
     description: Local development
@@ -33,6 +33,7 @@ paths:
     post:
       summary: Send a non-streaming assistant message
       parameters:
+        - $ref: "#/components/parameters/Authorization"
         - $ref: "#/components/parameters/AetherCartId"
         - $ref: "#/components/parameters/AetherCartToken"
         - $ref: "#/components/parameters/AetherSessionId"
@@ -63,15 +64,13 @@ paths:
       summary: Send a streaming assistant message
       description: Emits Server-Sent Events. Event names are documented in `x-aether-sse-events`.
       x-aether-sse-events:
-        - assistant.started
         - assistant.status
-        - assistant.token
         - assistant.products
         - assistant.cart_updated
-        - assistant.clarification
         - assistant.completed
         - assistant.error
       parameters:
+        - $ref: "#/components/parameters/Authorization"
         - $ref: "#/components/parameters/AetherCartId"
         - $ref: "#/components/parameters/AetherCartToken"
         - $ref: "#/components/parameters/AetherSessionId"
@@ -136,37 +135,15 @@ paths:
           description: Invalid operations token.
         "404":
           description: Operations endpoint disabled.
-  /v1/internal/conversations/user/{user_hash}:
-    delete:
-      summary: Delete all conversations for a hashed user
-      parameters:
-        - $ref: "#/components/parameters/OperationsToken"
-        - name: user_hash
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: User conversations deleted.
-        "403":
-          description: Invalid operations token.
-        "404":
-          description: Operations endpoint disabled.
-  /v1/internal/conversations/purge-expired:
-    post:
-      summary: Purge expired conversations
-      parameters:
-        - $ref: "#/components/parameters/OperationsToken"
-      responses:
-        "200":
-          description: Expired conversations purged.
-        "403":
-          description: Invalid operations token.
-        "404":
-          description: Operations endpoint disabled.
 components:
   parameters:
+    Authorization:
+      name: Authorization
+      in: header
+      required: false
+      description: Clerk bearer token required only for own-order tools.
+      schema:
+        type: string
     AetherCartId:
       name: x-aether-cart-id
       in: header
@@ -204,6 +181,8 @@ components:
       type: object
       required:
         - message
+        - privacy_consent
+        - privacy_version
       properties:
         thread_id:
           type:
@@ -220,6 +199,14 @@ components:
         currency:
           type: string
           enum: [USD]
+        privacy_consent:
+          type: boolean
+          const: true
+          description: Explicit consent to process and retain the chat under the current privacy notice.
+        privacy_version:
+          type: string
+          minLength: 1
+          maxLength: 32
         client_context:
           $ref: "#/components/schemas/ClientContext"
     ClientContext:
@@ -364,6 +351,9 @@ components:
             - OPEN_CART
             - OPEN_CHECKOUT
             - ASK_CLARIFICATION
+            - SIGN_IN_REQUIRED
+            - ORDER_NOT_FOUND
+            - OPEN_ORDERS
         status:
           type: string
           enum:
@@ -387,6 +377,7 @@ components:
         - message
         - intent
         - products
+        - orders
         - action
         - suggested_replies
       properties:
@@ -411,6 +402,9 @@ components:
             - CLEAR_CART
             - GENERAL_STORE_QUESTION
             - CHECKOUT_REQUEST
+            - GET_MY_ORDERS
+            - GET_ORDER
+            - GET_ORDER_STATUS
             - UNSUPPORTED
         products:
           type: array
@@ -420,9 +414,24 @@ components:
           anyOf:
             - $ref: "#/components/schemas/CartSummary"
             - type: "null"
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderSummary"
         action:
           $ref: "#/components/schemas/AssistantAction"
         suggested_replies:
           type: array
           items:
             type: string
+    OrderSummary:
+      type: object
+      required: [id, number, state, item_count, total, currency, created_at]
+      properties:
+        id: { type: string }
+        number: { type: string }
+        state: { type: string }
+        item_count: { type: integer, minimum: 0 }
+        total: { type: string }
+        currency: { type: string }
+        created_at: { type: string }
