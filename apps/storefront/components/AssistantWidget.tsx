@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, Loader2, Send, ShoppingBag, Trash2, X } from "lucide-react";
+import { Bot, Check, Loader2, PackageCheck, Send, ShoppingBag, Trash2, X } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import {
   addProductReferenceToCart,
@@ -13,6 +13,7 @@ import {
 import type { Cart, CartItem } from "@aether/schemas";
 import { aiAssistantUrl } from "./config";
 import { useCustomerSession } from "./customer-client";
+import { useAetherAuth } from "./ClerkAuthProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 import { legalPolicyVersion } from "./legal-content";
@@ -44,6 +45,7 @@ type AssistantResponse = {
     currency: "USD";
     items: Array<Record<string, unknown>>;
   } | null;
+  orders?: AssistantOrderSummary[];
   action?: {
     type: string;
     status: string;
@@ -51,6 +53,16 @@ type AssistantResponse = {
     message: string | null;
   };
   suggested_replies: string[];
+};
+
+type AssistantOrderSummary = {
+  id: string;
+  number: string;
+  state: string;
+  item_count: number;
+  total: string;
+  currency: string;
+  created_at: string;
 };
 
 type AssistantCartSummary = NonNullable<AssistantResponse["cart"]>;
@@ -65,6 +77,7 @@ type ChatMessage = {
   content: string;
   products?: AssistantProduct[];
   cart?: AssistantResponse["cart"];
+  orders?: AssistantOrderSummary[];
   action?: AssistantResponse["action"];
   suggestedReplies?: string[];
   streaming?: boolean;
@@ -96,12 +109,12 @@ export function AssistantWidget() {
       locale === "es"
         ? {
             title: "Asistente Aether",
-            intro: "Preguntame por productos reales o pide ayuda con tu carrito.",
+            intro: "Preguntame por productos, tu carrito o tus pedidos.",
             greetingGuest:
-              "Hola! Soy el Asistente Aether. Preguntame por productos reales o pide ayuda con tu carrito.",
+              "Hola! Soy el Asistente Aether. Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
             greetingCustomer:
-              "Hola {name}! Preguntame por productos reales o pide ayuda con tu carrito.",
-            suggestedStart: ["Ver carrito", "Buscar ofertas"],
+              "Hola {name}! Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
+            suggestedStart: ["Ver carrito", "Buscar ofertas", "Ver mis pedidos"],
             placeholder: "Buscar tenis, regalos, ofertas...",
             send: "Enviar",
             reset: "Reiniciar",
@@ -127,10 +140,10 @@ export function AssistantWidget() {
           }
         : {
             title: "Aether Assistant",
-            intro: "Ask me for real products or cart help.",
-            greetingGuest: "Hi! I'm the Aether Assistant. Ask me for real products or cart help.",
-            greetingCustomer: "Hi {name}! Ask me for real products or cart help.",
-            suggestedStart: ["View cart", "Search deals"],
+            intro: "Ask me about products, your cart, or your orders.",
+            greetingGuest: "Hi! I'm the Aether Assistant. I can search products and review your cart or orders.",
+            greetingCustomer: "Hi {name}! I can search products and review your cart or orders.",
+            suggestedStart: ["View cart", "Search deals", "View my orders"],
             placeholder: "Search sneakers, gifts, deals...",
             send: "Send",
             reset: "Reset",
@@ -157,6 +170,7 @@ export function AssistantWidget() {
   );
 
   const { customer } = useCustomerSession();
+  const { getToken } = useAetherAuth();
   const [footerCart, setFooterCart] = useState<Cart | null>(null);
 
   // Lets other components (e.g. the Hero's "Talk to Aether AI" CTA) open the
@@ -244,6 +258,7 @@ export function AssistantWidget() {
                 content: entry.content || stored.message || ""
               };
               if (Array.isArray(stored.products)) restoredMessage.products = stored.products;
+              if (Array.isArray(stored.orders)) restoredMessage.orders = stored.orders;
               if (stored.cart) restoredMessage.cart = stored.cart;
               if (stored.action) restoredMessage.action = stored.action;
               if (stored.suggested_replies)
@@ -332,12 +347,15 @@ export function AssistantWidget() {
 
   async function assistantRequestHeaders() {
     const { cartId, token } = await getCartCredentials();
-    return {
+    const headers: Record<string, string> = {
       "content-type": "application/json",
       "x-aether-cart-id": cartId,
       "x-aether-session-id": cartId,
       "x-aether-cart-token": token
     };
+    const sessionToken = await getToken();
+    if (sessionToken) headers.authorization = `Bearer ${sessionToken}`;
+    return headers;
   }
 
   async function sendMessage(message = input.trim()) {
@@ -520,6 +538,7 @@ export function AssistantWidget() {
         action: payload.action,
         suggestedReplies: payload.suggested_replies
       };
+      if (payload.orders?.length) nextMessage.orders = payload.orders;
       if (
         current[current.length - 1]?.role === "assistant" &&
         current[current.length - 1]?.streaming
@@ -754,6 +773,46 @@ export function AssistantWidget() {
                             </button>
                           </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {message.orders?.length ? (
+                  <div className="mt-2 grid gap-2 text-left">
+                    {message.orders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="rounded-2xl border border-chat-border bg-chat-surface p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-chat-success">
+                              <PackageCheck size={14} aria-hidden />
+                              {order.state}
+                            </p>
+                            <p className="mt-1 truncate text-sm font-semibold text-chat-text">
+                              {order.number}
+                            </p>
+                            <p className="mt-0.5 text-xs text-chat-text-muted">
+                              {order.item_count} {copy.items}
+                              {order.created_at
+                                ? ` · ${new Date(order.created_at).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}`
+                                : ""}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-bold text-chat-text">
+                            {formatUsd(
+                              Math.round(Number(order.total) * 100),
+                              locale === "es" ? "es-CO" : "en-US"
+                            )}
+                          </p>
+                        </div>
+                        <StorefrontLink
+                          href="/account/orders"
+                          className="focus-ring mt-3 inline-flex rounded-chat border border-chat-border px-3 py-1.5 text-xs font-semibold text-chat-text"
+                        >
+                          {locale === "es" ? "Ver pedidos" : "View orders"}
+                        </StorefrontLink>
                       </div>
                     ))}
                   </div>

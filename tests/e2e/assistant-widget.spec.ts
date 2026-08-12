@@ -554,6 +554,72 @@ test("assistant widget sends current category context from category pages", asyn
   await expect(page.getByText("Busque productos dentro de esta categoria.")).toBeVisible();
 });
 
+test("assistant widget renders authenticated order summaries", async ({ page }) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { cartId: "cart-1", token: "test-cart-token" },
+        meta: { requestId: "req_cart_token" }
+      })
+    });
+  });
+
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        "event: assistant.completed",
+        `data: ${JSON.stringify({
+          request_id: "req_orders",
+          thread_id: "00000000-0000-4000-8000-000000000005",
+          message: "Encontre tu pedido mas reciente.",
+          intent: "GET_ORDER_STATUS",
+          products: [],
+          cart: null,
+          orders: [
+            {
+              id: "ord_5001",
+              number: "AET-5001",
+              state: "shipped",
+              item_count: 2,
+              total: "149.99",
+              currency: "USD",
+              created_at: "2026-08-10T12:00:00.000Z"
+            }
+          ],
+          action: {
+            type: "OPEN_ORDERS",
+            status: "SUCCEEDED",
+            entity_id: "ord_5001",
+            message: null
+          },
+          suggested_replies: ["Ver mis pedidos"]
+        })}`,
+        "",
+        ""
+      ].join("\n")
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /assistant|asistente/i }).click();
+  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  await assistant.getByPlaceholder(/buscar|search/i).fill("Estado de mi compra");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+
+  await expect(assistant.getByText("AET-5001")).toBeVisible();
+  await expect(assistant.getByText("shipped")).toBeVisible();
+  await expect(assistant.getByText(/2 (productos|items)/i)).toBeVisible();
+  await expect(assistant.getByRole("link", { name: /ver pedidos|view orders/i })).toHaveAttribute(
+    "href",
+    /\/account\/orders/
+  );
+});
+
 test("assistant widget opens as a full screen mobile dialog", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile-only assistant layout check");
 

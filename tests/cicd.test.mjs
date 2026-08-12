@@ -31,8 +31,10 @@ test("validate includes Vitest and contract tests", () => {
 
 test("CI secret scan requires a credential-shaped value", () => {
   const workflow = read(".github/workflows/ci.yml");
-  assert.match(workflow, /sk\|rk\)_live_\[A-Za-z0-9\]\{16,/);
-  assert.doesNotMatch(workflow, /whsec_\[A-Za-z0-9\]"/);
+  assert.match(workflow, /sk\|rk\)_\(live\|test\)_\[A-Za-z0-9\]\{16,/);
+  assert.match(workflow, /AIza\[0-9A-Za-z_-\]\{30,/);
+  assert.match(workflow, /AKIA\[0-9A-Z\]\{16\}/);
+  assert.match(workflow, /PRIVATE KEY/);
 });
 
 test("deployments wait for a successful CI run and deploy its exact SHA", () => {
@@ -47,13 +49,12 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
   }
 });
 
-test("image publication is CI-gated and repository-linked", () => {
-  const workflow = read(".github/workflows/ai-assistant-image.yml");
-  assert.match(workflow, /workflow_run\.event == 'push'/);
-  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /aether-commerce-ai-assistant/);
-  assert.match(workflow, /org\.opencontainers\.image\.source/);
-  assert.match(workflow, /SOURCE_SHA/);
+test("CI builds and tests the Cloudflare LangGraph assistant", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(workflow, /@aether\/ai-assistant typecheck/);
+  assert.match(workflow, /@aether\/ai-assistant test/);
+  assert.match(workflow, /@aether\/ai-assistant build/);
+  assert.doesNotMatch(workflow, /docker build -t aether-ai-assistant/);
 });
 
 test("runtime deployment preflight accepts a complete configuration", () => {

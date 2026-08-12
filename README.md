@@ -7,12 +7,12 @@ Tienda tecnológica bilingüe desplegable como proyecto independiente en Cloudfl
 - `apps/storefront`: tienda estática Next.js publicada como Worker con Static Assets.
 - `apps/admin`: panel y demo pública exportados para Cloudflare Pages.
 - `apps/api`: API Hono en Cloudflare Workers con base D1.
-- `apps/ai-assistant`: asistente en Worker y servicio Python/Docker para validación avanzada.
+- `apps/ai-assistant`: asistente LangGraph.js desplegado como Cloudflare Worker.
 - `packages/*`: contratos, reglas de negocio, configuración, i18n y UI compartidos.
 
 ## Desarrollo local
 
-Requiere Node.js 22, pnpm 8.15 y Python 3.12 para las pruebas del asistente.
+Requiere Node.js 22 y pnpm 8.15.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -26,7 +26,7 @@ URLs locales:
 - Tienda: `http://localhost:3000`
 - Admin: `http://localhost:3001`
 - API: `http://localhost:8787/api/v1/health`
-- Asistente Python opcional: `http://localhost:8090/healthz`
+- Asistente: `pnpm --filter @aether/ai-assistant exec wrangler dev`
 
 ## Conexión con el portafolio
 
@@ -47,18 +47,17 @@ pnpm build
 pnpm test:e2e:assistant
 ```
 
-Para el servicio Python:
+Para el asistente LangGraph:
 
 ```bash
 cd apps/ai-assistant
-python -m pip install --require-hashes -r requirements-docker.txt
-python -m compileall app tests scripts
-python scripts/security_scan.py
-python -m app.evaluation
-python tests/run_direct.py
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
 ```
 
-La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `DATABASE_URL`, `REDIS_URL` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Antes de una ejecución Python respaldada por PostgreSQL, aplica el esquema con `python -m app.migrate`. La evaluación real limitada vive en el workflow `AI Gemini evaluation`.
+La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Conversaciones, auditoría y límites se almacenan en D1.
 
 ## Ambiente de desarrollo previo a main
 

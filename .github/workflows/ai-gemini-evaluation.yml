@@ -1,4 +1,4 @@
-name: AI Gemini evaluation
+name: AI LangGraph canary evaluation
 
 on:
   workflow_dispatch:
@@ -19,35 +19,33 @@ concurrency:
 
 jobs:
   evaluate:
-    name: Limited real Gemini evaluation
+    name: Limited real Worker evaluation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
-      GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite' }}
       AI_EVAL_MAX_CASES: ${{ github.event.inputs.limit || vars.AI_EVAL_MAX_CASES || '10' }}
+      AETHER_AI_EVAL_URL: ${{ vars.AETHER_AI_EVAL_URL || vars.NEXT_PUBLIC_AETHER_AI_URL }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Configure Python
-        uses: actions/setup-python@v6
+      - uses: pnpm/action-setup@v4
         with:
-          python-version: "3.12"
+          version: 8.15.9
 
-      - name: Install assistant dependencies
-        working-directory: apps/ai-assistant
-        run: python -m pip install --require-hashes -r requirements-docker.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
 
       - name: Run limited Gemini evaluation
-        working-directory: apps/ai-assistant
-        env:
-          PYTHONPATH: "."
         run: |
-          if [ -z "${GEMINI_API_KEY}" ]; then
-            echo "::error::GEMINI_API_KEY is required for the real Gemini evaluation."
+          if [ -z "${AETHER_AI_EVAL_URL}" ]; then
+            echo "::error::AETHER_AI_EVAL_URL is required for the real Worker evaluation."
             exit 1
           fi
-          python -m app.gemini_evaluation --limit "${AI_EVAL_MAX_CASES}"
+          node apps/ai-assistant/evaluation/run.mjs --limit "${AI_EVAL_MAX_CASES}"
