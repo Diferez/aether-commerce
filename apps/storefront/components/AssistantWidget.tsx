@@ -283,11 +283,12 @@ export function AssistantWidget() {
 
   useEffect(() => {
     if (isOpen) {
-      panelRef.current?.querySelector("input")?.focus();
+      const selector = privacyAccepted ? "input[placeholder]" : 'input[type="checkbox"]';
+      panelRef.current?.querySelector<HTMLInputElement>(selector)?.focus();
     } else {
       triggerRef.current?.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, privacyAccepted]);
 
   useEffect(() => {
     if (isOpen) {
