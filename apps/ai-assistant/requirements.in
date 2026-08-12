@@ -2,6 +2,9 @@
 # Regenerate requirements-docker.txt with Python 3.12 and pip-compile.
 fastapi>=0.115.0,<1
 uvicorn[standard]>=0.32.0,<1
+# uvicorn[standard] resolves uvloop only on Linux. Keep it explicit so a lock
+# compiled on Windows still remains complete in GitHub Actions and Docker.
+uvloop==0.22.1; sys_platform != "win32"
 pydantic>=2.10.0,<3
 pydantic-settings>=2.6.0,<3
 httpx>=0.28.0,<1

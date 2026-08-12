@@ -194,12 +194,15 @@ test("CI uses deterministic guest auth and Python dependencies are hash locked",
   const packageJson = read("package.json");
   const workflow = read(".github/workflows/ci.yml");
   const requirements = read("apps/ai-assistant/requirements-docker.txt");
+  const requirementsInput = read("apps/ai-assistant/requirements.in");
   const dockerfile = read("apps/ai-assistant/Dockerfile");
 
   assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
   assert.doesNotMatch(packageJson, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
   assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
   assert.match(requirements, /--hash=sha256:/);
+  assert.match(requirements, /uvloop==0\.22\.1/);
+  assert.match(requirementsInput, /uvloop==0\.22\.1/);
   assert.doesNotMatch(requirements, />=/);
   assert.match(dockerfile, /--require-hashes/);
 });
