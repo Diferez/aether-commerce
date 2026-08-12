@@ -76,7 +76,7 @@ GitHub Actions also includes a separate real-model workflow:
 
 - Standalone Aether repository: `.github/workflows/ai-gemini-evaluation.yml`
 
-It runs manually through `workflow_dispatch` or on the weekly schedule. If `GEMINI_API_KEY` is not configured as a GitHub secret, the job exits successfully without calling Gemini. Configure these optional variables to control model and quota:
+It runs manually through `workflow_dispatch` or on the weekly schedule. `GEMINI_API_KEY` is required; if it is missing, the job fails explicitly instead of reporting a false success. Configure these optional variables to control model and quota:
 
 - `GEMINI_MODEL`
 - `GEMINI_FALLBACK_MODEL`

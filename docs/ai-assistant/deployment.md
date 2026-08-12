@@ -41,6 +41,11 @@ Required GitHub Actions secrets for Cloudflare deployment:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
+- `AETHER_CART_TOKEN_SECRET`
+- `CLERK_SECRET_KEY`
+- `CLERK_JWT_ISSUER`
+- `GEMINI_API_KEY`
+- `AI_OPERATIONS_TOKEN`
 
 Required GitHub Actions variables for Cloudflare deployment:
 
@@ -59,8 +64,7 @@ Before running the production workflow, verify repository configuration from the
 pnpm deploy:preflight
 ```
 
-The preflight checks required GitHub Actions variable and secret names through GitHub CLI without printing secret values. It accepts both repository-level configuration and the `production` GitHub environment configuration used by the deployment workflow.
-It also warns when AI assistant production/evaluation settings are incomplete, including `NEXT_PUBLIC_AETHER_AI_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL` and `AI_EVAL_MAX_CASES`. Those AI checks are warnings because the assistant is deployed separately from the Cloudflare storefront/API.
+The preflight checks required GitHub Actions variable and secret names through GitHub CLI without printing secret values. It accepts both repository-level configuration and the `production` GitHub environment configuration used by the deployment workflow. Missing deployment or assistant settings fail explicitly.
 
 When deploying through GitHub Actions, configure `NEXT_PUBLIC_AETHER_AI_URL` as a repository/environment variable only after the assistant is reachable. The production workflow passes that value into the storefront build and verifies `/healthz` when the variable is present. The workflow also fails early if the Cloudflare secrets are missing, before running expensive build and deploy steps.
 
@@ -76,14 +80,14 @@ The free-tier deployment target for the assistant is a Cloudflare Worker named `
 - The Cloudflare Worker deployment uses the existing Aether D1 database through the `DB` binding generated from `AETHER_D1_DATABASE_ID`. Conversation tables are applied by `apps/api/migrations/0005_ai_assistant.sql`; short-window rate-limit buckets are applied by `apps/api/migrations/0006_ai_rate_limits.sql`.
 - Supabase can still be configured as a private `DATABASE_URL` secret for the Docker/FastAPI deployment path. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are client-safe values and are not enough for server-side assistant persistence.
 
-The GitHub workflow `.github/workflows/deploy-production.yml` deploys the Worker with Wrangler.
+The GitHub workflow `.github/workflows/deploy-production.yml` deploys the Worker with the repository-pinned Wrangler version only after `Aether CI` succeeds on `main`.
 
 Local run:
 
 ```bash
 cd apps/ai-assistant
 python -m venv .venv
-pip install -r requirements-docker.txt
+pip install --require-hashes -r requirements-docker.txt
 uvicorn app.main:app --reload --port 8090
 ```
 
@@ -131,8 +135,8 @@ docker build -t aether-ai-assistant:latest .
 Published image:
 
 ```text
-ghcr.io/Diferez/aether-ai-assistant:latest
-ghcr.io/Diferez/aether-ai-assistant:<commit-sha>
+ghcr.io/diferez/aether-commerce-ai-assistant:latest
+ghcr.io/diferez/aether-commerce-ai-assistant:<commit-sha>
 ```
 
 The `AI assistant image` GitHub Actions workflow builds the Docker image, runs the local smoke test, then publishes both `latest` and commit-SHA tags to GitHub Container Registry. Use the commit-SHA tag for production rollouts and rollbacks.

@@ -1,8 +1,39 @@
 "use client";
 
-import { ClerkProvider } from "@clerk/react";
-import { useEffect, useState } from "react";
-import { apiBaseUrl, storefrontPath } from "./config";
+import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { apiBaseUrl } from "./config";
+
+export type AuthCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+};
+
+type AetherAuthContextValue = {
+  customer: AuthCustomer | null;
+  getToken: () => Promise<string | null>;
+  isAvailable: boolean;
+  isLoaded: boolean;
+  isSignedIn: boolean;
+  signOut: (callback?: () => void) => Promise<void>;
+};
+
+const unavailableToken = () => Promise.resolve(null);
+const unavailableSignOut = (callback?: () => void) => {
+  callback?.();
+  return Promise.resolve();
+};
+
+const AetherAuthContext = createContext<AetherAuthContextValue>({
+  customer: null,
+  getToken: unavailableToken,
+  isAvailable: false,
+  isLoaded: false,
+  isSignedIn: false,
+  signOut: unavailableSignOut
+});
 
 type RuntimeConfigPayload = {
   success?: boolean;
@@ -28,32 +59,68 @@ function isUsablePublishableKey(value: string | undefined) {
 }
 
 const configuredClerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+const authDisabledForE2E = process.env.NEXT_PUBLIC_AETHER_E2E === "true";
 
-// Clerk eagerly downloads its ~750KB <SignIn>/<SignUp> UI bundle on every
-// page by default (prefetchUI defaults to true), even pages that never
-// render those components. Every navigation here is a full page load (plain
-// <a> hrefs, no client router), so it's safe to gate this purely on the
-// current pathname - only /login and /register actually mount Clerk's UI.
-function needsClerkUI(): boolean {
-  if (typeof window === "undefined") return false;
-  const pathname = window.location.pathname;
-  return pathname === storefrontPath("/login") || pathname === storefrontPath("/register");
+function ClerkSessionBridge({ children }: { children: React.ReactNode }) {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  const customer = useMemo<AuthCustomer | null>(() => {
+    if (!isLoaded || !user?.id) return null;
+    const email = user.primaryEmailAddress?.emailAddress ?? "";
+    return {
+      id: user.id,
+      name: user.fullName?.trim() || email || "Account",
+      email,
+      createdAt: user.createdAt?.toISOString() ?? new Date().toISOString()
+    };
+  }, [isLoaded, user]);
+
+  const signOutCustomer = useCallback(
+    async (callback?: () => void) => {
+      await signOut();
+      callback?.();
+    },
+    [signOut]
+  );
+
+  const value = useMemo<AetherAuthContextValue>(
+    () => ({
+      customer,
+      getToken,
+      isAvailable: true,
+      isLoaded,
+      isSignedIn: Boolean(isSignedIn),
+      signOut: signOutCustomer
+    }),
+    [customer, getToken, isLoaded, isSignedIn, signOutCustomer]
+  );
+
+  return <AetherAuthContext.Provider value={value}>{children}</AetherAuthContext.Provider>;
+}
+
+export function useAetherAuth() {
+  return useContext(AetherAuthContext);
 }
 
 export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const [publishableKey, setPublishableKey] = useState(() =>
     isUsablePublishableKey(configuredClerkPublishableKey) ? configuredClerkPublishableKey : ""
   );
-  const [configFailed, setConfigFailed] = useState(false);
+  const [configFailed, setConfigFailed] = useState(authDisabledForE2E);
 
   useEffect(() => {
-    if (publishableKey) return;
+    if (publishableKey || authDisabledForE2E) return;
 
     let active = true;
     fetch(`${apiBaseUrl}/api/v1/runtime-config`, {
       headers: { accept: "application/json" }
     })
-      .then((response) => response.json() as Promise<RuntimeConfigPayload>)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Runtime configuration unavailable.");
+        return response.json() as Promise<RuntimeConfigPayload>;
+      })
       .then((payload) => {
         if (!active) return;
         const key = payload.data?.clerkPublishableKey?.trim();
@@ -74,19 +141,24 @@ export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
 
   if (!publishableKey) {
     return (
-      <div className="grid min-h-screen place-items-center bg-zinc-50 px-6 text-center text-zinc-700">
-        <p>
-          {configFailed
-            ? "Authentication is not configured. Check the Aether API runtime config."
-            : "Loading authentication..."}
-        </p>
-      </div>
+      <AetherAuthContext.Provider
+        value={{
+          customer: null,
+          getToken: unavailableToken,
+          isAvailable: false,
+          isLoaded: configFailed,
+          isSignedIn: false,
+          signOut: unavailableSignOut
+        }}
+      >
+        {children}
+      </AetherAuthContext.Provider>
     );
   }
 
   return (
-    <ClerkProvider publishableKey={publishableKey} prefetchUI={needsClerkUI()}>
-      {children}
+    <ClerkProvider publishableKey={publishableKey}>
+      <ClerkSessionBridge>{children}</ClerkSessionBridge>
     </ClerkProvider>
   );
 }

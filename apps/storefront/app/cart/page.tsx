@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/react";
 import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import type { Cart, Product } from "@aether/schemas";
@@ -17,8 +16,9 @@ import {
   removeProductFromCart,
   syncLocalCartToApi,
   updateCartItemQuantity,
-  getCartToken
+  getCartCredentials
 } from "../../components/cart-client";
+import { useAetherAuth } from "../../components/ClerkAuthProvider";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
 import { StorefrontLink } from "../../components/StorefrontLink";
@@ -33,7 +33,7 @@ export default function CartPage() {
   const { locale, t } = useLanguage();
   const router = useRouter();
   const { customer } = useCustomerSession();
-  const { getToken } = useAuth();
+  const { getToken } = useAetherAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [status, setStatus] = useState<string>(t.loadingCart);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,9 +54,10 @@ export default function CartPage() {
     }
 
     try {
-      const token = await getCartToken();
+      const { cartId: serverCartId, token } = await getCartCredentials();
+      const serverLocalCart = readLocalCart(serverCartId);
       const fetchServerCart = () =>
-        fetch(`${apiBaseUrl}/api/v1/cart/${id}`, {
+        fetch(`${apiBaseUrl}/api/v1/cart/${serverCartId}`, {
           headers: token ? { "x-aether-cart-token": token } : {}
         });
 
@@ -79,9 +80,19 @@ export default function CartPage() {
         }
       }
 
-      const nextCart = payload.data?.items.length ? payload.data : localCart.items.length ? localCart : payload.data;
+      const nextCart = payload.data?.items.length
+        ? payload.data
+        : serverLocalCart.items.length
+          ? serverLocalCart
+          : payload.data;
       setCart(nextCart ?? null);
-      setStatus(payload.data?.items.length ? t.cartSynced : localCart.items.length ? t.cartSavedLocal : t.cartUnavailable);
+      setStatus(
+        payload.data?.items.length
+          ? t.cartSynced
+          : serverLocalCart.items.length
+            ? t.cartSavedLocal
+            : t.cartUnavailable
+      );
     } finally {
       setIsLoading(false);
     }
@@ -106,12 +117,17 @@ export default function CartPage() {
       slugs.map((slug) =>
         fetch(`${apiBaseUrl}/api/v1/catalog/products/${slug}`)
           .then((response) => response.json())
-          .then((payload: { success: boolean; data?: Product }) => [slug, payload.data?.availableStock ?? null] as const)
+          .then(
+            (payload: { success: boolean; data?: Product }) =>
+              [slug, payload.data?.availableStock ?? null] as const
+          )
           .catch(() => [slug, null] as const)
       )
     ).then((entries) => {
       if (cancelled) return;
-      setStockBySlug(Object.fromEntries(entries.filter(([, stock]) => stock !== null)) as Record<string, number>);
+      setStockBySlug(
+        Object.fromEntries(entries.filter(([, stock]) => stock !== null)) as Record<string, number>
+      );
     });
 
     return () => {
@@ -129,15 +145,16 @@ export default function CartPage() {
   }
 
   async function createCheckoutSession() {
-    const id = getCartId();
+    const { cartId, token: cartToken } = await getCartCredentials();
     const token = await getToken();
     const response = await fetch(`${apiBaseUrl}/api/v1/checkout/session`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {})
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(cartToken ? { "x-aether-cart-token": cartToken } : {})
       },
-      body: JSON.stringify({ cartId: id })
+      body: JSON.stringify({ cartId })
     });
     return (await response.json()) as CheckoutPayload;
   }
@@ -153,7 +170,11 @@ export default function CartPage() {
     try {
       let payload = await createCheckoutSession();
 
-      if (!payload.success && payload.error?.code === "EMPTY_CART" && readLocalCartItems().length > 0) {
+      if (
+        !payload.success &&
+        payload.error?.code === "EMPTY_CART" &&
+        readLocalCartItems().length > 0
+      ) {
         setStatus(t.syncingCartCheckout);
         await syncLocalCartToApi();
         payload = await createCheckoutSession();
@@ -222,7 +243,10 @@ export default function CartPage() {
             <div className="grid place-items-center gap-3 p-10 text-center">
               <ShoppingBag size={32} className="text-zinc-400" aria-hidden />
               <p className="text-zinc-600">{t.emptyCart}</p>
-              <StorefrontLink href="/products" className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white">
+              <StorefrontLink
+                href="/products"
+                className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white"
+              >
                 {t.browseProducts}
               </StorefrontLink>
             </div>
@@ -235,16 +259,32 @@ export default function CartPage() {
               const isPending = pendingItemId === itemId;
 
               return (
-                <div key={`${item.productId}-${item.variantId}`} className="flex gap-4 border-b border-zinc-200 p-4 last:border-b-0">
-                  <StorefrontLink href={`/products/${encodeURIComponent(item.slug)}`} className="shrink-0">
-                    <Image src={item.imageUrl} alt={item.name} width={80} height={80} className="h-20 w-20 rounded-md border border-zinc-200 bg-zinc-50 object-contain p-1" />
+                <div
+                  key={`${item.productId}-${item.variantId}`}
+                  className="flex gap-4 border-b border-zinc-200 p-4 last:border-b-0"
+                >
+                  <StorefrontLink
+                    href={`/products/${encodeURIComponent(item.slug)}`}
+                    className="shrink-0"
+                  >
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="h-20 w-20 rounded-md border border-zinc-200 bg-zinc-50 object-contain p-1"
+                    />
                   </StorefrontLink>
                   <div className="min-w-0 flex-1">
-                    <StorefrontLink href={`/products/${encodeURIComponent(item.slug)}`} className="font-semibold text-zinc-950 hover:text-accent">
+                    <StorefrontLink
+                      href={`/products/${encodeURIComponent(item.slug)}`}
+                      className="font-semibold text-zinc-950 hover:text-accent"
+                    >
                       {item.name}
                     </StorefrontLink>
                     <p className="mt-1 text-sm text-zinc-500">
-                      {formatUsd(item.finalUnitPrice, locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
+                      {formatUsd(item.finalUnitPrice, locale === "es" ? "es-CO" : "en-US")}{" "}
+                      {t.qty.toLowerCase()}
                     </p>
                     {outOfStock ? (
                       <Badge tone="danger" className="mt-2">
@@ -265,13 +305,18 @@ export default function CartPage() {
                       >
                         <Minus size={14} aria-hidden />
                       </button>
-                      <span className="min-w-6 text-center text-sm font-semibold text-zinc-950" aria-live="polite">
+                      <span
+                        className="min-w-6 text-center text-sm font-semibold text-zinc-950"
+                        aria-live="polite"
+                      >
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => void changeQuantity(itemId, item.quantity + 1, stock)}
-                        disabled={isPending || (typeof stock === "number" && item.quantity >= stock)}
+                        disabled={
+                          isPending || (typeof stock === "number" && item.quantity >= stock)
+                        }
                         aria-label={locale === "es" ? "Aumentar cantidad" : "Increase quantity"}
                         className="focus-ring grid h-9 w-9 place-items-center text-zinc-700 hover:bg-zinc-100 disabled:opacity-40"
                       >
@@ -280,12 +325,18 @@ export default function CartPage() {
                     </div>
                   </div>
                   <div className="grid justify-items-end gap-3">
-                    <strong className="text-zinc-950">{formatUsd(item.lineTotal, locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">
+                      {formatUsd(item.lineTotal, locale === "es" ? "es-CO" : "en-US")}
+                    </strong>
                     <button
                       type="button"
                       onClick={() => void removeItem(item.slug, item.name)}
                       className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
-                      aria-label={locale === "es" ? `Eliminar ${item.name} del carrito` : `Remove ${item.name} from cart`}
+                      aria-label={
+                        locale === "es"
+                          ? `Eliminar ${item.name} del carrito`
+                          : `Remove ${item.name} from cart`
+                      }
                     >
                       <Trash2 size={16} aria-hidden />
                       {t.remove}
@@ -299,13 +350,30 @@ export default function CartPage() {
         <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-5 lg:sticky lg:top-24">
           <h2 className="text-lg font-semibold text-zinc-950">{t.summary}</h2>
           <dl className="mt-4 grid gap-2 text-sm">
-            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatUsd(cart?.totals.subtotal ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatUsd(cart?.totals.discount ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatUsd(cart?.totals.shipping ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatUsd(cart?.totals.total ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between">
+              <dt>{t.subtotal}</dt>
+              <dd>{formatUsd(cart?.totals.subtotal ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>{t.discount}</dt>
+              <dd>-{formatUsd(cart?.totals.discount ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>{t.shipping}</dt>
+              <dd>{formatUsd(cart?.totals.shipping ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd>
+            </div>
+            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold">
+              <dt>{t.total}</dt>
+              <dd>{formatUsd(cart?.totals.total ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd>
+            </div>
           </dl>
           <div className="mt-5 grid gap-3">
-            <Button type="button" variant="outline" onClick={() => void applyCoupon()} disabled={items.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void applyCoupon()}
+              disabled={items.length === 0}
+            >
               <Ticket size={17} aria-hidden />
               {t.applyCoupon}
             </Button>
@@ -313,6 +381,25 @@ export default function CartPage() {
               <CreditCard size={17} aria-hidden />
               {t.checkoutSandbox}
             </Button>
+            <p className="text-xs leading-5 text-ink-muted">
+              {locale === "es"
+                ? "Checkout de prueba: no hay cobro, venta ni envío real. Al continuar confirmas que leíste "
+                : "Sandbox checkout: there is no real charge, sale, or shipping. By continuing you confirm that you read "}
+              <StorefrontLink
+                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                href="/terms"
+              >
+                {locale === "es" ? "los términos" : "the terms"}
+              </StorefrontLink>{" "}
+              {locale === "es" ? "y la " : "and the "}
+              <StorefrontLink
+                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                href="/privacy"
+              >
+                {locale === "es" ? "política de privacidad" : "privacy policy"}
+              </StorefrontLink>
+              .
+            </p>
           </div>
         </aside>
       </div>

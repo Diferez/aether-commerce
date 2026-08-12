@@ -5,6 +5,8 @@ import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
+import { CookieNotice } from "../components/CookieNotice";
+import { SiteFooter } from "../components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
@@ -47,6 +49,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LanguageProvider>
             <SiteHeader />
             {children}
+            <SiteFooter />
+            <CookieNotice />
             <AssistantWidget />
             <FloatingCart />
           </LanguageProvider>

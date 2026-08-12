@@ -7,6 +7,7 @@ import { readCart, writeCart } from "../services/cart";
 import { resolveActorEmail } from "../services/clerk";
 import { createCheckoutSession, retrieveCheckoutSession } from "../services/stripe";
 import { createOrderFromStripeSession } from "../services/orders";
+import { verifyCartToken } from "../services/cart-token";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -19,7 +20,16 @@ checkoutRoutes.post(
       return fail(c, 401, "AUTH_REQUIRED", "Sign in before starting checkout.");
     }
 
-    const cart = await readCart(c.env, c.req.valid("json").cartId);
+    const cartId = c.req.valid("json").cartId;
+    const hasCartToken = await verifyCartToken(c.env, c.req.header("x-aether-cart-token"), cartId);
+    if (!hasCartToken) {
+      return fail(c, 401, "CART_TOKEN_REQUIRED", "A valid cart token is required.");
+    }
+
+    const cart = await readCart(c.env, cartId);
+    if (cart.userId && cart.userId !== actor.userId) {
+      return fail(c, 403, "CART_OWNERSHIP_MISMATCH", "This cart belongs to another account.");
+    }
     if (cart.items.length === 0) {
       return fail(c, 422, "EMPTY_CART", "Add at least one item before checkout.");
     }
@@ -43,8 +53,16 @@ checkoutRoutes.post(
   "/confirm",
   zValidator("json", z.object({ sessionId: z.string().min(1) })),
   async (c) => {
+    const actor = c.get("actor");
+    if (!actor.userId) {
+      return fail(c, 401, "AUTH_REQUIRED", "Sign in before confirming checkout.");
+    }
+
     try {
       const session = await retrieveCheckoutSession(c.env, c.req.valid("json").sessionId);
+      if (!session.metadata?.userId || session.metadata.userId !== actor.userId) {
+        return fail(c, 403, "CHECKOUT_OWNERSHIP_MISMATCH", "This checkout belongs to another account.");
+      }
       if (session.payment_status !== "paid") {
         return fail(c, 422, "PAYMENT_NOT_PAID", "Stripe checkout session is not paid yet.");
       }

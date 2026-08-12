@@ -1,0 +1,17 @@
+# Direct dependencies for the containerized assistant.
+# Regenerate requirements-docker.txt with Python 3.12 and pip-compile.
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.32.0,<1
+pydantic>=2.10.0,<3
+pydantic-settings>=2.6.0,<3
+httpx>=0.28.0,<1
+langgraph>=0.2.60,<2
+langchain>=0.3.13,<2
+langchain-google-genai>=2.0.7,<5
+python-json-logger>=2.0.7,<5
+psycopg[binary]>=3.2.3,<4
+redis>=5.2.0,<9
+opentelemetry-api>=1.30.0,<2
+opentelemetry-sdk>=1.30.0,<2
+opentelemetry-instrumentation-fastapi>=0.51b0,<1
+opentelemetry-exporter-otlp>=1.30.0,<2

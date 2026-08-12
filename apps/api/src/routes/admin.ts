@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { canTransitionOrder } from "@aether/core";
+import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
-import { ok } from "../http";
+import { fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
 
@@ -162,17 +164,57 @@ adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
 adminRoutes.patch(
   "/orders/:id/status",
   requirePermission("orders.write"),
-  zValidator("json", z.object({ state: z.string(), reason: z.string().optional() })),
+  zValidator("json", z.object({ state: orderStateSchema, reason: z.string().trim().max(500).optional() })),
   async (c) => {
-    await c.env.DB.prepare(
-      "insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id) values (?, ?, null, ?, ?, ?, ?)"
-    )
-      .bind(crypto.randomUUID(), c.req.param("id"), c.req.valid("json").state, c.get("actor").userId ?? "admin", c.req.valid("json").reason ?? null, c.get("requestId"))
-      .run();
-    await c.env.DB.prepare("update orders set state = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-      .bind(c.req.valid("json").state, c.req.param("id"))
-      .run();
-    return ok(c, { orderId: c.req.param("id"), state: c.req.valid("json").state });
+    const orderId = c.req.param("id");
+    const body = c.req.valid("json");
+    const current = await c.env.DB.prepare("select state, payload_json from orders where id = ?")
+      .bind(orderId)
+      .first<{ state: string; payload_json: string }>();
+
+    if (!current) {
+      return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+    }
+
+    const currentState = orderStateSchema.safeParse(current.state);
+    if (!currentState.success) {
+      return fail(c, 409, "ORDER_STATE_INVALID", "The stored order state is invalid.");
+    }
+    if (!canTransitionOrder(currentState.data, body.state)) {
+      return fail(c, 409, "ORDER_TRANSITION_INVALID", `Cannot transition ${currentState.data} to ${body.state}.`);
+    }
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(current.payload_json) as Record<string, unknown>;
+    } catch {
+      return fail(c, 409, "ORDER_PAYLOAD_INVALID", "The stored order payload is invalid.");
+    }
+
+    const updatedAt = new Date().toISOString();
+    const results = await c.env.DB.batch([
+      c.env.DB.prepare(
+        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
+         select ?, id, state, ?, ?, ?, ? from orders where id = ? and state = ?`
+      ).bind(
+        crypto.randomUUID(),
+        body.state,
+        c.get("actor").userId ?? "admin",
+        body.reason ?? null,
+        c.get("requestId"),
+        orderId,
+        currentState.data
+      ),
+      c.env.DB.prepare(
+        "update orders set state = ?, payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ? and state = ?"
+      ).bind(body.state, JSON.stringify({ ...payload, state: body.state, updatedAt }), orderId, currentState.data)
+    ]);
+
+    if ((results[1]?.meta.changes ?? 0) !== 1) {
+      return fail(c, 409, "ORDER_STATE_CONFLICT", "The order state changed while the update was being applied.");
+    }
+
+    return ok(c, { orderId, previousState: currentState.data, state: body.state, updatedAt });
   }
 );
 

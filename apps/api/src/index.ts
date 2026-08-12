@@ -6,7 +6,7 @@ import { aetherCors } from "./middleware/cors";
 import { errorBoundary } from "./middleware/errors";
 import { rateLimit } from "./middleware/rate-limit";
 import { requestId } from "./middleware/request-id";
-import { ok } from "./http";
+import { fail, ok } from "./http";
 import { accountRoutes } from "./routes/account";
 import { adminRoutes } from "./routes/admin";
 import { cartRoutes } from "./routes/cart";
@@ -38,25 +38,34 @@ api.get("/runtime-config", (c) => {
 });
 
 api.get("/health", async (c) => {
-  let d1 = "unknown";
+  const time = new Date().toISOString();
   try {
     await c.env.DB.prepare("select 1 as ok").first();
-    d1 = "ok";
-  } catch {
-    d1 = "error";
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: "D1 readiness check failed",
+      requestId: c.get("requestId"),
+      error: error instanceof Error ? error.message : "unknown"
+    }));
+    return fail(c, 503, "SERVICE_UNAVAILABLE", "The API is not ready to serve traffic.", {
+      status: "degraded",
+      environment: c.env.AETHER_ENV ?? "development",
+      checks: { d1: "error" },
+      time
+    });
   }
 
   return ok(c, {
     status: "ok",
     environment: c.env.AETHER_ENV ?? "development",
     checks: {
-      d1,
+      d1: "ok",
       catalogSource: "local",
       stripeSandboxConfigured: Boolean(c.env.STRIPE_SECRET_KEY),
       stripeSecretKeyStatus: getStripeSecretKeyStatus(c.env.STRIPE_SECRET_KEY),
       resendConfigured: Boolean(c.env.RESEND_API_KEY)
     },
-    time: new Date().toISOString()
+    time
   });
 });
 api.route("/catalog", catalogRoutes);

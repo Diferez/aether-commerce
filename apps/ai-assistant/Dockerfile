@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements-docker.txt .
 RUN python -m venv /opt/aether-venv \
   && /opt/aether-venv/bin/pip install --no-cache-dir --upgrade pip \
-  && /opt/aether-venv/bin/pip install --no-cache-dir -r requirements-docker.txt
+  && /opt/aether-venv/bin/pip install --no-cache-dir --require-hashes -r requirements-docker.txt
 
 FROM python:3.12-slim AS runtime
 

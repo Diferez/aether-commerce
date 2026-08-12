@@ -116,6 +116,9 @@ test("cart reads and mutations require signed cart token", () => {
 
   assert.match(cartRoutes, /verifyCartToken/);
   assert.match(cartRoutes, /CART_TOKEN_REQUIRED/);
+  assert.match(cartRoutes, /cartRoutes\.post\("\/session"/);
+  assert.match(cartRoutes, /crypto\.randomUUID\(\)/);
+  assert.doesNotMatch(cartRoutes, /\/:id\/token/);
   assert.match(cartRoutes, /cartRoutes\.get\("\/:id"/);
   assert.match(cartRoutes, /cartRoutes\.post\("\/:id\/items"/);
   assert.match(cartRoutes, /cartRoutes\.patch\(/);
@@ -125,7 +128,9 @@ test("cart reads and mutations require signed cart token", () => {
   assert.match(cartTokenService, /timingSafeEqualText/);
   assert.match(cartTokenService, /exp/);
   assert.match(storefrontCartClient, /x-aether-cart-token/);
-  assert.match(cartPage, /getCartToken/);
+  assert.match(storefrontCartClient, /\/api\/v1\/cart\/session/);
+  assert.match(storefrontCartClient, /getCartCredentials/);
+  assert.match(cartPage, /getCartCredentials/);
   assert.match(cartPage, /x-aether-cart-token/);
 });
 
@@ -146,8 +151,12 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(stripeService, /metadata\[userId\]/);
   assert.match(stripeService, /customer_email/);
   assert.match(checkoutRoutes, /AUTH_REQUIRED/);
+  assert.match(checkoutRoutes, /verifyCartToken/);
+  assert.match(checkoutRoutes, /CART_OWNERSHIP_MISMATCH/);
+  assert.match(checkoutRoutes, /CHECKOUT_OWNERSHIP_MISMATCH/);
   assert.match(checkoutRoutes, /writeCart\(c\.env, \{ \.\.\.cart, userId: actor\.userId \}\)/);
   assert.match(cartPage, /authorization: `Bearer \$\{token\}`/);
+  assert.match(cartPage, /"x-aether-cart-token": cartToken/);
   assert.match(accountRoutes, /resolveActorEmail/);
   assert.match(accountRoutes, /email = \? collate nocase/);
   assert.match(clerkService, /https:\/\/api\.clerk\.com\/v1\/users/);
@@ -157,9 +166,42 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(publicRoutes, /CLERK_JWT_ISSUER/);
   assert.match(clerkProvider, /runtime-config/);
   assert.match(clerkProvider, /clerk\.example\.com/);
+  assert.match(clerkProvider, /AetherAuthContext\.Provider/);
+  assert.match(clerkProvider, /NEXT_PUBLIC_AETHER_E2E/);
+  assert.doesNotMatch(clerkProvider, /min-h-screen/);
+  assert.doesNotMatch(clerkProvider, /prefetchUI/);
   assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
   assert.doesNotMatch(accountRoutes, /lower\(email\)/);
   assert.doesNotMatch(cors, /x-aether-customer-email/);
+});
+
+test("readiness and order status updates fail safely", () => {
+  const index = read("apps/api/src/index.ts");
+  const http = read("apps/api/src/http.ts");
+  const admin = read("apps/api/src/routes/admin.ts");
+
+  assert.match(index, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
+  assert.match(index, /status: "degraded"/);
+  assert.match(http, /\| 503/);
+  assert.match(admin, /orderStateSchema/);
+  assert.match(admin, /canTransitionOrder/);
+  assert.match(admin, /previous_state, new_state/);
+  assert.match(admin, /c\.env\.DB\.batch/);
+  assert.match(admin, /ORDER_STATE_CONFLICT/);
+});
+
+test("CI uses deterministic guest auth and Python dependencies are hash locked", () => {
+  const packageJson = read("package.json");
+  const workflow = read(".github/workflows/ci.yml");
+  const requirements = read("apps/ai-assistant/requirements-docker.txt");
+  const dockerfile = read("apps/ai-assistant/Dockerfile");
+
+  assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
+  assert.doesNotMatch(packageJson, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
+  assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k/);
+  assert.match(requirements, /--hash=sha256:/);
+  assert.doesNotMatch(requirements, />=/);
+  assert.match(dockerfile, /--require-hashes/);
 });
 
 test("API rate limiting uses Cloudflare bindings with local fallback", () => {
@@ -195,4 +237,14 @@ test("storefront assistant CTA keeps readable active and hover colors", () => {
   assert.match(hero, /hover:text-white/);
   assert.match(hero, /active:bg-accent-hover/);
   assert.doesNotMatch(hero, /hover:bg-zinc-100/);
+});
+
+test("storefront exports a branded custom 404 through Cloudflare static assets", () => {
+  const notFoundPage = read("apps/storefront/app/not-found.tsx");
+  const storefrontWrangler = read("apps/storefront/wrangler.jsonc");
+
+  assert.match(notFoundPage, /notFoundTitle/);
+  assert.match(notFoundPage, /returnHome/);
+  assert.match(notFoundPage, /exploreCatalog/);
+  assert.match(storefrontWrangler, /"not_found_handling": "404-page"/);
 });

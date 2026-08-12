@@ -2,10 +2,11 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { SignIn, useAuth } from "@clerk/react";
+import { SignIn } from "@clerk/react";
 import { LogIn } from "lucide-react";
 import { storefrontPath } from "../../components/config";
 import { useLanguage } from "../../components/LanguageProvider";
+import { useAetherAuth } from "../../components/ClerkAuthProvider";
 
 const clerkAppearance = {
   variables: {
@@ -30,7 +31,7 @@ const clerkAppearance = {
 export default function LoginPage() {
   const { t } = useLanguage();
   const router = useRouter();
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isAvailable, isLoaded, isSignedIn } = useAetherAuth();
 
   function nextPath() {
     if (typeof window === "undefined") return "/account";
@@ -55,7 +56,13 @@ export default function LoginPage() {
         <p className="mt-3 text-sm leading-6 text-ink-muted">{t.loginDescription}</p>
 
         <div className="mt-6 flex justify-center">
-          {isLoaded && !isSignedIn ? (
+          {isLoaded && !isAvailable ? (
+            <div className="w-full rounded-md border border-amber-300 bg-amber-50 p-4 text-left text-amber-950" role="status">
+              <p className="font-semibold">{t.authUnavailableTitle}</p>
+              <p className="mt-1 text-sm">{t.authUnavailableDescription}</p>
+            </div>
+          ) : null}
+          {isLoaded && isAvailable && !isSignedIn ? (
             <SignIn
               routing="hash"
               signUpUrl={storefrontPath("/register")}

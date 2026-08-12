@@ -48,17 +48,17 @@ Secrets:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `AETHER_CART_TOKEN_SECRET`
+- `CLERK_SECRET_KEY`
+- `CLERK_JWT_ISSUER`
+- `GEMINI_API_KEY`
+- `AI_OPERATIONS_TOKEN`
 
 Opcionales según funciones habilitadas:
 
-- `CLERK_SECRET_KEY`
-- `CLERK_JWT_ISSUER`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `RESEND_API_KEY`
 - `CONTACT_RECIPIENT_EMAIL`
-- `GEMINI_API_KEY`
-- `AI_OPERATIONS_TOKEN`
 
 Usa llaves de test/dev. No reutilices secretos productivos en este environment.
 

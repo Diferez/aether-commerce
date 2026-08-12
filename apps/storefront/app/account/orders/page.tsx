@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import { createAetherClient } from "@aether/api-client";
@@ -11,13 +10,14 @@ import { apiBaseUrl } from "../../../components/config";
 import { useCustomerSession } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { StorefrontLink } from "../../../components/StorefrontLink";
+import { useAetherAuth } from "../../../components/ClerkAuthProvider";
 
 type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
 
 export default function OrdersPage() {
   const { locale, t } = useLanguage();
   const { customer, isLoaded } = useCustomerSession();
-  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAetherAuth();
   const customerId = customer?.id ?? "";
   const customerEmail = customer?.email ?? "";
   const [orders, setOrders] = useState<Order[]>([]);

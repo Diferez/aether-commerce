@@ -4,8 +4,8 @@ import type { AppBindings } from "../types";
 import { fail } from "../http";
 
 function normalizeStatus(status: number) {
-  return [400, 401, 403, 404, 409, 422, 429, 500].includes(status)
-    ? (status as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500)
+  return [400, 401, 403, 404, 409, 422, 429, 500, 503].includes(status)
+    ? (status as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 503)
     : 500;
 }
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@8.6.0",
+  "packageManager": "pnpm@8.15.9",
   "engines": {
     "node": ">=20.11.0"
   },
@@ -11,10 +11,11 @@
     "dev": "turbo dev --parallel",
     "dev:api": "pnpm --filter @aether/api dev",
     "dev:storefront": "pnpm --filter @aether/storefront dev",
-    "dev:storefront:e2e": "cross-env NEXT_PUBLIC_AETHER_AI_URL=http://localhost:8090 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k NEXT_PUBLIC_PORTFOLIO_URL=https://portfolio.example.com pnpm --filter @aether/storefront exec next dev --port 3010",
+    "dev:storefront:e2e": "cross-env NEXT_PUBLIC_AETHER_AI_URL=http://localhost:8090 NEXT_PUBLIC_AETHER_E2E=true NEXT_PUBLIC_PORTFOLIO_URL=https://portfolio.example.com pnpm --filter @aether/storefront exec next dev --port 3010",
     "dev:admin": "pnpm --filter @aether/admin dev",
     "env:sync": "node scripts/sync-env.mjs",
-    "deploy:preflight": "node scripts/check-deploy-config.mjs",
+    "deploy:preflight": "node scripts/check-deploy-config.mjs production",
+    "deploy:preflight:development": "node scripts/check-deploy-config.mjs development",
     "build": "turbo build",
     "build:api": "pnpm --filter @aether/api build",
     "build:storefront": "pnpm --filter @aether/storefront build",
@@ -35,7 +36,7 @@
     "db:migrate:local": "pnpm --filter @aether/api db:migrate:local",
     "db:seed": "pnpm --filter @aether/api db:seed",
     "openapi:check": "node scripts/check-openapi.mjs",
-    "validate": "pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check"
+    "validate": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test && pnpm openapi:check"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
@@ -46,15 +47,20 @@
     "eslint-config-next": "^16.3.0",
     "cross-env": "^7.0.3",
     "prettier": "^3.7.0",
-    "turbo": "^2.6.0",
+    "turbo": "^2.9.14",
     "typescript": "^5.9.0",
     "typescript-eslint": "^8.49.0",
-    "vitest": "^4.0.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.120.0"
   },
   "pnpm": {
     "overrides": {
-      "nanoid": "3.3.17"
+      "@esbuild-kit/core-utils>esbuild": "0.25.12",
+      "brace-expansion@^1.0.0": "1.1.18",
+      "brace-expansion@^2.0.0": "2.1.4",
+      "js-yaml": "4.3.1",
+      "nanoid": "3.3.17",
+      "postcss": "8.5.26"
     }
   }
 }

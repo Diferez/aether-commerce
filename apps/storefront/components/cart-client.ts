@@ -8,8 +8,8 @@ import { apiBaseUrl } from "./config";
 // product IDs are not comparable across sources) never resurrects stale
 // cart data under a new schema. See legacy-storage.ts for the one-time
 // cleanup of the pre-v1 (Platzi-era) keys.
-const cartIdKey = "aether.cartId.dummyjson.v1";
-const cartTokenKey = "aether.cartToken.dummyjson.v1";
+const cartIdKey = "aether.cartId.dummyjson.v2";
+const cartTokenKey = "aether.cartToken.dummyjson.v2";
 const localCartKey = "aether.localCartItems.dummyjson.v1";
 const cartApiTimeoutMs = 5000;
 
@@ -32,27 +32,39 @@ export function getCartId() {
   return next;
 }
 
-export async function getCartToken() {
-  const existing = window.sessionStorage.getItem(cartTokenKey);
-  if (existing) return existing;
-  const id = getCartId();
+export async function getCartCredentials() {
+  const existingToken = window.sessionStorage.getItem(cartTokenKey);
+  const existingCartId = window.localStorage.getItem(cartIdKey);
+  if (existingToken && existingCartId) {
+    return { cartId: existingCartId, token: existingToken };
+  }
+
+  const provisionalCartId = getCartId();
 
   try {
-    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/token`);
-    const payload = (await response.json()) as { success?: boolean; data?: { token?: string } };
+    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/session`, { method: "POST" });
+    const payload = (await response.json()) as {
+      success?: boolean;
+      data?: { cartId?: string; token?: string };
+    };
+    const cartId = payload.data?.cartId;
     const token = payload.data?.token;
-    if (!response.ok || !payload.success || !token) {
-      throw new Error("Cart token unavailable.");
+    if (!response.ok || !payload.success || !cartId || !token) {
+      throw new Error("Cart session unavailable.");
     }
+    window.localStorage.setItem(cartIdKey, cartId);
     window.sessionStorage.setItem(cartTokenKey, token);
-    return token;
+    return { cartId, token };
   } catch {
-    return "";
+    return { cartId: provisionalCartId, token: "" };
   }
 }
 
-async function cartMutationHeaders() {
-  const token = await getCartToken();
+export async function getCartToken() {
+  return (await getCartCredentials()).token;
+}
+
+function cartMutationHeaders(token: string) {
   return {
     "content-type": "application/json",
     ...(token ? { "x-aether-cart-token": token } : {})
@@ -151,12 +163,12 @@ function updateLocalItemQuantity(itemId: string, quantity: number) {
 
 export async function updateCartItemQuantity(itemId: string, quantity: number) {
   updateLocalItemQuantity(itemId, quantity);
-  const id = getCartId();
 
   try {
-    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/items/${encodeURIComponent(itemId)}`, {
+    const { cartId, token } = await getCartCredentials();
+    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items/${encodeURIComponent(itemId)}`, {
       method: "PATCH",
-      headers: await cartMutationHeaders(),
+      headers: cartMutationHeaders(token),
       body: JSON.stringify({ quantity: Math.min(25, Math.max(1, Math.round(quantity))) })
     });
     const payload = (await response.json()) as { success?: boolean };
@@ -171,12 +183,12 @@ export async function updateCartItemQuantity(itemId: string, quantity: number) {
 
 export async function removeProductFromCart(itemId: string) {
   removeLocalCartItem(itemId);
-  const id = getCartId();
 
   try {
-    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/items/${encodeURIComponent(itemId)}`, {
+    const { cartId, token } = await getCartCredentials();
+    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items/${encodeURIComponent(itemId)}`, {
       method: "DELETE",
-      headers: await cartMutationHeaders()
+      headers: cartMutationHeaders(token)
     });
     const payload = (await response.json()) as { success?: boolean };
     if (!response.ok || !payload.success) {
@@ -189,14 +201,14 @@ export async function removeProductFromCart(itemId: string) {
 }
 
 export async function addProductToCart(product: Product) {
-  const id = getCartId();
   const item = productToCartItem(product);
   saveLocalCartItem(product);
 
   try {
-    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/items`, {
+    const { cartId, token } = await getCartCredentials();
+    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items`, {
       method: "POST",
-      headers: await cartMutationHeaders(),
+      headers: cartMutationHeaders(token),
       body: JSON.stringify({
         productId: item.slug,
         variantId: item.variantId,
@@ -214,10 +226,10 @@ export async function addProductToCart(product: Product) {
 }
 
 export async function addProductReferenceToCart(input: { slug: string; variantId?: string | null; quantity?: number }) {
-  const id = getCartId();
-  const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/items`, {
+  const { cartId, token } = await getCartCredentials();
+  const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items`, {
     method: "POST",
-    headers: await cartMutationHeaders(),
+    headers: cartMutationHeaders(token),
     body: JSON.stringify({
       productId: input.slug,
       variantId: input.variantId || undefined,
@@ -233,13 +245,13 @@ export async function addProductReferenceToCart(input: { slug: string; variantId
 }
 
 export async function syncLocalCartToApi() {
-  const id = getCartId();
+  const { cartId, token } = await getCartCredentials();
   const items = readLocalItems();
 
   for (const item of items) {
-    const response = await fetch(`${apiBaseUrl}/api/v1/cart/${id}/items`, {
+    const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/items`, {
       method: "POST",
-      headers: await cartMutationHeaders(),
+      headers: cartMutationHeaders(token),
       body: JSON.stringify({
         productId: item.slug,
         variantId: item.variantId,
@@ -254,10 +266,10 @@ export async function syncLocalCartToApi() {
 }
 
 export async function applyCartCoupon(code: string) {
-  const id = getCartId();
-  const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${id}/coupon`, {
+  const { cartId, token } = await getCartCredentials();
+  const response = await fetchCartApi(`${apiBaseUrl}/api/v1/cart/${cartId}/coupon`, {
     method: "POST",
-    headers: await cartMutationHeaders(),
+    headers: cartMutationHeaders(token),
     body: JSON.stringify({ code })
   });
   const payload = (await response.json()) as { success?: boolean };

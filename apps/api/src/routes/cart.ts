@@ -6,13 +6,37 @@ import { cartItemInputSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { createCartToken, verifyCartToken } from "../services/cart-token";
-import { addItem, applyCoupon, readCart, removeItem, updateItemQuantity } from "../services/cart";
+import {
+  addItem,
+  applyCoupon,
+  createCart,
+  readCart,
+  removeItem,
+  updateItemQuantity
+} from "../services/cart";
 
 export const cartRoutes = new Hono<AppBindings>();
 
-cartRoutes.get("/:id/token", async (c) => {
+async function purgeInactiveAnonymousCarts(c: Context<AppBindings>) {
   try {
-    return ok(c, { token: await createCartToken(c.env, c.req.param("id")) });
+    await c.env.DB.prepare(
+      "delete from cart_items where cart_id in (select id from carts where user_id is null and updated_at <= datetime('now', '-90 days'))"
+    ).run();
+    await c.env.DB.prepare(
+      "delete from carts where user_id is null and updated_at <= datetime('now', '-90 days')"
+    ).run();
+  } catch {
+    // A cart session must remain available during rolling schema migrations.
+  }
+}
+
+cartRoutes.post("/session", async (c) => {
+  try {
+    await purgeInactiveAnonymousCarts(c);
+    const cartId = crypto.randomUUID();
+    const token = await createCartToken(c.env, cartId);
+    await createCart(c.env, cartId);
+    return ok(c, { cartId, token }, 201);
   } catch {
     return fail(c, 500, "CART_TOKEN_UNAVAILABLE", "Cart token signing is not configured.");
   }
@@ -56,7 +80,10 @@ cartRoutes.post(
 cartRoutes.delete("/:id/items/:itemId", async (c) => {
   const tokenError = await requireCartToken(c, c.req.param("id"));
   if (tokenError) return tokenError;
-  return ok(c, await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId"))));
+  return ok(
+    c,
+    await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId")))
+  );
 });
 
 cartRoutes.patch(

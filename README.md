@@ -12,7 +12,7 @@ Tienda tecnológica bilingüe desplegable como proyecto independiente en Cloudfl
 
 ## Desarrollo local
 
-Requiere Node.js 22, pnpm 8.6 y Python 3.12 para las pruebas del asistente.
+Requiere Node.js 22, pnpm 8.15 y Python 3.12 para las pruebas del asistente.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -51,7 +51,7 @@ Para el servicio Python:
 
 ```bash
 cd apps/ai-assistant
-python -m pip install -r requirements-docker.txt
+python -m pip install --require-hashes -r requirements-docker.txt
 python -m compileall app tests scripts
 python scripts/security_scan.py
 python -m app.evaluation

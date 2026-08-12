@@ -27,6 +27,10 @@ function emptyCart(id: string): Cart {
   };
 }
 
+export async function createCart(env: Env, id = crypto.randomUUID()): Promise<Cart> {
+  return writeCart(env, emptyCart(id));
+}
+
 export async function readCart(env: Env, id: string): Promise<Cart> {
   const row = await env.DB.prepare("select payload_json from carts where id = ?").bind(id).first<{
     payload_json: string;
@@ -44,7 +48,11 @@ export async function writeCart(env: Env, cart: Cart): Promise<Cart> {
   await env.DB.prepare(
     `insert into carts (id, user_id, anonymous_id, payload_json, created_at, updated_at)
      values (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     on conflict(id) do update set payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP`
+     on conflict(id) do update set
+       user_id = excluded.user_id,
+       anonymous_id = excluded.anonymous_id,
+       payload_json = excluded.payload_json,
+       updated_at = CURRENT_TIMESTAMP`
   )
     .bind(updated.id, updated.userId ?? null, updated.anonymousId ?? null, JSON.stringify(updated))
     .run();

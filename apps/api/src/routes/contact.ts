@@ -36,10 +36,20 @@ contactRoutes.post("/", zValidator("json", contactMessageSchema), async (c) => {
   const id = crypto.randomUUID();
   const delivery = await sendContactEmail(c.env, message);
 
+  // Opportunistically enforce the published retention period without adding a
+  // separate scheduled job. Every new submission removes records whose
+  // retention window has expired before storing the new message.
+  await c.env.DB.prepare(
+    `delete from contact_messages
+      where expires_at is not null and expires_at <= CURRENT_TIMESTAMP`
+  ).run();
+
   await c.env.DB.prepare(
     `insert into contact_messages
-      (id, name, email, subject, message, locale, email_status, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      (id, name, email, subject, message, locale, email_status, consent_at,
+       privacy_version, expires_at, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, datetime('now', '+12 months'),
+       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
   )
     .bind(
       id,
@@ -48,7 +58,8 @@ contactRoutes.post("/", zValidator("json", contactMessageSchema), async (c) => {
       message.subject,
       message.message,
       message.locale,
-      JSON.stringify(delivery)
+      JSON.stringify(delivery),
+      message.privacyVersion
     )
     .run();
 

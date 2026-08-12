@@ -1,11 +1,10 @@
 name: AI assistant image
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Aether CI"]
+    types: [completed]
     branches: [main]
-    paths:
-      - "apps/ai-assistant/**"
-      - ".github/workflows/ai-assistant-image.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,15 +13,27 @@ permissions:
 
 jobs:
   build:
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      IMAGE_NAME: ghcr.io/diferez/aether-ai-assistant
+      IMAGE_NAME: ghcr.io/diferez/aether-commerce-ai-assistant
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       - name: Build image
         working-directory: apps/ai-assistant
-        run: docker build -t aether-ai-assistant:test .
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            -t aether-ai-assistant:test .
       - name: Smoke image
         working-directory: apps/ai-assistant
         run: |
@@ -34,14 +45,14 @@ jobs:
             aether-ai-assistant:test
           trap 'docker stop aether-ai-assistant-smoke || true' EXIT
           python scripts/smoke.py
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish image
         run: |
-          docker tag aether-ai-assistant:test "${IMAGE_NAME}:${GITHUB_SHA}"
+          docker tag aether-ai-assistant:test "${IMAGE_NAME}:${SOURCE_SHA}"
           docker tag aether-ai-assistant:test "${IMAGE_NAME}:latest"
-          docker push "${IMAGE_NAME}:${GITHUB_SHA}"
+          docker push "${IMAGE_NAME}:${SOURCE_SHA}"
           docker push "${IMAGE_NAME}:latest"

@@ -2,7 +2,7 @@
 name = "aether-ai-assistant"
 version = "0.1.0"
 description = "Aether sales assistant service powered by FastAPI, LangGraph and Gemini."
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
   "fastapi",
   "pydantic",

@@ -148,10 +148,13 @@ def test_ai_assistant_image_workflow_builds_smokes_and_publishes() -> None:
         "python scripts/smoke.py",
         "docker/login-action",
         "docker push",
-        "${github_sha}",
+        "${source_sha}",
         ":latest",
     ]:
         assert required_phrase in workflow
+
+    assert "workflow_run" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
 
 
 def test_production_workflow_smokes_ai_assistant_image_before_deploy() -> None:
@@ -165,6 +168,9 @@ def test_production_workflow_smokes_ai_assistant_image_before_deploy() -> None:
     assert "aether_cart_token_secret" in deploy
     assert "cloudflare_api_token" in deploy
     assert "cloudflare_account_id" in deploy
+    assert "workflow_run" in deploy
+    assert "github.event.workflow_run.conclusion == 'success'" in deploy
+    assert "check-deploy-runtime.mjs" in deploy
 
 
 def test_required_environment_variables_are_documented_and_configured() -> None:

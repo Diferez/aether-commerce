@@ -30,16 +30,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install assistant dependencies
         working-directory: apps/ai-assistant
-        run: python -m pip install -r requirements-docker.txt
+        run: python -m pip install --require-hashes -r requirements-docker.txt
 
       - name: Run limited Gemini evaluation
         working-directory: apps/ai-assistant
@@ -47,7 +47,7 @@ jobs:
           PYTHONPATH: "."
         run: |
           if [ -z "${GEMINI_API_KEY}" ]; then
-            echo "GEMINI_API_KEY is not configured; skipping real Gemini evaluation."
-            exit 0
+            echo "::error::GEMINI_API_KEY is required for the real Gemini evaluation."
+            exit 1
           fi
           python -m app.gemini_evaluation --limit "${AI_EVAL_MAX_CASES}"
