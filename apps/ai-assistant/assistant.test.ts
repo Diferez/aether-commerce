@@ -32,6 +32,34 @@ function assistantRequest(message: string, headers: Record<string, string> = {})
   });
 }
 
+// Stubs global fetch so calls to Gemini return a fixed classification while
+// everything else (aether-api calls through the env.AETHER_API binding)
+// behaves as usual - lets tests assert on how validateIntentResult reconciles
+// a mocked LLM answer against the real heuristic.
+function withMockedGemini<T>(intent: string, language: string, run: () => Promise<T>): Promise<T> {
+  const geminiPayload = {
+    candidates: [
+      {
+        content: {
+          parts: [
+            { text: JSON.stringify({ intent, confidence: 0.9, language, explanation: "mocked" }) }
+          ]
+        }
+      }
+    ]
+  };
+  const originalFetch = global.fetch;
+  global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.includes("generativelanguage.googleapis.com"))
+      return Promise.resolve(Response.json(geminiPayload));
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  return run().finally(() => {
+    global.fetch = originalFetch;
+  });
+}
+
 describe("LangGraph Worker orchestration", () => {
   it("contains the full controlled graph", () => {
     expect(assistantGraphNodes).toEqual([
@@ -84,7 +112,11 @@ describe("interview regressions", () => {
     ["Show me my Cart", "GET_CART", "en"],
     ["Muestrame mis favoritos", "GET_FAVORITES", "es"],
     ["Add this to my favorites", "ADD_FAVORITE", "en"],
-    ["Quita esto de mis favoritos", "REMOVE_FAVORITE", "es"]
+    ["Quita esto de mis favoritos", "REMOVE_FAVORITE", "es"],
+    ["Montre mes favoris", "GET_FAVORITES", "fr"],
+    ["Mostrami i miei preferiti", "GET_FAVORITES", "it"],
+    ["Recomiéndame algo para viajar", "RECOMMEND_PRODUCTS", "es"],
+    ["What do you recommend?", "RECOMMEND_PRODUCTS", "en"]
   ] as const)("classifies %s", (message, intent, language) => {
     expect(heuristicIntent(message)).toMatchObject({ intent, language });
   });
@@ -127,61 +159,46 @@ describe("interview regressions", () => {
     // orders (likely anchored on the redacted history it was given), which
     // trapped the shopper in a "sign in to see your orders" loop when they
     // actually asked to search deals.
-    const geminiResponse = () =>
+    const apiFetch = () =>
       Promise.resolve(
-        new Response(
-          JSON.stringify({
-            candidates: [
-              {
-                content: {
-                  parts: [
-                    {
-                      text: JSON.stringify({
-                        intent: "GET_MY_ORDERS",
-                        confidence: 0.9,
-                        language: "es",
-                        explanation: "conversation mentioned orders earlier"
-                      })
-                    }
-                  ]
-                }
-              }
-            ]
-          })
-        )
+        Response.json({
+          success: true,
+          data: [
+            {
+              id: "deal-1",
+              slug: "deal-1",
+              name: "Deal Product",
+              finalPrice: 1000,
+              availableStock: 4,
+              images: []
+            }
+          ]
+        })
       );
-    const originalFetch = global.fetch;
-    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("generativelanguage.googleapis.com")) return geminiResponse();
-      return originalFetch(input, init);
-    }) as typeof fetch;
-    try {
-      const apiFetch = () =>
-        Promise.resolve(
-          Response.json({
-            success: true,
-            data: [
-              {
-                id: "deal-1",
-                slug: "deal-1",
-                name: "Deal Product",
-                finalPrice: 1000,
-                availableStock: 4,
-                images: []
-              }
-            ]
-          })
-        );
+    const payload = await withMockedGemini("GET_MY_ORDERS", "es", async () => {
       const response = await worker.fetch(assistantRequest("Buscar ofertas"), {
         ...env(apiFetch),
         GEMINI_API_KEY: "test-key"
       });
-      const payload = await response.json<{ intent: string }>();
-      expect(payload.intent).toBe("SEARCH_PRODUCTS");
-    } finally {
-      global.fetch = originalFetch;
-    }
+      return response.json<{ intent: string }>();
+    });
+    expect(payload.intent).toBe("SEARCH_PRODUCTS");
+  });
+
+  it("keeps the session locale when the message has no language signal, even if Gemini guesses wrong", async () => {
+    // Regression for the original interview bug: gibberish sent from a
+    // Spanish session came back in English. Gemini still returns a "valid"
+    // language for content-free input - it's just an ungrounded guess - so
+    // the session's declared locale should win instead of Gemini's guess.
+    const payload = await withMockedGemini("UNSUPPORTED", "en", async () => {
+      const response = await worker.fetch(assistantRequest("asdlkjaslkdj"), {
+        ...env(),
+        GEMINI_API_KEY: "test-key"
+      });
+      return response.json<{ intent: string; message: string }>();
+    });
+    expect(payload.intent).toBe("UNSUPPORTED");
+    expect(payload.message).toMatch(/no puedo ayudar/i);
   });
 
   it("lists the authenticated shopper's favorites", async () => {
