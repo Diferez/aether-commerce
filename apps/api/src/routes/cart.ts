@@ -6,6 +6,7 @@ import { cartItemInputSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { createCartToken, verifyCartToken } from "../services/cart-token";
+import { withIdempotency } from "../services/idempotency";
 import {
   addItem,
   applyCoupon,
@@ -60,11 +61,19 @@ cartRoutes.post("/:id/items", zValidator("json", cartItemInputSchema), async (c)
   const tokenError = await requireCartToken(c, c.req.param("id"));
   if (tokenError) return tokenError;
 
-  try {
-    return ok(c, await addItem(c.env, c.req.param("id"), c.req.valid("json")), 201);
-  } catch {
-    return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
-  }
+  return withIdempotency(
+    c.env.DB,
+    "POST /cart/:id/items",
+    c.req.header("x-idempotency-key"),
+    { cartId: c.req.param("id"), ...c.req.valid("json") },
+    async () => {
+      try {
+        return ok(c, await addItem(c.env, c.req.param("id"), c.req.valid("json")), 201);
+      } catch {
+        return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+      }
+    }
+  );
 });
 
 cartRoutes.post(
@@ -80,9 +89,13 @@ cartRoutes.post(
 cartRoutes.delete("/:id/items/:itemId", async (c) => {
   const tokenError = await requireCartToken(c, c.req.param("id"));
   if (tokenError) return tokenError;
-  return ok(
-    c,
-    await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId")))
+  return withIdempotency(
+    c.env.DB,
+    "DELETE /cart/:id/items/:itemId",
+    c.req.header("x-idempotency-key"),
+    { cartId: c.req.param("id"), itemId: c.req.param("itemId") },
+    async () =>
+      ok(c, await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId"))))
   );
 });
 
@@ -92,14 +105,21 @@ cartRoutes.patch(
   async (c) => {
     const tokenError = await requireCartToken(c, c.req.param("id"));
     if (tokenError) return tokenError;
-    return ok(
-      c,
-      await updateItemQuantity(
-        c.env,
-        c.req.param("id"),
-        decodeURIComponent(c.req.param("itemId")),
-        c.req.valid("json").quantity
-      )
+    return withIdempotency(
+      c.env.DB,
+      "PATCH /cart/:id/items/:itemId",
+      c.req.header("x-idempotency-key"),
+      { cartId: c.req.param("id"), itemId: c.req.param("itemId"), ...c.req.valid("json") },
+      async () =>
+        ok(
+          c,
+          await updateItemQuantity(
+            c.env,
+            c.req.param("id"),
+            decodeURIComponent(c.req.param("itemId")),
+            c.req.valid("json").quantity
+          )
+        )
     );
   }
 );
