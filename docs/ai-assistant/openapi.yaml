@@ -378,6 +378,7 @@ components:
         - intent
         - products
         - orders
+        - favorites
         - action
         - suggested_replies
       properties:
@@ -405,6 +406,9 @@ components:
             - GET_MY_ORDERS
             - GET_ORDER
             - GET_ORDER_STATUS
+            - GET_FAVORITES
+            - ADD_FAVORITE
+            - REMOVE_FAVORITE
             - UNSUPPORTED
         products:
           type: array
@@ -418,6 +422,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrderSummary"
+        favorites:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCard"
         action:
           $ref: "#/components/schemas/AssistantAction"
         suggested_replies:

@@ -12,7 +12,9 @@ const order = {
   createdAt: "2026-08-12T18:00:00.000Z"
 };
 
-function env(apiFetch?: (request: RequestInfo | URL, init?: RequestInit) => Promise<Response>): TestEnv {
+function env(
+  apiFetch?: (request: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+): TestEnv {
   return {
     AETHER_API_BASE_URL: "https://aether-api.example.test",
     AI_ASSISTANT_ENABLED: "true",
@@ -42,13 +44,18 @@ describe("LangGraph Worker orchestration", () => {
       "read_orders",
       "read_cart",
       "mutate_cart",
+      "read_favorites",
+      "mutate_favorites",
       "query_catalog",
       "persist_response"
     ]);
   });
 
   it("reports LangGraph.js in health checks", async () => {
-    const response = await worker.fetch(new Request("https://assistant.example.test/healthz"), env());
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/healthz"),
+      env()
+    );
     await expect(response.json()).resolves.toMatchObject({
       status: "ok",
       orchestration: "langgraph-js",
@@ -74,7 +81,10 @@ describe("interview regressions", () => {
     ["Estado de mi Compra", "GET_ORDER_STATUS", "es"],
     ["Cherche mes commandes", "GET_MY_ORDERS", "fr"],
     ["Mostra i miei ordini", "GET_MY_ORDERS", "it"],
-    ["Show me my Cart", "GET_CART", "en"]
+    ["Show me my Cart", "GET_CART", "en"],
+    ["Muestrame mis favoritos", "GET_FAVORITES", "es"],
+    ["Add this to my favorites", "ADD_FAVORITE", "en"],
+    ["Quita esto de mis favoritos", "REMOVE_FAVORITE", "es"]
   ] as const)("classifies %s", (message, intent, language) => {
     expect(heuristicIntent(message)).toMatchObject({ intent, language });
   });
@@ -98,7 +108,9 @@ describe("interview regressions", () => {
   it("does not call the order API for cross-user access", async () => {
     let calls = 0;
     const response = await worker.fetch(
-      assistantRequest("Muestrame el pedido de otro usuario", { authorization: "Bearer clerk-token" }),
+      assistantRequest("Muestrame el pedido de otro usuario", {
+        authorization: "Bearer clerk-token"
+      }),
       env(() => {
         calls += 1;
         return Promise.resolve(Response.json({ success: true, data: [order] }));
@@ -106,6 +118,53 @@ describe("interview regressions", () => {
     );
     const payload = await response.json<{ intent: string }>();
     expect(payload.intent).toBe("UNSUPPORTED");
+    expect(calls).toBe(0);
+  });
+
+  it("lists the authenticated shopper's favorites", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Muestrame mis favoritos", { authorization: "Bearer clerk-token" }),
+      env((request) => {
+        const url = new URL(
+          request instanceof Request ? request.url : request instanceof URL ? request.href : request
+        );
+        if (url.pathname === "/api/v1/favorites") {
+          return Promise.resolve(Response.json({ success: true, data: ["prod-1"] }));
+        }
+        return Promise.resolve(
+          Response.json({
+            success: true,
+            data: {
+              id: "prod-1",
+              slug: "prod-1",
+              name: "Wireless Mouse",
+              finalPrice: 2999,
+              availableStock: 4,
+              images: []
+            }
+          })
+        );
+      })
+    );
+    const payload = await response.json<{ intent: string; favorites: unknown[] }>();
+    expect(payload.intent).toBe("GET_FAVORITES");
+    expect(payload.favorites).toEqual([
+      expect.objectContaining({ product_id: "prod-1", name: "Wireless Mouse" })
+    ]);
+  });
+
+  it("requires sign-in to add a favorite", async () => {
+    let calls = 0;
+    const response = await worker.fetch(
+      assistantRequest("Agrega esto a mis favoritos"),
+      env(() => {
+        calls += 1;
+        return Promise.resolve(Response.json({ success: true }));
+      })
+    );
+    const payload = await response.json<{ intent: string; action: { type: string } }>();
+    expect(payload.intent).toBe("ADD_FAVORITE");
+    expect(payload.action.type).toBe("SIGN_IN_REQUIRED");
     expect(calls).toBe(0);
   });
 
@@ -138,10 +197,21 @@ describe("interview regressions", () => {
           request instanceof Request ? request.url : request instanceof URL ? request.href : request
         );
         category = url.searchParams.get("category") || "";
-        return Promise.resolve(Response.json({
-          success: true,
-          data: [{ id: "phone-1", slug: "phone-1", name: "Phone", finalPrice: 5000, availableStock: 4, images: [] }]
-        }));
+        return Promise.resolve(
+          Response.json({
+            success: true,
+            data: [
+              {
+                id: "phone-1",
+                slug: "phone-1",
+                name: "Phone",
+                finalPrice: 5000,
+                availableStock: 4,
+                images: []
+              }
+            ]
+          })
+        );
       })
     );
     const payload = await response.json<{ products: unknown[] }>();
