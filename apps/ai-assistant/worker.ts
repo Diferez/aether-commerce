@@ -250,6 +250,18 @@ type AssistantGraphData = {
   response?: AssistantResponse;
 };
 
+// The minimal shape auditGraphAction actually reads - deliberately narrower
+// than AssistantGraphData (which is a structural superset of this, so every
+// existing `auditGraphAction(data, ...)` call site keeps compiling as-is)
+// so a future tool wrapper that doesn't carry the full graph state can call
+// it with just this.
+type AuditContext = {
+  env: Env;
+  requestId: string;
+  threadId: string;
+  sessionHash: string;
+};
+
 const AssistantGraphState = Annotation.Root({ data: Annotation<AssistantGraphData> });
 
 export const assistantGraphNodes = [
@@ -352,16 +364,18 @@ async function validateRequestNode({ data }: { data: AssistantGraphData }) {
     sessionHash
   };
   if (data.env.AI_ASSISTANT_ENABLED === "false") {
+    const language = localeLanguage(data.locale);
     next.response = responsePayload(
       data.requestId,
       data.threadId,
-      localize(localeLanguage(data.locale), {
+      localize(language, {
         es: "El asistente esta desactivado temporalmente.",
         en: "The assistant is temporarily disabled.",
         fr: "L'assistant est temporairement desactive.",
         it: "L'assistente e temporaneamente disattivato."
       }),
-      "UNSUPPORTED"
+      "UNSUPPORTED",
+      language
     );
   }
   return { data: next };
@@ -427,6 +441,7 @@ async function authorizeAndRouteNode({ data }: { data: AssistantGraphData }) {
             it: "Ho bisogno di una richiesta piu chiara per aiutarti senza fare supposizioni."
           }),
           "UNSUPPORTED",
+          language,
           [],
           null,
           "ASK_CLARIFICATION",
@@ -462,6 +477,7 @@ async function authorizeAndRouteNode({ data }: { data: AssistantGraphData }) {
             it: "Prima di modificare il carrello ho bisogno di un'istruzione piu precisa."
           }),
           intentResult.intent,
+          language,
           [],
           null,
           "ASK_CLARIFICATION",
@@ -500,7 +516,13 @@ function unsupportedNode({ data }: { data: AssistantGraphData }) {
   return {
     data: {
       ...data,
-      response: responsePayload(data.requestId, data.threadId, message, "UNSUPPORTED")
+      response: responsePayload(
+        data.requestId,
+        data.threadId,
+        message,
+        "UNSUPPORTED",
+        data.intentResult.language
+      )
     }
   };
 }
@@ -519,6 +541,7 @@ async function ordersNode({ data }: { data: AssistantGraphData }) {
         it: "Accedi per consentirmi di controllare i tuoi ordini in modo sicuro."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "SIGN_IN_REQUIRED",
@@ -559,6 +582,7 @@ async function ordersNode({ data }: { data: AssistantGraphData }) {
             : "Non riesco a controllare i tuoi ordini in questo momento."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       result.status === "auth_required" ? "SIGN_IN_REQUIRED" : "ASK_CLARIFICATION",
@@ -592,6 +616,7 @@ async function ordersNode({ data }: { data: AssistantGraphData }) {
           : "Non ci sono ancora ordini associati a questo account."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "ORDER_NOT_FOUND",
@@ -623,6 +648,7 @@ async function ordersNode({ data }: { data: AssistantGraphData }) {
     threadId,
     message,
     intentResult.intent,
+    language,
     [],
     null,
     "OPEN_ORDERS",
@@ -647,6 +673,7 @@ async function cartReadNode({ data }: { data: AssistantGraphData }) {
         it: "Devo convalidare il carrello prima di leggerlo. Riapri il negozio e riprova."
       }),
       intentResult.intent,
+      intentResult.language,
       [],
       null,
       "ASK_CLARIFICATION",
@@ -676,6 +703,7 @@ async function cartReadNode({ data }: { data: AssistantGraphData }) {
         data.threadId,
         message,
         intentResult.intent,
+        intentResult.language,
         [],
         cart,
         checkout ? "OPEN_CHECKOUT" : "OPEN_CART",
@@ -722,6 +750,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
             : "Devo convalidare il carrello prima di modificarlo."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "ASK_CLARIFICATION",
@@ -750,6 +779,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Non sono riuscito a leggere il carrello. Non e stata apportata alcuna modifica."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "ASK_CLARIFICATION",
@@ -779,6 +809,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Fatto. Ho svuotato il carrello."
       }),
       intentResult.intent,
+      language,
       [],
       updated || cart,
       updated ? "CART_CLEARED" : "ASK_CLARIFICATION",
@@ -807,6 +838,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Devo sapere esattamente quale articolo del carrello vuoi modificare."
       }),
       intentResult.intent,
+      language,
       [],
       cart,
       "ASK_CLARIFICATION",
@@ -846,6 +878,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Fatto. Ho rimosso l'articolo dal carrello."
       }),
       intentResult.intent,
+      language,
       [],
       updated || cart,
       updated ? "CART_ITEM_REMOVED" : "ASK_CLARIFICATION",
@@ -874,6 +907,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Indica una quantita da 1 a 25 per aggiornare il carrello."
       }),
       intentResult.intent,
+      language,
       [],
       cart,
       "ASK_CLARIFICATION",
@@ -909,6 +943,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
       it: `Fatto. Ho aggiornato la quantita a ${quantity}.`
     }),
     intentResult.intent,
+    language,
     [],
     updated || cart,
     updated ? "CART_ITEM_UPDATED" : "ASK_CLARIFICATION",
@@ -931,6 +966,7 @@ async function favoritesReadNode({ data }: { data: AssistantGraphData }) {
         it: "Accedi per consentirmi di mostrare i tuoi preferiti."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "SIGN_IN_REQUIRED",
@@ -971,6 +1007,7 @@ async function favoritesReadNode({ data }: { data: AssistantGraphData }) {
             : "Non riesco a controllare i tuoi preferiti in questo momento."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       result.status === "auth_required" ? "SIGN_IN_REQUIRED" : "ASK_CLARIFICATION",
@@ -997,6 +1034,7 @@ async function favoritesReadNode({ data }: { data: AssistantGraphData }) {
     threadId,
     message,
     intentResult.intent,
+    language,
     [],
     null,
     "OPEN_FAVORITES",
@@ -1020,6 +1058,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Accedi per salvare o rimuovere i preferiti."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "SIGN_IN_REQUIRED",
@@ -1047,6 +1086,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Le modifiche ai preferiti sono temporaneamente disabilitate."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       "ASK_CLARIFICATION",
@@ -1087,6 +1127,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
               : "Non ho trovato quel prodotto da salvare tra i preferiti."
         }),
         intentResult.intent,
+        language,
         products,
         null,
         "ASK_CLARIFICATION",
@@ -1124,6 +1165,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
           : "Non sono riuscito a salvare il prodotto tra i preferiti."
       }),
       intentResult.intent,
+      language,
       [product],
       null,
       saved ? "FAVORITE_ADDED" : "ASK_CLARIFICATION",
@@ -1156,6 +1198,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
             : "Non riesco a controllare i tuoi preferiti in questo momento."
       }),
       intentResult.intent,
+      language,
       [],
       null,
       favResult.status === "auth_required" ? "SIGN_IN_REQUIRED" : "ASK_CLARIFICATION",
@@ -1185,6 +1228,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
         it: "Devo sapere esattamente quale preferito vuoi rimuovere."
       }),
       intentResult.intent,
+      language,
       favoriteProducts,
       null,
       "ASK_CLARIFICATION",
@@ -1221,6 +1265,7 @@ async function favoritesMutationNode({ data }: { data: AssistantGraphData }) {
         : "Non sono riuscito a rimuovere l'articolo dai preferiti."
     }),
     intentResult.intent,
+    language,
     [],
     null,
     removed ? "FAVORITE_REMOVED" : "ASK_CLARIFICATION",
@@ -1290,6 +1335,7 @@ async function catalogNode({ data }: { data: AssistantGraphData }) {
                 : "Devo convalidare il carrello prima di modificarlo."
         }),
         intentResult.intent,
+        language,
         products,
         null,
         "ASK_CLARIFICATION",
@@ -1329,6 +1375,7 @@ async function catalogNode({ data }: { data: AssistantGraphData }) {
             it: "Fatto. Ho aggiunto il prodotto al carrello."
           }),
           intentResult.intent,
+          language,
           [product],
           cart,
           "CART_ITEM_ADDED",
@@ -1349,6 +1396,7 @@ async function catalogNode({ data }: { data: AssistantGraphData }) {
         it: "Ho trovato queste opzioni reali su Aether."
       }),
       intentResult.intent,
+      language,
       products
     );
     return { data: { ...data, response } };
@@ -1357,7 +1405,13 @@ async function catalogNode({ data }: { data: AssistantGraphData }) {
   return {
     data: {
       ...data,
-      response: responsePayload(data.requestId, data.threadId, emptyMessage, intentResult.intent)
+      response: responsePayload(
+        data.requestId,
+        data.threadId,
+        emptyMessage,
+        intentResult.intent,
+        language
+      )
     }
   };
 }
@@ -1377,7 +1431,7 @@ async function persistResponseNode({ data }: { data: AssistantGraphData }) {
 }
 
 async function auditGraphAction(
-  data: AssistantGraphData,
+  ctx: AuditContext,
   toolName: string,
   normalizedArguments: string,
   targetEntityId: string | null,
@@ -1385,11 +1439,11 @@ async function auditGraphAction(
   executionStatus: "succeeded" | "failed" | "blocked",
   errorCode: string | null = null
 ): Promise<string> {
-  const key = await idempotencyKey(data.requestId, toolName, normalizedArguments);
-  await persistAuditEvent(data.env, {
-    request_id: data.requestId,
-    thread_id: data.threadId,
-    user_or_session_hash: data.sessionHash,
+  const key = await idempotencyKey(ctx.requestId, toolName, normalizedArguments);
+  await persistAuditEvent(ctx.env, {
+    request_id: ctx.requestId,
+    thread_id: ctx.threadId,
+    user_or_session_hash: ctx.sessionHash,
     tool_name: toolName,
     normalized_arguments: normalizedArguments,
     target_entity_id: targetEntityId,
@@ -2381,14 +2435,22 @@ function detectLanguageHeuristic(message: string, localeFallback: string): Assis
   return detectedLanguageSignal(message) || localeLanguage(localeFallback);
 }
 
+// The hard security boundary: self-contained (folds its own input) so it can
+// run as a pre-filter before any LLM call is made, independent of the rest
+// of intent classification - a message that matches this must never reach
+// Gemini or a tool-calling agent, regardless of what either would otherwise
+// decide.
+export function isUnsafeRequest(message: string): boolean {
+  const value = foldText(message);
+  return /(ignora|ignore).*(reglas|rules|instrucciones|instructions)|gemini.*key|api key|prompt interno|system prompt|otro usuario|another user|autre utilisateur|altro utente|tarjeta\s*\d{4}|4111|\bunion\s+select\b|\bor\s+1\s*=\s*1\b|;\s*drop\b|--/.test(
+    value
+  );
+}
+
 export function heuristicIntent(message: string, localeFallback = "es-CO"): IntentResult {
   const value = foldText(message);
   const language = detectLanguageHeuristic(message, localeFallback);
-  if (
-    /(ignora|ignore).*(reglas|rules|instrucciones|instructions)|gemini.*key|api key|prompt interno|system prompt|otro usuario|another user|autre utilisateur|altro utente|tarjeta\s*\d{4}|4111|\bunion\s+select\b|\bor\s+1\s*=\s*1\b|;\s*drop\b|--/.test(
-      value
-    )
-  ) {
+  if (isUnsafeRequest(message)) {
     return {
       intent: "UNSUPPORTED",
       confidence: 0.98,
@@ -3168,26 +3230,12 @@ function responsePayload(
   threadId: string,
   message: string,
   intent: string,
+  language: AssistantLanguage,
   products: AssistantProduct[] = [],
   cart: Record<string, unknown> | null = null,
   actionType = products.length ? "PRODUCTS_LISTED" : "NONE",
   actionStatus = products.length ? "SUCCEEDED" : "NOT_REQUESTED"
 ): AssistantResponse {
-  // \b-wrapped alternatives must cover plural forms explicitly - a bare
-  // "commande" doesn't match inside "commandes" because \b requires a
-  // boundary right after the match, and the trailing "s" defeats that. This
-  // silently misdetected French/Italian responses (e.g. "Voir mes
-  // commandes", "Vedi i miei ordini") as English, showing English
-  // suggested_replies under a correctly-localized message body.
-  const language: AssistantLanguage = /\b(paniers?|commandes?|produits?|trouve|favoris?)\b/i.test(
-    message
-  )
-    ? "fr"
-    : /\b(carrell[oi]|ordin[ei]|prodott[oi]|trovato|fatto|preferit[oi])\b/i.test(message)
-      ? "it"
-      : /[áéíóúñ]|carrito|producto|encontre|listo|pedido|favorito/i.test(message)
-        ? "es"
-        : "en";
   return {
     request_id: requestId,
     thread_id: threadId,
