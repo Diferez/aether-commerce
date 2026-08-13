@@ -2133,7 +2133,7 @@ async function classifyIntent(
           language?: unknown;
         })
       : {};
-    return validateIntentResult(parsed, fallback, detectedLanguageSignal(message) !== null);
+    return validateIntentResult(parsed, fallback);
   } catch {
     return fallback;
   }
@@ -2309,8 +2309,7 @@ function isMutableIntent(intent: string): boolean {
 
 function validateIntentResult(
   parsed: { intent?: string; confidence?: unknown; explanation?: unknown; language?: unknown },
-  fallback: IntentResult,
-  messageHasLanguageSignal: boolean
+  fallback: IntentResult
 ): IntentResult {
   const intent = allowedIntents.includes(parsed.intent as IntentName)
     ? (parsed.intent as IntentName)
@@ -2323,17 +2322,17 @@ function validateIntentResult(
     typeof parsed.explanation === "string"
       ? parsed.explanation.slice(0, 240)
       : fallback.explanation;
-  const supportedLanguages: AssistantLanguage[] = ["es", "en", "fr", "it"];
-  // Only trust Gemini's own language guess when the message actually carries
-  // a language signal. For content-free input (gibberish, digits-only) Gemini
-  // still returns a "valid" es/en/fr/it value, but it's an ungrounded guess -
-  // e.g. it has repeatedly guessed English for gibberish sent from a Spanish
-  // session, silently switching the reply's language. The session's declared
-  // locale (fallback.language) is more trustworthy than a guess in that case.
-  const language =
-    messageHasLanguageSignal && supportedLanguages.includes(parsed.language as AssistantLanguage)
-      ? (parsed.language as AssistantLanguage)
-      : fallback.language;
+  // Always the heuristic's own read (detectLanguageHeuristic: a keyword/accent
+  // match when the message has one, otherwise the session's declared locale),
+  // never Gemini's `language` field. Both failure modes were observed live:
+  // Gemini guesses a "valid" but ungrounded language for content-free input
+  // (gibberish, digits) instead of keeping the session's locale, and it has
+  // also flat-out misdetected French/Italian messages as es/en despite the
+  // message containing unambiguous French/Italian keywords the heuristic
+  // already recognizes. The heuristic's read is at least as reliable as
+  // Gemini's for this domain's short, keyword-heavy shopper messages, so
+  // there's no case left where trusting Gemini's guess over it helps.
+  const language = fallback.language;
   // The heuristic only reads the current message, so once it has an explicit
   // keyword match - anything above the GENERAL_STORE_QUESTION catch-all's 0.82
   // - it can't be misled by unrelated prior turns the way the LLM sometimes
@@ -2348,24 +2347,19 @@ function validateIntentResult(
     fallback.confidence >= 0.85 &&
     intent !== fallback.intent
   ) {
-    return { ...fallback, language };
+    return fallback;
   }
   return { intent, confidence, explanation, language };
 }
 
-// Word-boundary keyword check for the handful of Spanish/English shopping
-// terms that show up in real messages. Accented characters and ¿/¡ are a
-// near-certain Spanish signal on their own; otherwise the language with more
-// keyword hits wins. On a tie or an empty/ambiguous message, fall back to
-// the site's locale rather than guessing.
-// Returns the language actually signaled by the message text, or null when
-// the message carries no linguistic signal at all (gibberish, digits-only,
-// etc.) - distinct from detectLanguageHeuristic, which always resolves to
-// *some* language by falling back to the session locale. classifyIntent uses
-// the null case to know when it's not safe to trust Gemini's own `language`
-// guess either: an LLM asked to pick es/en/fr/it for pure gibberish still
-// returns a "valid" value, but it's a guess with no more grounding than the
-// heuristic's, so the session's declared locale should win instead.
+// Word-boundary keyword check for the handful of Spanish/English/French/
+// Italian shopping terms that show up in real messages. Accented characters
+// and ¿/¡ are a near-certain Spanish signal on their own; otherwise the
+// language with more keyword hits wins. Returns null - rather than a guess -
+// when the message carries no linguistic signal at all (gibberish,
+// digits-only, a tied keyword count), which is what lets
+// detectLanguageHeuristic fall back to the session's declared locale instead
+// of picking one arbitrarily.
 function detectedLanguageSignal(message: string): AssistantLanguage | null {
   const trimmed = message.trim();
   if (!trimmed) return null;
@@ -2500,8 +2494,11 @@ export function heuristicIntent(message: string, localeFallback = "es-CO"): Inte
       explanation: "Checkout guidance request.",
       language
     };
-  if (/(carrito|cart)/.test(value))
-    return { intent: "GET_CART", confidence: 0.9, explanation: "Cart read request.", language };
+  // Checked before the generic GET_CART catch-all below: "agrega X al
+  // carrito" mentions "carrito" too, so if GET_CART's bare word check ran
+  // first it would win and the item would never actually get added -
+  // confirmed live, this was misreading a plain add-to-cart request as "show
+  // me my cart".
   if (/(agrega|anade|a.{0,6}ade|add|pon|mete)/.test(value))
     return {
       intent: "ADD_TO_CART",
@@ -2509,6 +2506,8 @@ export function heuristicIntent(message: string, localeFallback = "es-CO"): Inte
       explanation: "Explicit add-to-cart request.",
       language
     };
+  if (/(carrito|cart)/.test(value))
+    return { intent: "GET_CART", confidence: 0.9, explanation: "Cart read request.", language };
   // Checked before the generic SEARCH_PRODUCTS catch-all below so a
   // "recomienda/recommend" phrase isn't folded into it - RECOMMEND_PRODUCTS
   // is a distinct allowed intent (see IntentName and the evaluation corpus's
@@ -3171,9 +3170,17 @@ function responsePayload(
   actionType = products.length ? "PRODUCTS_LISTED" : "NONE",
   actionStatus = products.length ? "SUCCEEDED" : "NOT_REQUESTED"
 ): AssistantResponse {
-  const language: AssistantLanguage = /\b(panier|commande|produit|trouve|favoris?)\b/i.test(message)
+  // \b-wrapped alternatives must cover plural forms explicitly - a bare
+  // "commande" doesn't match inside "commandes" because \b requires a
+  // boundary right after the match, and the trailing "s" defeats that. This
+  // silently misdetected French/Italian responses (e.g. "Voir mes
+  // commandes", "Vedi i miei ordini") as English, showing English
+  // suggested_replies under a correctly-localized message body.
+  const language: AssistantLanguage = /\b(paniers?|commandes?|produits?|trouve|favoris?)\b/i.test(
+    message
+  )
     ? "fr"
-    : /\b(carrello|ordine|prodotto|trovato|fatto|preferit[oi])\b/i.test(message)
+    : /\b(carrell[oi]|ordin[ei]|prodott[oi]|trovato|fatto|preferit[oi])\b/i.test(message)
       ? "it"
       : /[áéíóúñ]|carrito|producto|encontre|listo|pedido|favorito/i.test(message)
         ? "es"

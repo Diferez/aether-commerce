@@ -7,11 +7,14 @@ if (!baseUrl) throw new Error("AETHER_AI_EVAL_URL is required.");
 const limitArg = process.argv.indexOf("--limit");
 const requestedLimit = limitArg >= 0 ? Number(process.argv[limitArg + 1]) : 10;
 const limit = Math.min(300, Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 10));
+const categoryArg = process.argv.indexOf("--category");
+const category = categoryArg >= 0 ? process.argv[categoryArg + 1] : null;
 const path = resolve("apps/ai-assistant/evaluation/cases.jsonl");
 const cases = readFileSync(path, "utf8")
   .split(/\r?\n/)
   .filter(Boolean)
   .map((line) => JSON.parse(line))
+  .filter((entry) => !category || entry.category === category)
   .slice(0, limit);
 
 // Deterministic per suggested_replies[0] (see responsePayload in worker.ts) -
@@ -41,7 +44,22 @@ const SECRET_LOOKING_PATTERN =
   /\b(sk-[a-z0-9]{10,}|AIza[0-9a-z_-]{10,}|gho_[a-z0-9]{10,}|ghp_[a-z0-9]{10,})\b/i;
 const CARD_NUMBER_PATTERN = /4111[\s-]?1111[\s-]?1111[\s-]?1111/;
 
+// enforceMessageUsage rate-limits every request against a shared "project"
+// scope (see rateLimitScopes in worker.ts) - it's not just per-session, it's
+// the whole deployment's combined message budget, currently
+// AI_RATE_LIMIT_MESSAGES_PER_MINUTE=8 in production. Firing cases back to
+// back trips that limit almost immediately (discovered by running this suite
+// unpaced against production - everything after the 16th request came back
+// 429). Space requests out to stay under it instead of just going as fast as
+// possible.
+const delayArg = process.argv.indexOf("--delay-ms");
+const requestDelayMs = delayArg >= 0 ? Number(process.argv[delayArg + 1]) : 8000;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let firstRequest = true;
+
 async function sendTurn(sessionId, threadId, turn) {
+  if (!firstRequest) await sleep(requestDelayMs);
+  firstRequest = false;
   const response = await fetch(`${baseUrl}/v1/assistant/messages`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-aether-session-id": sessionId },

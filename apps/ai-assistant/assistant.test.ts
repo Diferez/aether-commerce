@@ -116,7 +116,8 @@ describe("interview regressions", () => {
     ["Montre mes favoris", "GET_FAVORITES", "fr"],
     ["Mostrami i miei preferiti", "GET_FAVORITES", "it"],
     ["Recomiéndame algo para viajar", "RECOMMEND_PRODUCTS", "es"],
-    ["What do you recommend?", "RECOMMEND_PRODUCTS", "en"]
+    ["What do you recommend?", "RECOMMEND_PRODUCTS", "en"],
+    ["Agrega al carrito unos tenis rojos", "ADD_TO_CART", "es"]
   ] as const)("classifies %s", (message, intent, language) => {
     expect(heuristicIntent(message)).toMatchObject({ intent, language });
   });
@@ -199,6 +200,30 @@ describe("interview regressions", () => {
     });
     expect(payload.intent).toBe("UNSUPPORTED");
     expect(payload.message).toMatch(/no puedo ayudar/i);
+  });
+
+  it("trusts the heuristic's language read over Gemini's for a message with a clear signal", async () => {
+    // Regression found while building the evaluation suite: Gemini
+    // misdetected French/Italian orders messages as es/en despite the
+    // message containing unambiguous keywords the heuristic already
+    // recognizes (e.g. "commandes"). The heuristic's language now always
+    // wins, not just for signal-free input.
+    const payload = await withMockedGemini("GET_MY_ORDERS", "es", async () => {
+      const response = await worker.fetch(
+        new Request("https://assistant.example.test/v1/assistant/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            message: "Cherche mes commandes",
+            locale: "fr-FR",
+            privacy_consent: true
+          })
+        }),
+        { ...env(), GEMINI_API_KEY: "test-key" }
+      );
+      return response.json<{ suggested_replies: string[] }>();
+    });
+    expect(payload.suggested_replies[0]).toBe("Voir le panier");
   });
 
   it("lists the authenticated shopper's favorites", async () => {
