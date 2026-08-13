@@ -759,13 +759,7 @@ async function cartMutationNode({ data }: { data: AssistantGraphData }) {
   }
   if (intentResult.intent === "CLEAR_CART") {
     const normalized = `cart:${cartId}`;
-    const updated = await clearCart(
-      env,
-      cartId,
-      cartToken,
-      cart,
-      await idempotencyKey(data.requestId, "clear_cart", normalized)
-    );
+    const updated = await clearCart(env, cartId, cartToken, cart, data.requestId);
     await auditGraphAction(
       data,
       "clear_cart",
@@ -2951,7 +2945,7 @@ async function clearCart(
   cartId: string,
   cartToken: string,
   cart: Record<string, unknown>,
-  idempotencyKeyValue: string
+  requestId: string
 ): Promise<Record<string, unknown> | null> {
   const items = Array.isArray(cart.items) ? cart.items : [];
   let latest: Record<string, unknown> | null = cart;
@@ -2961,7 +2955,16 @@ async function clearCart(
       primitiveString(item.slug) ||
       primitiveString(item.variantId) ||
       primitiveString(item.productId);
-    if (itemId) latest = await removeCartItem(env, cartId, cartToken, itemId, idempotencyKeyValue);
+    if (itemId) {
+      // apps/api now enforces idempotency keys per-key (not per-request), so
+      // reusing one key across every DELETE in this loop made every item
+      // after the first come back 409 IDEMPOTENCY_KEY_REUSED - the cart's
+      // first item would clear but the rest silently wouldn't. Each item
+      // needs its own key, same as a standalone REMOVE_FROM_CART.
+      const normalized = `cart:${cartId}:item:${itemId}`;
+      const itemKey = await idempotencyKey(requestId, "clear_cart", normalized);
+      latest = await removeCartItem(env, cartId, cartToken, itemId, itemKey);
+    }
   }
   return latest;
 }
