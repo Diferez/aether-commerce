@@ -121,6 +121,69 @@ describe("interview regressions", () => {
     expect(calls).toBe(0);
   });
 
+  it("does not let a context-confused LLM answer override a confident heuristic match", async () => {
+    // Regression for a production bug: right after an orders question,
+    // Gemini kept classifying the next, unrelated message as still about
+    // orders (likely anchored on the redacted history it was given), which
+    // trapped the shopper in a "sign in to see your orders" loop when they
+    // actually asked to search deals.
+    const geminiResponse = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        intent: "GET_MY_ORDERS",
+                        confidence: 0.9,
+                        language: "es",
+                        explanation: "conversation mentioned orders earlier"
+                      })
+                    }
+                  ]
+                }
+              }
+            ]
+          })
+        )
+      );
+    const originalFetch = global.fetch;
+    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("generativelanguage.googleapis.com")) return geminiResponse();
+      return originalFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const apiFetch = () =>
+        Promise.resolve(
+          Response.json({
+            success: true,
+            data: [
+              {
+                id: "deal-1",
+                slug: "deal-1",
+                name: "Deal Product",
+                finalPrice: 1000,
+                availableStock: 4,
+                images: []
+              }
+            ]
+          })
+        );
+      const response = await worker.fetch(assistantRequest("Buscar ofertas"), {
+        ...env(apiFetch),
+        GEMINI_API_KEY: "test-key"
+      });
+      const payload = await response.json<{ intent: string }>();
+      expect(payload.intent).toBe("SEARCH_PRODUCTS");
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("lists the authenticated shopper's favorites", async () => {
     const response = await worker.fetch(
       assistantRequest("Muestrame mis favoritos", { authorization: "Bearer clerk-token" }),

@@ -2326,14 +2326,19 @@ function validateIntentResult(
   const language = supportedLanguages.includes(parsed.language as AssistantLanguage)
     ? (parsed.language as AssistantLanguage)
     : fallback.language;
+  // The heuristic only reads the current message, so once it has an explicit
+  // keyword match - anything above the GENERAL_STORE_QUESTION catch-all's 0.82
+  // - it can't be misled by unrelated prior turns the way the LLM sometimes
+  // is. Observed in production: right after an orders question, Gemini kept
+  // classifying an unrelated later message ("Buscar ofertas") as still about
+  // orders, apparently anchored on the redacted order-related history in
+  // conversationContext, which trapped the shopper in a sign-in loop. Trust
+  // the heuristic over a conflicting LLM answer whenever it has a specific,
+  // non-fallback match.
   if (
-    (fallback.intent === "GET_MY_ORDERS" ||
-      fallback.intent === "GET_ORDER" ||
-      fallback.intent === "GET_ORDER_STATUS" ||
-      fallback.intent === "GET_FAVORITES" ||
-      fallback.intent === "ADD_FAVORITE" ||
-      fallback.intent === "REMOVE_FAVORITE") &&
-    intent === "UNSUPPORTED"
+    fallback.intent !== "GENERAL_STORE_QUESTION" &&
+    fallback.confidence >= 0.85 &&
+    intent !== fallback.intent
   ) {
     return { ...fallback, language };
   }
