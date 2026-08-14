@@ -16,6 +16,8 @@ export type Env = {
   RESEND_API_KEY?: string;
   CONTACT_RECIPIENT_EMAIL?: string;
   CLOUDINARY_CLOUD_NAME?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
   AETHER_CART_TOKEN_SECRET?: string;
   AETHER_ENV?: string;
 };

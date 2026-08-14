@@ -21,6 +21,15 @@ type BrandSettings = {
   features: { reviews: boolean };
 };
 
+type ProductSummary = {
+  id: string;
+  name: string;
+  sku: string;
+  stock: number;
+  lowStockThreshold: number;
+  visibility: "draft" | "visible" | "hidden";
+};
+
 type Summary = {
   mode: "private" | "demo";
   revenue: number;
@@ -80,6 +89,8 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
     features: { reviews: true }
   });
   const [brandSaveStatus, setBrandSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [recentProducts, setRecentProducts] = useState<ProductSummary[]>([]);
+  const [productsTotal, setProductsTotal] = useState<number | null>(null);
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
@@ -93,6 +104,15 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       .then((response) => response.json())
       .then((payload: { success: boolean; data?: BrandSettings }) => {
         if (payload.success && payload.data) setBrandForm(payload.data);
+      })
+      .catch(() => {});
+    void fetch(`${apiBaseUrl}/api/v1/admin/products?pageSize=3&sort=updated_at`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: { data: ProductSummary[]; pagination: { total: number } } }) => {
+        if (payload.success && payload.data) {
+          setRecentProducts(payload.data.data);
+          setProductsTotal(payload.data.pagination.total);
+        }
       })
       .catch(() => {});
   }, []);
@@ -228,22 +248,38 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       </section>
 
       <section id="products" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 p-4">
-          <h2 className="text-lg font-semibold">Catalog overrides</h2>
-          <p className="text-sm text-zinc-500">Use private admin to update flags, visibility, copy, and inventory rules.</p>
-        </div>
-        {["Aether Arc Laptop", "Aether Dock Studio", "Aether Pulse Headset"].map((product, index) => (
-          <div key={product} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_180px_180px] md:items-center">
-            <div>
-              <h3 className="font-semibold">{product}</h3>
-              <p className="text-sm text-zinc-500">Override status: {index === 1 ? "featured" : "standard"}</p>
-            </div>
-            <span className="text-sm text-zinc-600">{index === 2 ? "Low stock" : "In stock"}</span>
-            <button disabled={demo} className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
-              Edit override
-            </button>
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+          <div>
+            <h2 className="text-lg font-semibold">Products</h2>
+            <p className="text-sm text-zinc-500">
+              {productsTotal !== null ? `${productsTotal} product${productsTotal === 1 ? "" : "s"} in the catalog.` : "Create, edit, publish and archive products."}
+            </p>
           </div>
-        ))}
+          <a href="/products/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+            View all
+          </a>
+        </div>
+        {recentProducts.length === 0 ? (
+          <p className="p-4 text-sm text-zinc-500">No products yet.</p>
+        ) : (
+          recentProducts.map((product) => (
+            <div key={product.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_180px_180px] md:items-center">
+              <div>
+                <h3 className="font-semibold">{product.name}</h3>
+                <p className="text-sm text-zinc-500">SKU {product.sku}</p>
+              </div>
+              <span className="text-sm text-zinc-600">
+                {product.stock <= 0 ? "Out of stock" : product.stock <= product.lowStockThreshold ? "Low stock" : "In stock"}
+              </span>
+              <a
+                href={`/products/edit/?id=${encodeURIComponent(product.id)}`}
+                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+              >
+                Edit product
+              </a>
+            </div>
+          ))
+        )}
       </section>
 
       <section id="orders" className="mt-6 rounded-lg border border-zinc-200 bg-white">

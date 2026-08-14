@@ -1,14 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { Env } from "../types";
-import { __testables } from "./catalog";
+import { __testables, type ProductRow } from "./catalog";
 
-const { normalizeLocal, flagsFor, foldText, typedLocalProducts } = __testables;
+const { normalizeRow, flagsFor, foldText } = __testables;
 
 const testEnv = { APP_ORIGIN_STORE: "https://store.example" } as Env;
 
-type LocalProduct = Parameters<typeof normalizeLocal>[1];
-
-function makeLocalProduct(overrides: Partial<LocalProduct> = {}): LocalProduct {
+function makeProductRow(overrides: Partial<ProductRow> = {}): ProductRow {
+  const details = {
+    shortDescription: "Cubre los bordes sin anadir bulto.",
+    description: "Cubre los bordes y las camaras sin anadir bulto notable al bolsillo.",
+    highlights: ["Material: Policarbonato", "Peso: 32 g", "Disponible en 5 colores"],
+    specs: { Material: "Policarbonato con borde de TPU", Peso: "32 g" },
+    tags: ["funda", "proteccion", "accesorio-celular"],
+    variants: [{ type: "color", options: ["Negro", "Grafito", "Arena"] }],
+    images: {
+      main: "/products/funda-slim-grip-1.webp",
+      gallery: ["/products/funda-slim-grip-2.webp", "/products/funda-slim-grip-3.webp"]
+    },
+    imagePrompt: "a black phone case, studio photography"
+  };
   return {
     id: "prd_0042",
     sku: "MOB-FUND-0042",
@@ -17,33 +28,31 @@ function makeLocalProduct(overrides: Partial<LocalProduct> = {}): LocalProduct {
     brand: "Halven",
     category: "mobile-accessories",
     subcategory: "fundas",
-    price: 19,
-    currency: "USD",
+    price_cents: 1900,
+    compare_at_price_cents: null,
+    final_price_cents: 1900,
     stock: 34,
-    rating: 4.6,
-    reviewCount: 128,
-    shortDescription: "Cubre los bordes sin anadir bulto.",
-    description: "Cubre los bordes y las camaras sin anadir bulto notable al bolsillo.",
-    highlights: ["Material: Policarbonato", "Peso: 32 g", "Disponible en 5 colores"],
-    specs: { Material: "Policarbonato con borde de TPU", Peso: "32 g" },
-    tags: ["funda", "proteccion", "accesorio-celular"],
-    variants: [{ type: "color", options: ["Negro", "Grafito", "Arena"] }],
-    images: { main: "/products/funda-slim-grip-1.webp", gallery: ["/products/funda-slim-grip-2.webp", "/products/funda-slim-grip-3.webp"] },
-    imagePrompt: "a black phone case, studio photography",
-    featured: false,
-    isNew: false,
-    createdAt: "2025-03-10",
+    low_stock_threshold: 4,
+    visibility: "visible",
+    featured: 0,
+    is_new: 0,
+    is_deal: 0,
+    rating_average: 4.6,
+    rating_count: 128,
+    details_json: JSON.stringify(details),
+    created_at: "2025-03-10T00:00:00.000Z",
+    updated_at: "2025-03-10T00:00:00.000Z",
     ...overrides
   };
 }
 
-describe("catalog.normalizeLocal", () => {
-  it("maps a local catalog product onto the Aether Product contract", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct());
+describe("catalog.normalizeRow", () => {
+  it("maps a products row onto the Aether Product contract", () => {
+    const product = normalizeRow(testEnv, makeProductRow());
 
     expect(product.id).toBe("prd_0042");
     expect(product.externalId).toBeNull();
-    expect(product.sourceId).toBe("42");
+    expect(product.sourceId).toBe("prd_0042");
     expect(product.slug).toBe("funda-slim-grip");
     expect(product.catalogSource).toBe("local");
     expect(product.brand).toBe("Halven");
@@ -52,75 +61,86 @@ describe("catalog.normalizeLocal", () => {
     expect(product.category.name).toBe("Mobile Accessories");
   });
 
-  it("converts the dollar price to integer cents", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct({ price: 19 }));
+  it("keeps final_price_cents as an integer-cents finalPrice", () => {
+    const product = normalizeRow(testEnv, makeProductRow({ final_price_cents: 1900 }));
     expect(product.finalPrice).toBe(1900);
     expect(Number.isInteger(product.finalPrice)).toBe(true);
   });
 
-  it("swaps price direction: local price -> finalPrice, compareAtPrice -> price/originalPrice", () => {
-    // The local catalog's `price` is what the customer actually pays;
-    // compareAtPrice (when present) is the higher, struck-through reference.
-    // The shared Product contract expects the opposite - price = pre-discount,
-    // finalPrice = what's charged - so this must land inverted.
-    const product = normalizeLocal(testEnv, makeLocalProduct({ price: 19, compareAtPrice: 25 }));
+  it("uses compare_at_price_cents as the struck-through price/originalPrice", () => {
+    const product = normalizeRow(
+      testEnv,
+      makeProductRow({ final_price_cents: 1900, compare_at_price_cents: 2500, price_cents: 2500 })
+    );
     expect(product.finalPrice).toBe(1900);
     expect(product.price).toBe(2500);
     expect(product.originalPrice).toBe(2500);
     expect(product.discountPercentage).toBe(24);
   });
 
-  it("has no discount and no originalPrice when compareAtPrice is absent", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct({ price: 19 }));
+  it("has no discount and no originalPrice when compare_at_price_cents is absent", () => {
+    const product = normalizeRow(testEnv, makeProductRow({ final_price_cents: 1900, compare_at_price_cents: null }));
     expect(product.price).toBe(1900);
     expect(product.originalPrice).toBeNull();
     expect(product.discountPercentage).toBe(0);
   });
 
-  it("uses the catalog's own stock directly as availableStock", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct({ stock: 0 }));
+  it("uses the row's own stock directly as availableStock", () => {
+    const product = normalizeRow(testEnv, makeProductRow({ stock: 0 }));
     expect(product.availableStock).toBe(0);
     expect(product.availabilityStatus).toBe("out_of_stock");
   });
 
-  it("builds absolute image URLs from APP_ORIGIN_STORE and tags them as local", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct());
+  it("reflects visibility onto both the visibility and visible fields", () => {
+    expect(normalizeRow(testEnv, makeProductRow({ visibility: "visible" })).visible).toBe(true);
+    expect(normalizeRow(testEnv, makeProductRow({ visibility: "draft" })).visible).toBe(false);
+    expect(normalizeRow(testEnv, makeProductRow({ visibility: "hidden" })).visible).toBe(false);
+  });
+
+  it("builds absolute image URLs from APP_ORIGIN_STORE and tags bare paths as local", () => {
+    const product = normalizeRow(testEnv, makeProductRow());
     expect(product.images).toHaveLength(3);
     expect(product.images[0]?.url).toBe("https://store.example/products/funda-slim-grip-1.webp");
     expect(product.images.every((image) => image.source === "local")).toBe(true);
     expect(product.thumbnail).toBe("https://store.example/products/funda-slim-grip-1.webp");
   });
 
+  it("leaves absolute (Cloudinary) image URLs untouched and tags them accordingly", () => {
+    const details = JSON.parse(makeProductRow().details_json) as { images: { main: string; gallery: string[] } };
+    details.images.main = "https://res.cloudinary.com/demo/image/upload/v1/aether/funda-1.jpg";
+    const product = normalizeRow(testEnv, makeProductRow({ details_json: JSON.stringify(details) }));
+    expect(product.images[0]?.url).toBe("https://res.cloudinary.com/demo/image/upload/v1/aether/funda-1.jpg");
+    expect(product.images[0]?.source).toBe("cloudinary");
+  });
+
   it("falls back to http://localhost:3000 when APP_ORIGIN_STORE is unset", () => {
-    const product = normalizeLocal({} as Env, makeLocalProduct());
+    const product = normalizeRow({} as Env, makeProductRow());
     expect(product.thumbnail.startsWith("http://localhost:3000/products/")).toBe(true);
   });
 
   it("maps specs to the specifications array", () => {
-    const product = normalizeLocal(testEnv, makeLocalProduct());
+    const product = normalizeRow(testEnv, makeProductRow());
     expect(product.specifications).toEqual([
       { key: "Material", value: "Policarbonato con borde de TPU" },
       { key: "Peso", value: "32 g" }
     ]);
   });
-
-  it("normalizes every generated catalog product without throwing", () => {
-    for (const product of typedLocalProducts) {
-      expect(() => normalizeLocal(testEnv, product)).not.toThrow();
-    }
-  });
 });
 
 describe("catalog.flagsFor", () => {
-  it("derives flags from the product's own featured/isNew/compareAtPrice/stock fields", () => {
-    expect(flagsFor(makeLocalProduct({ featured: true }))).toContain("featured");
-    expect(flagsFor(makeLocalProduct({ isNew: true }))).toContain("new");
-    expect(flagsFor(makeLocalProduct({ compareAtPrice: 30 }))).toContain("deal");
-    expect(flagsFor(makeLocalProduct({ stock: 3 }))).toContain("limited");
+  it("derives flags from the row's own featured/is_new/is_deal/stock fields", () => {
+    expect(flagsFor(makeProductRow({ featured: 1 }))).toContain("featured");
+    expect(flagsFor(makeProductRow({ is_new: 1 }))).toContain("new");
+    expect(flagsFor(makeProductRow({ is_deal: 1 }))).toContain("deal");
+    expect(flagsFor(makeProductRow({ stock: 3, low_stock_threshold: 4 }))).toContain("limited");
+  });
+
+  it("does not flag limited once stock is above the row's own low_stock_threshold", () => {
+    expect(flagsFor(makeProductRow({ stock: 10, low_stock_threshold: 4 }))).not.toContain("limited");
   });
 
   it("always returns at least one flag", () => {
-    const flags = flagsFor(makeLocalProduct({ featured: false, isNew: false, stock: 50 }));
+    const flags = flagsFor(makeProductRow({ featured: 0, is_new: 0, is_deal: 0, stock: 50 }));
     expect(flags.length).toBeGreaterThan(0);
   });
 });

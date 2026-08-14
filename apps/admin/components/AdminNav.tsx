@@ -7,7 +7,7 @@ import { storefrontUrl } from "./config";
 const nav = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
   { href: "/demo", label: "Public demo", icon: ShieldCheck },
-  { href: "#products", label: "Products", icon: Boxes },
+  { href: "/products/", label: "Products", icon: Boxes },
   { href: "#orders", label: "Orders", icon: ClipboardList },
   { href: "#messages", label: "Messages", icon: Mail },
   { href: "#settings", label: "Settings", icon: Settings }

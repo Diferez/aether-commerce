@@ -6,13 +6,60 @@ import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
-import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
+import { clearCatalogCache } from "../services/catalog";
+import { createUploadSignature } from "../services/cloudinary";
+import {
+  adjustProductInventory,
+  bulkSetVisibility,
+  createProduct,
+  deleteProduct,
+  getProductRow,
+  listProductsForAdmin,
+  setProductVisibility,
+  updateProduct
+} from "../services/products-admin";
 
-const productOverrideSchema = z.object({
-  name: z.string().min(1).optional(),
-  visibility: z.enum(["visible", "hidden", "draft"]).optional(),
-  flags: z.array(z.enum(["featured", "new", "deal", "limited", "hidden"])).optional()
+const productImageSchema = z.object({ main: z.string().min(1), gallery: z.array(z.string().min(1)).default([]) });
+
+const productWriteSchema = z.object({
+  name: z.string().min(1).max(200),
+  slug: z.string().min(1).max(80).optional(),
+  sku: z.string().min(1).max(40).optional(),
+  brand: z.string().max(80).nullable().optional(),
+  category: z.string().min(1).max(60),
+  subcategory: z.string().max(60).nullable().optional(),
+  shortDescription: z.string().min(1).max(300),
+  description: z.string().min(1).max(5000),
+  highlights: z.array(z.string().min(1)).max(10).optional(),
+  specs: z.record(z.string(), z.string()).optional(),
+  tags: z.array(z.string().min(1)).max(20).optional(),
+  variants: z.array(z.object({ type: z.string().min(1), options: z.array(z.string().min(1)).min(1) })).optional(),
+  images: productImageSchema,
+  seoTitle: z.string().max(160).optional(),
+  seoDescription: z.string().max(300).optional(),
+  priceCents: z.number().int().min(0),
+  compareAtPriceCents: z.number().int().min(0).nullable().optional(),
+  stock: z.number().int().min(0),
+  lowStockThreshold: z.number().int().min(0).optional(),
+  visibility: z.enum(["draft", "visible", "hidden"]).optional(),
+  featured: z.boolean().optional(),
+  isNew: z.boolean().optional(),
+  isDeal: z.boolean().optional()
 });
+// compareAtPriceCents, when present, is the struck-through reference price -
+// it must be strictly higher than what the shopper actually pays, or the
+// "discount" shown on the storefront would be negative/nonsensical.
+const productWriteSchemaValidated = productWriteSchema.refine(
+  (value) => value.compareAtPriceCents == null || value.compareAtPriceCents > value.priceCents,
+  { message: "compareAtPriceCents must be greater than priceCents", path: ["compareAtPriceCents"] }
+);
+const productPatchSchema = productWriteSchema.partial().refine(
+  (value) =>
+    value.compareAtPriceCents == null ||
+    value.priceCents == null ||
+    value.compareAtPriceCents > value.priceCents,
+  { message: "compareAtPriceCents must be greater than priceCents", path: ["compareAtPriceCents"] }
+);
 
 export const adminRoutes = new Hono<AppBindings>();
 
@@ -66,55 +113,132 @@ adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
   });
 });
 
-adminRoutes.get("/products", requirePermission("products.read"), async (c) => {
-  const result = await getCatalogProducts(c.env, { page: 1, pageSize: 50, sort: "featured" });
+const productListQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  visibility: z.enum(["draft", "visible", "hidden"]).optional(),
+  category: z.string().max(60).optional(),
+  stock: z.enum(["low", "out"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  sort: z.enum(["name", "price", "stock", "updated_at"]).optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional()
+});
+
+// Admin list is a separate D1-backed path from the public catalog (real
+// filters/sort/pagination pushed to SQL, includes draft/hidden rows) - see
+// listProductsForAdmin in services/products-admin.ts for why.
+adminRoutes.get(
+  "/products",
+  requirePermission("products.read"),
+  zValidator("query", productListQuerySchema),
+  async (c) => {
+    const query = c.req.valid("query");
+    const result = await listProductsForAdmin(c.env, {
+      search: query.search,
+      visibility: query.visibility,
+      category: query.category,
+      stockFilter: query.stock,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+      sortDirection: query.sortDirection
+    });
+    return ok(c, result);
+  }
+);
+
+adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) => {
+  const row = await getProductRow(c.env, c.req.param("id"));
+  if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  const details = JSON.parse(row.details_json) as unknown;
+  return ok(c, { ...row, details });
+});
+
+adminRoutes.post(
+  "/products",
+  requirePermission("products.write"),
+  zValidator("json", productWriteSchemaValidated),
+  async (c) => {
+    const row = await createProduct(c.env, c.req.valid("json"));
+    return ok(c, row, 201);
+  }
+);
+
+adminRoutes.patch(
+  "/products/:id",
+  requirePermission("products.write"),
+  zValidator("json", productPatchSchema),
+  async (c) => {
+    const row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
+    if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+    return ok(c, row);
+  }
+);
+
+adminRoutes.post("/products/:id/publish", requirePermission("products.write"), async (c) => {
+  const changed = await setProductVisibility(c.env, c.req.param("id"), "visible");
+  if (!changed) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  return ok(c, { id: c.req.param("id"), visibility: "visible" });
+});
+
+adminRoutes.post("/products/:id/archive", requirePermission("products.write"), async (c) => {
+  const changed = await setProductVisibility(c.env, c.req.param("id"), "hidden");
+  if (!changed) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  return ok(c, { id: c.req.param("id"), visibility: "hidden" });
+});
+
+adminRoutes.post(
+  "/products/bulk",
+  requirePermission("products.write"),
+  zValidator(
+    "json",
+    z.object({
+      ids: z.array(z.string().min(1)).min(1).max(200),
+      action: z.enum(["publish", "archive", "draft"])
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const visibility = { publish: "visible", archive: "hidden", draft: "draft" }[body.action] as
+      | "visible"
+      | "hidden"
+      | "draft";
+    const changed = await bulkSetVisibility(c.env, body.ids, visibility);
+    return ok(c, { changed, visibility });
+  }
+);
+
+adminRoutes.delete("/products/:id", requirePermission("products.write"), async (c) => {
+  const result = await deleteProduct(c.env, c.req.param("id"));
   return ok(c, result);
 });
 
-adminRoutes.get("/products/:id", requirePermission("products.read"), async (c) => ok(c, await getProductById(c.env, c.req.param("id"))));
-
-adminRoutes.patch(
-  "/products/:id/override",
-  requirePermission("products.write"),
-  zValidator("json", productOverrideSchema),
+adminRoutes.post(
+  "/products/:id/inventory-adjustment",
+  requirePermission("inventory.write"),
+  zValidator("json", z.object({ delta: z.number().int().refine((value) => value !== 0), reason: z.string().max(300).optional() })),
   async (c) => {
-    const id = crypto.randomUUID();
-    await c.env.DB.prepare(
-      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
-       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    )
-      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
-      .run();
-
-    return ok(c, { id, productId: c.req.param("id") });
+    const body = c.req.valid("json");
+    const result = await adjustProductInventory(c.env, c.req.param("id"), {
+      delta: body.delta,
+      reason: body.reason,
+      actorId: c.get("actor").userId ?? "admin",
+      requestId: c.get("requestId")
+    });
+    if (!result) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+    return ok(c, result);
   }
 );
-
-adminRoutes.put(
-  "/products/:id/override",
-  requirePermission("products.write"),
-  zValidator("json", productOverrideSchema),
-  async (c) => {
-    const id = `override_${c.req.param("id")}`;
-    await c.env.DB.prepare(
-      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
-       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       on conflict(id) do update set payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP`
-    )
-      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
-      .run();
-    return ok(c, { id, productId: c.req.param("id"), saved: true });
-  }
-);
-
-adminRoutes.delete("/products/:id/override", requirePermission("products.write"), async (c) => {
-  await c.env.DB.prepare("delete from product_overrides where product_id = ?").bind(c.req.param("id")).run();
-  return ok(c, { productId: c.req.param("id"), restored: true });
-});
 
 adminRoutes.post("/products/:id/cache-refresh", requirePermission("products.write"), async (c) => {
   await clearCatalogCache(c.env);
   return ok(c, { productId: c.req.param("id"), refreshed: true });
+});
+
+adminRoutes.post("/uploads/signature", requirePermission("products.write"), async (c) => {
+  const signature = await createUploadSignature(c.env);
+  if (!signature) return fail(c, 503, "CLOUDINARY_NOT_CONFIGURED", "Image uploads are not configured.");
+  return ok(c, signature);
 });
 
 adminRoutes.get("/inventory", requirePermission("inventory.read"), async (c) => {

@@ -278,3 +278,44 @@ test("storefront exports a branded custom 404 through Cloudflare static assets",
   assert.match(notFoundPage, /exploreCatalog/);
   assert.match(storefrontWrangler, /"not_found_handling": "404-page"/);
 });
+
+test("admin product management routes are real (not the old orphaned override stubs)", () => {
+  const admin = read("apps/api/src/routes/admin.ts");
+
+  // The old PATCH/PUT/DELETE .../override routes wrote to product_overrides
+  // but catalog.ts never read that table back - "editing" a product from
+  // admin never changed what a shopper saw. Confirms that dead path is gone.
+  assert.doesNotMatch(admin, /product_overrides/);
+
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.patch\(\s*"\/products\/:id",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/publish", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/archive", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/bulk",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.delete\("\/products\/:id", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/:id\/inventory-adjustment",\s*requirePermission\("inventory\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/uploads\/signature", requirePermission\("products\.write"\)/);
+});
+
+test("products table is the catalog's source of truth, not the bundled JSON snapshot", () => {
+  const migration = read("apps/api/migrations/0013_products_table.sql");
+  const seed = read("apps/api/migrations/0014_seed_products_from_json.sql");
+  const catalog = read("apps/api/src/services/catalog.ts");
+
+  for (const column of ["sku TEXT NOT NULL UNIQUE", "slug TEXT NOT NULL UNIQUE", "visibility TEXT NOT NULL", "details_json TEXT NOT NULL"]) {
+    assert.match(migration, new RegExp(column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(seed, /INSERT OR IGNORE INTO products/);
+  assert.match(catalog, /select \* from products order by updated_at desc/);
+  assert.doesNotMatch(catalog, /typedLocalProducts/);
+});
+
+test("Cloudinary upload signing never sends the api_secret to the browser", () => {
+  const cloudinary = read("apps/api/src/services/cloudinary.ts");
+  const form = read("apps/admin/components/ProductForm.tsx");
+
+  assert.match(cloudinary, /CLOUDINARY_API_SECRET/);
+  assert.doesNotMatch(form, /CLOUDINARY_API_SECRET/);
+  assert.match(form, /api\.cloudinary\.com\/v1_1\//);
+  assert.match(form, /signature/);
+});
