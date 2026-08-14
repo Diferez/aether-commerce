@@ -4,6 +4,16 @@ import { tool } from "@langchain/core/tools";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { BaseCheckpointSaver, WRITES_IDX_MAP, getCheckpointId } from "@langchain/langgraph-checkpoint";
+import type {
+  Checkpoint,
+  CheckpointListOptions,
+  CheckpointMetadata,
+  CheckpointPendingWrite,
+  CheckpointTuple,
+  ChannelVersions,
+  PendingWrite
+} from "@langchain/langgraph-checkpoint";
 import { z } from "zod";
 
 type Fetcher = {
@@ -39,15 +49,19 @@ type Env = {
   AI_RATE_LIMIT_MESSAGES_PER_HOUR?: string;
   AI_RATE_LIMIT_ANONYMOUS_PER_DAY?: string;
   AI_DAILY_REQUEST_BUDGET?: string;
-  // Stage 1 of the tool-calling migration (see docs/ai-assistant/ plan):
-  // dark-launch flag for the LangChain/LangGraph tool-calling agent graph.
-  // Off (or missing GEMINI_API_KEY) always uses the classify-then-route
-  // graph below.
+  AI_MAX_CONCURRENT_REQUESTS?: string;
+  AI_REQUEST_TIMEOUT_SECONDS?: string;
+  OTEL_ENABLED?: string;
+  // Dark-launch flag from the tool-calling migration - its job (gating the
+  // agent graph vs. the now-deleted classify-then-route graph) is done, the
+  // dispatcher branches on GEMINI_API_KEY presence alone. Left wired in the
+  // deploy config as a no-op rather than torn out.
   AI_TOOL_CALLING_ENABLED?: string;
 };
 
 type D1Database = {
   prepare(query: string): D1PreparedStatement;
+  batch(statements: D1PreparedStatement[]): Promise<unknown[]>;
 };
 
 type D1PreparedStatement = {
@@ -176,12 +190,20 @@ export default {
     if (request.method === "POST" && url.pathname === "/v1/assistant/messages") {
       const limit = await enforceMessageUsage(request, env);
       if (limit) return json(request, env, limit.payload, limit.status);
-      return json(request, env, await handleAssistant(request, env));
+      const slot = await acquireConcurrencySlot(request, env);
+      if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
+      try {
+        return json(request, env, await handleAssistant(request, env));
+      } finally {
+        await releaseConcurrencySlot(env, slot.id);
+      }
     }
     if (request.method === "POST" && url.pathname === "/v1/assistant/messages/stream") {
       const limit = await enforceMessageUsage(request, env);
       if (limit) return json(request, env, limit.payload, limit.status);
-      return streamAssistant(request, env);
+      const slot = await acquireConcurrencySlot(request, env);
+      if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
+      return streamAssistant(request, env, () => releaseConcurrencySlot(env, slot.id));
     }
     const conversationMatch = url.pathname.match(/^\/v1\/assistant\/conversations\/([^/]+)$/);
     if (conversationMatch && request.method === "GET") {
@@ -577,6 +599,72 @@ async function pruneExpiredRateBuckets(env: Env): Promise<void> {
   }
 }
 
+// D1 has no cross-request locking, so this is a best-effort/soft cap - two
+// requests racing the same count-then-insert can both squeak in and briefly
+// exceed the limit by a small margin. Acceptable for what this protects
+// against (a burst overwhelming the Gemini quota/Worker CPU budget), not
+// a hard guarantee. expires_at is a safety net so a request that never
+// reaches its own release (killed isolate, uncaught throw before `finally`)
+// doesn't permanently hold a slot.
+async function acquireConcurrencySlot(
+  request: Request,
+  env: Env
+): Promise<{ ok: true; id: string } | { ok: false; result: AssistantHttpResult }> {
+  const limit = numberEnv(env.AI_MAX_CONCURRENT_REQUESTS);
+  if (!env.DB || limit === null) return { ok: true, id: "" };
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => ({}))) as AssistantRequest;
+  const spanish = (body.locale || "es-CO").toLowerCase().startsWith("es");
+  try {
+    await env.DB.prepare(
+      "delete from ai_concurrency_slots where expires_at <= datetime('now')"
+    ).run();
+    const current = await env.DB.prepare("select count(*) as n from ai_concurrency_slots").first<{
+      n: number;
+    }>();
+    if (Number(current?.n || 0) >= limit) {
+      return {
+        ok: false,
+        result: {
+          status: 429,
+          payload: {
+            success: false,
+            error: {
+              code: "concurrency_limit_exceeded",
+              message: spanish
+                ? "El asistente esta ocupado en este momento. Intenta de nuevo en unos segundos."
+                : "The assistant is busy right now. Try again in a few seconds."
+            }
+          }
+        }
+      };
+    }
+    const id = crypto.randomUUID();
+    const expiresAt = `+${Math.max(1, numberEnv(env.AI_REQUEST_TIMEOUT_SECONDS) || 25)} seconds`;
+    await env.DB.prepare(
+      "insert into ai_concurrency_slots (id, started_at, expires_at) values (?, CURRENT_TIMESTAMP, datetime('now', ?))"
+    )
+      .bind(id, expiresAt)
+      .run();
+    return { ok: true, id };
+  } catch {
+    // Table not migrated yet on a prior deployment, or a transient D1 error -
+    // fail open rather than blocking the assistant entirely over this.
+    return { ok: true, id: "" };
+  }
+}
+
+async function releaseConcurrencySlot(env: Env, id: string): Promise<void> {
+  if (!env.DB || !id) return;
+  try {
+    await env.DB.prepare("delete from ai_concurrency_slots where id = ?").bind(id).run();
+  } catch {
+    // Safe to ignore - expires_at will clean it up.
+  }
+}
+
 async function renderMetrics(env: Env): Promise<string> {
   if (!env.DB) return "aether_ai_worker_ready 1\nai_requests_total 0\n";
   const day = usageDay();
@@ -839,23 +927,32 @@ function firstRecord(value: unknown): Record<string, unknown> | null {
   return Array.isArray(value) ? recordValue(value[0]) : null;
 }
 
-function streamAssistant(request: Request, env: Env): Response {
-  const stream = new ReadableStream({
+function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>): Response {
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
         controller.enqueue(sse("assistant.status", { message: "Buscando..." }));
-        const payload = await handleAssistant(request, env);
-        if (payload.products.length)
-          controller.enqueue(sse("assistant.products", payload.products));
-        if (payload.cart) controller.enqueue(sse("assistant.cart_updated", payload.cart));
-        if (payload.favorites.length)
-          controller.enqueue(sse("assistant.favorites_updated", payload.favorites));
-        controller.enqueue(sse("assistant.completed", payload));
+        if (env.GEMINI_API_KEY) {
+          // Real incremental streaming - see streamAssistantWithToolCalling.
+          await streamAssistantWithToolCalling(request, env, controller);
+        } else {
+          // No model to stream around - the heuristic fallback resolves
+          // synchronously, so this stays a single await-then-emit like
+          // before.
+          const payload = await handleAssistantHeuristicFallback(request, env);
+          if (payload.products.length)
+            controller.enqueue(sse("assistant.products", payload.products));
+          if (payload.cart) controller.enqueue(sse("assistant.cart_updated", payload.cart));
+          if (payload.favorites.length)
+            controller.enqueue(sse("assistant.favorites_updated", payload.favorites));
+          controller.enqueue(sse("assistant.completed", payload));
+        }
       } catch {
         controller.enqueue(
           sse("assistant.error", { message: "El asistente esta temporalmente ocupado." })
         );
       } finally {
+        await onDone();
         controller.close();
       }
     }
@@ -2811,6 +2908,18 @@ async function runClearCart(
   args: z.infer<typeof clearCartSchema>
 ): Promise<[string, ToolArtifact]> {
     if (!args.confirm) {
+      // Tried interrupt()-based confirmation here (pause the whole graph via
+      // a checkpointer, resume on the shopper's next message) - confirmed
+      // via the actual thrown error ("Called interrupt() outside the
+      // context of a graph") that the AsyncLocalStorage context interrupt()
+      // needs is lost by the time execution reaches inside a @langchain/core
+      // tool() function called through ToolNode, in this exact
+      // @langchain/core@1.2.5 + @langchain/langgraph@1.4.8 combination.
+      // Fixing that properly means moving this confirmation into its own
+      // graph node with direct runtime.interrupt access, a real redesign -
+      // not attempted here. Back to the schema-argument flow every other
+      // mutation already uses: the model re-calls with confirm=true on the
+      // shopper's next message.
       await auditGraphAction(
         ctx,
         "clear_cart",
@@ -3360,49 +3469,139 @@ function isGeminiQuotaError(error: unknown): boolean {
   return /RateLimitQuotaExhaustedError|429 Too Many Requests|quota/i.test(message);
 }
 
-async function invokeAgentModel(data: AgentGraphData, messages: BaseMessage[]): Promise<AIMessage> {
+// Wiring OTEL_ENABLED to a real external tracing vendor (LangSmith etc.)
+// would need credentials this deployment doesn't have configured. Structured
+// console.log lines are what's actually achievable today - Cloudflare
+// Workers Logs/`wrangler tail` already capture stdout, so this is a real,
+// usable signal without inventing new infra the project can't operate.
+function logAgentObservability(env: Env, event: Record<string, unknown>): void {
+  if (env.OTEL_ENABLED !== "true") return;
+  console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
+}
+
+type ModelInvoker = (messages: BaseMessage[]) => Promise<AIMessage>;
+
+// Builds the fallback-aware invoker once (system prompt, reachable-tools
+// filter, and each candidate model's constructor args don't change within a
+// single request) so the agent<->tools loop can reuse it across every pass
+// instead of reconstructing a ChatGoogleGenerativeAI + rebinding tools on
+// every step. Deliberately returned as a plain closure, not stored on graph
+// state - AgentGraphData's `data`/`messages` channels get checkpointed
+// (point 7), and a closure isn't serializable; this gets threaded through
+// LangGraph's per-invoke `configurable` instead, which is never checkpointed.
+function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: string): ModelInvoker {
   // Guaranteed by the handleAssistant dispatcher (only routes here when a key
   // is configured), asserted again here since a raw string, not env lookup,
   // must always be passed explicitly - see the Workers compatibility note
   // this migration's plan captured about ChatGoogleGenerativeAI's implicit
   // GOOGLE_API_KEY environment fallback not being safe to rely on here.
-  if (!data.env.GEMINI_API_KEY) throw new Error("agent_node_missing_gemini_api_key");
-  const primaryModel = data.env.GEMINI_MODEL || "gemini-3.5-flash";
-  const modelNames = [primaryModel, data.env.GEMINI_FALLBACK_MODEL].filter(
+  if (!env.GEMINI_API_KEY) throw new Error("agent_node_missing_gemini_api_key");
+  const apiKey = env.GEMINI_API_KEY;
+  const primaryModel = env.GEMINI_MODEL || "gemini-3.5-flash";
+  const modelNames = [primaryModel, env.GEMINI_FALLBACK_MODEL].filter(
     (name): name is string => Boolean(name) && name !== primaryModel
   );
-  const systemPrompt = AGENT_SYSTEM_PROMPT_BY_LANGUAGE[data.language];
-  let lastError: unknown;
-  for (const [index, modelName] of [primaryModel, ...modelNames].entries()) {
-    try {
-      const model = new ChatGoogleGenerativeAI({
-        apiKey: data.env.GEMINI_API_KEY,
-        model: modelName,
-        temperature: Number(data.env.GEMINI_TEMPERATURE || 0.1),
-        maxOutputTokens: Number(data.env.GEMINI_MAX_OUTPUT_TOKENS || 600)
-      });
-      return (await model
-        .bindTools(assistantTools)
-        .invoke([new SystemMessage(systemPrompt), ...messages])) as AIMessage;
-    } catch (error) {
-      lastError = error;
-      // Only fall through to the next model for quota/rate-limit errors - any
-      // other failure (bad schema, network) would fail identically on the
-      // fallback model too, so surface it immediately instead of masking it.
-      if (!isGeminiQuotaError(error) || index === modelNames.length) throw error;
+  const systemPrompt = AGENT_SYSTEM_PROMPT_BY_LANGUAGE[language];
+  // Deliberately NOT filtering unreachable tools (e.g. mutation tools when
+  // AI_MUTATIONS_ENABLED is false) out of the bound set - tried it, verified
+  // live that it breaks the templated "changes are disabled" decline with
+  // the correct intent (checkToolPreconditions only runs once a tool is
+  // actually called): the model just calls a different tool instead, which
+  // is worse than the free-text regression this was meant to avoid. Every
+  // tool always stays bound; checkToolPreconditions is what's supposed to
+  // gate this, not the binding step.
+  const reachableTools = assistantTools;
+  // Constructed once here rather than once per graph step - a request that
+  // loops through agent -> tools -> agent (MAX_AGENT_STEPS times) previously
+  // rebuilt every candidate ChatGoogleGenerativeAI and re-ran .bindTools() on
+  // every single pass, even though none of their inputs (model name, temp,
+  // reachableTools) change within one request.
+  const boundModels = [primaryModel, ...modelNames].map((modelName) => ({
+    modelName,
+    model: new ChatGoogleGenerativeAI({
+      apiKey,
+      model: modelName,
+      temperature: Number(env.GEMINI_TEMPERATURE || 0.1),
+      maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 600),
+      // Quota (429) errors aren't fixed by waiting and retrying the same
+      // model - this loop already falls through to a different model for
+      // those. LangChain's own internal retry (default ~6, exponential
+      // backoff) would otherwise run before this catch block ever sees the
+      // error, burning most of AI_REQUEST_TIMEOUT_SECONDS on a retry that
+      // can't succeed. One retry left for genuine transient network blips,
+      // since this loop doesn't retry non-quota errors at all.
+      maxRetries: 1
+    }).bindTools(reachableTools)
+  }));
+
+  return async (messages: BaseMessage[]): Promise<AIMessage> => {
+    let lastError: unknown;
+    for (const [index, { modelName, model }] of boundModels.entries()) {
+      const startedAt = Date.now();
+      try {
+        const response = (await model.invoke([
+          new SystemMessage(systemPrompt),
+          ...messages
+        ])) as AIMessage;
+        logAgentObservability(env, {
+          type: "model_invocation",
+          request_id: requestId,
+          model: modelName,
+          attempt: index,
+          latency_ms: Date.now() - startedAt,
+          success: true,
+          prompt_tokens: (response.usage_metadata as { input_tokens?: number } | undefined)
+            ?.input_tokens,
+          completion_tokens: (response.usage_metadata as { output_tokens?: number } | undefined)
+            ?.output_tokens
+        });
+        return response;
+      } catch (error) {
+        lastError = error;
+        logAgentObservability(env, {
+          type: "model_invocation",
+          request_id: requestId,
+          model: modelName,
+          attempt: index,
+          latency_ms: Date.now() - startedAt,
+          success: false,
+          error_code: isGeminiQuotaError(error) ? "quota" : "other"
+        });
+        // Only fall through to the next model for quota/rate-limit errors -
+        // any other failure (bad schema, network) would fail identically on
+        // the fallback model too, so surface it immediately instead of
+        // masking it.
+        if (!isGeminiQuotaError(error) || index === modelNames.length) throw error;
+      }
     }
-  }
-  throw lastError;
+    throw lastError;
+  };
 }
 
-async function agentNode({
-  data,
-  messages
-}: {
-  data: AgentGraphData;
-  messages: BaseMessage[];
-}): Promise<{ data: AgentGraphData; messages: BaseMessage[] }> {
-  const response = await invokeAgentModel(data, messages);
+// Defensive fallback for callers that don't go through the agent graph's
+// configurable-threaded invoker (e.g. a future direct call, or a test) -
+// builds a fresh one-shot invoker rather than requiring every caller to know
+// about buildModelInvoker.
+async function invokeAgentModel(data: AgentGraphData, messages: BaseMessage[]): Promise<AIMessage> {
+  return buildModelInvoker(data.env, data.language, data.requestId)(messages);
+}
+
+async function agentNode(
+  {
+    data,
+    messages
+  }: {
+    data: AgentGraphData;
+    messages: BaseMessage[];
+  },
+  runtime?: { configurable?: { modelInvoker?: ModelInvoker } }
+): Promise<{ data: AgentGraphData; messages: BaseMessage[] }> {
+  // Reused across every pass through the agent<->tools loop within this
+  // request (see buildModelInvoker) - the on-the-spot fallback only fires if
+  // a caller invokes this graph without threading configurable.modelInvoker
+  // (shouldn't happen via handleAssistantWithToolCalling, defensive only).
+  const invoker = runtime?.configurable?.modelInvoker ?? ((msgs) => invokeAgentModel(data, msgs));
+  const response = await invoker(messages);
   return {
     data: { ...data, agentSteps: data.agentSteps + 1 },
     messages: [response]
@@ -3527,8 +3726,244 @@ async function persistAgentResponseNode({
   return { data };
 }
 
+// Custom checkpointer backed by D1 - no Workers/D1-ready reference
+// implementation ships with @langchain/langgraph-checkpoint (its sqlite/
+// postgres savers are devDependencies of that package's own test suite, not
+// resolved here). Behavioral spec taken directly from reading MemorySaver's
+// source (the only implementation actually installed) since these five
+// methods aren't documented beyond their types.
+//
+// NOT currently wired into agentGraph.compile(). It was built for
+// interrupt()-based HITL on clear_cart, which turned out to be incompatible
+// with this exact @langchain/core + @langchain/langgraph version combo (see
+// runClearCart) and was reverted. Wiring the checkpointer in on its own,
+// with no interrupt() consumer, caused a separate regression: every
+// invocation gets checkpointed under its thread_id, and AgentGraphState's
+// `messages` reducer concatenates unboundedly, so a reused thread_id
+// accumulates and replays stale conversation history on top of the app's
+// own separate bounded (6-message) D1 history in loadRecentMessages -
+// confirmed via a search-category eval regression (25/25 -> 15/25) that
+// disappeared once a fresh thread_id was used. Left in place, round-trip
+// tested (put/getTuple/list/putWrites/deleteThread), and exported so it's
+// available if a future HITL redesign needs it again.
+export class D1CheckpointSaver extends BaseCheckpointSaver {
+  constructor(private db: D1Database) {
+    super();
+  }
+
+  async getTuple(config: { configurable?: Record<string, unknown> }): Promise<CheckpointTuple | undefined> {
+    const threadId = config.configurable?.thread_id as string | undefined;
+    if (!threadId) return undefined;
+    const checkpointNs = (config.configurable?.checkpoint_ns as string | undefined) ?? "";
+    const checkpointId = getCheckpointId(config as never);
+    const row = checkpointId
+      ? await this.db
+          .prepare(
+            "select checkpoint_id, parent_checkpoint_id, checkpoint_blob, metadata_blob from ai_graph_checkpoints where thread_id = ? and checkpoint_ns = ? and checkpoint_id = ?"
+          )
+          .bind(threadId, checkpointNs, checkpointId)
+          .first<CheckpointRow>()
+      : await this.db
+          .prepare(
+            "select checkpoint_id, parent_checkpoint_id, checkpoint_blob, metadata_blob from ai_graph_checkpoints where thread_id = ? and checkpoint_ns = ? order by checkpoint_id desc limit 1"
+          )
+          .bind(threadId, checkpointNs)
+          .first<CheckpointRow>();
+    if (!row) return undefined;
+
+    const writesRows = await this.db
+      .prepare(
+        "select task_id, channel, value_blob from ai_graph_checkpoint_writes where thread_id = ? and checkpoint_ns = ? and checkpoint_id = ? order by idx asc"
+      )
+      .bind(threadId, checkpointNs, row.checkpoint_id)
+      .all<{ task_id: string; channel: string; value_blob: ArrayBuffer }>();
+    const pendingWrites: CheckpointPendingWrite[] = [];
+    for (const write of writesRows.results || []) {
+      const value: unknown = await this.serde.loadsTyped("json", new Uint8Array(write.value_blob));
+      pendingWrites.push([write.task_id, write.channel, value]);
+    }
+
+    const checkpoint = (await this.serde.loadsTyped(
+      "json",
+      new Uint8Array(row.checkpoint_blob)
+    )) as Checkpoint;
+    const metadata = (await this.serde.loadsTyped(
+      "json",
+      new Uint8Array(row.metadata_blob)
+    )) as CheckpointMetadata;
+    return {
+      config: { configurable: { thread_id: threadId, checkpoint_ns: checkpointNs, checkpoint_id: row.checkpoint_id } },
+      checkpoint,
+      metadata,
+      pendingWrites,
+      ...(row.parent_checkpoint_id
+        ? {
+            parentConfig: {
+              configurable: {
+                thread_id: threadId,
+                checkpoint_ns: checkpointNs,
+                checkpoint_id: row.parent_checkpoint_id
+              }
+            }
+          }
+        : {})
+    };
+  }
+
+  async *list(
+    config: { configurable?: Record<string, unknown> },
+    options?: CheckpointListOptions
+  ): AsyncGenerator<CheckpointTuple> {
+    const threadId = config.configurable?.thread_id as string | undefined;
+    if (!threadId) return;
+    const checkpointNs = (config.configurable?.checkpoint_ns as string | undefined) ?? "";
+    const beforeId = options?.before
+      ? getCheckpointId(options.before as never)
+      : undefined;
+    const rows = beforeId
+      ? await this.db
+          .prepare(
+            "select checkpoint_id from ai_graph_checkpoints where thread_id = ? and checkpoint_ns = ? and checkpoint_id < ? order by checkpoint_id desc"
+          )
+          .bind(threadId, checkpointNs, beforeId)
+          .all<{ checkpoint_id: string }>()
+      : await this.db
+          .prepare(
+            "select checkpoint_id from ai_graph_checkpoints where thread_id = ? and checkpoint_ns = ? order by checkpoint_id desc"
+          )
+          .bind(threadId, checkpointNs)
+          .all<{ checkpoint_id: string }>();
+    let yielded = 0;
+    for (const { checkpoint_id: checkpointId } of rows.results || []) {
+      if (options?.limit !== undefined && yielded >= options.limit) return;
+      const tuple = await this.getTuple({
+        configurable: { thread_id: threadId, checkpoint_ns: checkpointNs, checkpoint_id: checkpointId }
+      });
+      if (!tuple) continue;
+      if (options?.filter) {
+        const matches = Object.entries(options.filter).every(
+          ([key, value]) => (tuple.metadata as Record<string, unknown> | undefined)?.[key] === value
+        );
+        if (!matches) continue;
+      }
+      yielded += 1;
+      yield tuple;
+    }
+  }
+
+  async put(
+    config: { configurable?: Record<string, unknown> },
+    checkpoint: Checkpoint,
+    metadata: CheckpointMetadata,
+    // Per-channel version tracking isn't needed - the whole checkpoint is
+    // stored as one blob per (thread, ns, checkpoint_id) row, not normalized
+    // by channel, so there's nothing to key by version here.
+    _newVersions: ChannelVersions
+  ): Promise<{ configurable: Record<string, unknown> }> {
+    void _newVersions;
+    const threadId = config.configurable?.thread_id as string | undefined;
+    if (!threadId) {
+      throw new Error(
+        'Failed to put checkpoint. The passed RunnableConfig is missing a required "thread_id" field.'
+      );
+    }
+    const checkpointNs = (config.configurable?.checkpoint_ns as string | undefined) ?? "";
+    const parentCheckpointId = config.configurable?.checkpoint_id as string | undefined;
+    const [, checkpointBytes] = await this.serde.dumpsTyped(checkpoint);
+    const [, metadataBytes] = await this.serde.dumpsTyped(metadata);
+    await this.db
+      .prepare(
+        `insert into ai_graph_checkpoints (thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint_blob, metadata_blob)
+           values (?, ?, ?, ?, ?, ?)
+           on conflict(thread_id, checkpoint_ns, checkpoint_id) do update set
+             parent_checkpoint_id = excluded.parent_checkpoint_id,
+             checkpoint_blob = excluded.checkpoint_blob,
+             metadata_blob = excluded.metadata_blob`
+      )
+      .bind(
+        threadId,
+        checkpointNs,
+        checkpoint.id,
+        parentCheckpointId || null,
+        checkpointBytes,
+        metadataBytes
+      )
+      .run();
+    return {
+      configurable: { thread_id: threadId, checkpoint_ns: checkpointNs, checkpoint_id: checkpoint.id }
+    };
+  }
+
+  async putWrites(
+    config: { configurable?: Record<string, unknown> },
+    writes: PendingWrite[],
+    taskId: string
+  ): Promise<void> {
+    const threadId = config.configurable?.thread_id as string | undefined;
+    const checkpointId = config.configurable?.checkpoint_id as string | undefined;
+    if (!threadId) throw new Error('Failed to put writes. The passed RunnableConfig is missing a required "thread_id" field.');
+    if (!checkpointId)
+      throw new Error('Failed to put writes. The passed RunnableConfig is missing a required "checkpoint_id" field.');
+    const checkpointNs = (config.configurable?.checkpoint_ns as string | undefined) ?? "";
+    const statements = await Promise.all(
+      writes.map(async ([channel, value], idx) => {
+        const storageIdx = WRITES_IDX_MAP[channel] ?? idx;
+        const [, valueBytes] = await this.serde.dumpsTyped(value);
+        // Regular writes (idx >= 0) are dedupe-on-first-write, matching
+        // MemorySaver - a retried superstep must not duplicate a write. The
+        // four special negative-indexed channels always overwrite.
+        const sql =
+          storageIdx >= 0
+            ? `insert into ai_graph_checkpoint_writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, value_blob)
+                 values (?, ?, ?, ?, ?, ?, ?)
+                 on conflict(thread_id, checkpoint_ns, checkpoint_id, task_id, idx) do nothing`
+            : `insert into ai_graph_checkpoint_writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, value_blob)
+                 values (?, ?, ?, ?, ?, ?, ?)
+                 on conflict(thread_id, checkpoint_ns, checkpoint_id, task_id, idx) do update set
+                   channel = excluded.channel, value_blob = excluded.value_blob`;
+        return this.db
+          .prepare(sql)
+          .bind(threadId, checkpointNs, checkpointId, taskId, storageIdx, channel, valueBytes);
+      })
+    );
+    if (statements.length === 1) await statements[0]?.run();
+    else if (statements.length > 1) await this.db.batch(statements);
+  }
+
+  async deleteThread(threadId: string): Promise<void> {
+    await this.db.batch([
+      this.db.prepare("delete from ai_graph_checkpoints where thread_id = ?").bind(threadId),
+      this.db.prepare("delete from ai_graph_checkpoint_writes where thread_id = ?").bind(threadId)
+    ]);
+  }
+}
+
+type CheckpointRow = {
+  checkpoint_id: string;
+  parent_checkpoint_id: string | null;
+  checkpoint_blob: ArrayBuffer;
+  metadata_blob: ArrayBuffer;
+};
+
 const agentToolNode = new ToolNode(assistantTools);
 
+// D1CheckpointSaver (above) is deliberately NOT wired in here. Tried it,
+// found a real problem via the eval suite: with a checkpointer active,
+// LangGraph resumes/accumulates the `messages` channel for any reused
+// thread_id via Pregel's own reducer (concat, unbounded, never trimmed) -
+// confirmed live (a query that scored 25/25 dropped to 15/25, model
+// switching to RECOMMEND_PRODUCTS on plain search queries; a fresh never-
+// used thread_id fixed it immediately). That conflicts with the bounded
+// (6-message) D1-backed history this graph already loads itself via
+// loadRecentMessages/persistConversationMessage, and would double up or
+// unboundedly grow context in any real multi-turn conversation too, not
+// just the eval suite's reused thread_id="evaluation-<case id>" pattern.
+// The checkpointer was originally built to support interrupt()-based HITL
+// for clear_cart, which turned out to be incompatible with this
+// @langchain/core + @langchain/langgraph version combination (see
+// runClearCart) - with that dropped, there's no current reason to activate
+// checkpointing, so it stays defined and tested but unused rather than
+// live and causing this regression.
 export const agentGraph = new StateGraph(AgentGraphState)
   .addNode("validate_agent_request", validateAgentRequestNode)
   .addNode("agent", agentNode)
@@ -3574,13 +4009,23 @@ const HEURISTIC_INTENT_PRECONDITIONS: Record<IntentName, ToolPreconditions> = {
   UNSUPPORTED: {}
 };
 
-async function handleAssistantWithToolCalling(
+// Shared by both the non-streaming (.invoke()) and streaming (.stream())
+// entry points into the tool-calling graph - everything needed to start a
+// run except which of those two the caller wants.
+function buildAgentInvokeInput(
   request: Request,
-  env: Env
-): Promise<AssistantResponse> {
-  const body = (await request.json().catch(() => ({}))) as AssistantRequest;
-  const requestId = crypto.randomUUID();
-  const threadId = body.thread_id || crypto.randomUUID();
+  body: AssistantRequest,
+  env: Env,
+  requestId: string,
+  threadId: string
+) {
+  // Computed the same way validateAgentRequestNode computes data.language
+  // internally - needed here upfront (not just inside the graph) so the
+  // model invoker's system prompt can be built once, before the graph even
+  // starts, rather than only once the graph reaches its first node.
+  const message = String(body.message || "").slice(0, inputCharacterLimit(env));
+  const language = detectLanguageHeuristic(message, body.locale || "es-CO");
+  const modelInvoker = buildModelInvoker(env, language, requestId);
   const initial = {
     request,
     env,
@@ -3592,12 +4037,83 @@ async function handleAssistantWithToolCalling(
     cartToken: "",
     authorization: "",
     sessionHash: "",
-    language: localeLanguage(body.locale || "es-CO"),
+    language,
     agentSteps: 0
   } as unknown as AgentGraphData & { request: Request };
-  const result = await agentGraph.invoke({ data: initial, messages: [] });
+  return { modelInvoker, initial };
+}
+
+async function handleAssistantWithToolCalling(
+  request: Request,
+  env: Env
+): Promise<AssistantResponse> {
+  const body = (await request.json().catch(() => ({}))) as AssistantRequest;
+  const requestId = crypto.randomUUID();
+  const threadId = body.thread_id || crypto.randomUUID();
+  const { modelInvoker, initial } = buildAgentInvokeInput(request, body, env, requestId, threadId);
+  const startedAt = Date.now();
+  const result = await agentGraph.invoke(
+    { data: initial, messages: [] },
+    { configurable: { modelInvoker } }
+  );
+  logAgentObservability(env, {
+    type: "agent_request",
+    request_id: requestId,
+    thread_id: threadId,
+    steps: result.data.agentSteps,
+    duration_ms: Date.now() - startedAt
+  });
   if (!result.data.response) throw new Error("agent_graph_completed_without_response");
   return result.data.response;
+}
+
+// Real incremental streaming - emits products/cart/favorites as soon as the
+// tools node produces them, instead of waiting for the whole turn (including
+// any follow-up model call after the tool result) to finish. Only used for
+// the LLM path; the heuristic fallback has no model latency to stream around,
+// so streamAssistant keeps awaiting it fully and emitting one shot.
+async function streamAssistantWithToolCalling(
+  request: Request,
+  env: Env,
+  controller: ReadableStreamDefaultController<Uint8Array>
+): Promise<void> {
+  const body = (await request.json().catch(() => ({}))) as AssistantRequest;
+  const requestId = crypto.randomUUID();
+  const threadId = body.thread_id || crypto.randomUUID();
+  const { modelInvoker, initial } = buildAgentInvokeInput(request, body, env, requestId, threadId);
+  const startedAt = Date.now();
+  const stream = await agentGraph.stream(
+    { data: initial, messages: [] },
+    { configurable: { modelInvoker }, streamMode: "updates" }
+  );
+  let steps = 0;
+  let finalResponse: AssistantResponse | undefined;
+  for await (const chunk of stream) {
+    const toolsUpdate = (chunk as Record<string, { messages?: unknown[] } | undefined>).tools;
+    for (const message of toolsUpdate?.messages || []) {
+      if (!(message instanceof ToolMessage) || !message.artifact) continue;
+      const artifact = message.artifact as ToolArtifact;
+      if (artifact.products?.length) controller.enqueue(sse("assistant.products", artifact.products));
+      if (artifact.cart) controller.enqueue(sse("assistant.cart_updated", artifact.cart));
+      if (artifact.favorites?.length)
+        controller.enqueue(sse("assistant.favorites_updated", artifact.favorites));
+    }
+    const agentUpdate = (chunk as Record<string, { agentSteps?: number } | undefined>).agent;
+    if (agentUpdate?.agentSteps !== undefined) steps = agentUpdate.agentSteps;
+    const persistUpdate = (chunk as Record<string, { data?: AgentGraphData } | undefined>)
+      .persist_agent_response;
+    if (persistUpdate?.data?.response) finalResponse = persistUpdate.data.response;
+  }
+  logAgentObservability(env, {
+    type: "agent_request",
+    request_id: requestId,
+    thread_id: threadId,
+    steps,
+    duration_ms: Date.now() - startedAt,
+    streamed: true
+  });
+  if (!finalResponse) throw new Error("agent_graph_completed_without_response");
+  controller.enqueue(sse("assistant.completed", finalResponse));
 }
 
 // No-LLM fallback for when GEMINI_API_KEY is missing/invalid - there is no
