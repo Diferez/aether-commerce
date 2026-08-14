@@ -2957,50 +2957,15 @@ const removeCartItemTool = defineAssistantTool({
   run: (args, ctx) => runRemoveCartItem(ctx, args)
 });
 
-const clearCartSchema = z.object({
-  confirm: z
-    .boolean()
-    .describe("True only once the shopper clearly confirms they want to empty the cart")
-});
-
-async function runClearCart(
-  ctx: AgentGraphData,
-  args: z.infer<typeof clearCartSchema>
-): Promise<[string, ToolArtifact]> {
-    if (!args.confirm) {
-      // Tried interrupt()-based confirmation here (pause the whole graph via
-      // a checkpointer, resume on the shopper's next message) - confirmed
-      // via the actual thrown error ("Called interrupt() outside the
-      // context of a graph") that the AsyncLocalStorage context interrupt()
-      // needs is lost by the time execution reaches inside a @langchain/core
-      // tool() function called through ToolNode, in this exact
-      // @langchain/core@1.2.5 + @langchain/langgraph@1.4.8 combination.
-      // Fixing that properly means moving this confirmation into its own
-      // graph node with direct runtime.interrupt access, a real redesign -
-      // not attempted here. Back to the schema-argument flow every other
-      // mutation already uses: the model re-calls with confirm=true on the
-      // shopper's next message.
-      await auditGraphAction(
-        ctx,
-        "clear_cart",
-        "unconfirmed",
-        ctx.cartId,
-        "denied",
-        "blocked",
-        "confirmation_required"
-      );
-      return toolOutcome(
-        localize(ctx.language, {
-          es: "Confirmame que quieres vaciar todo el carrito antes de hacerlo.",
-          en: "Confirm you want to empty the entire cart before I do it.",
-          fr: "Confirmez que vous voulez vider tout le panier avant que je le fasse.",
-          it: "Conferma che vuoi svuotare tutto il carrello prima di procedere."
-        }),
-        "CLEAR_CART",
-        "ASK_CLARIFICATION",
-        "PENDING"
-      );
-    }
+// No confirm step: clearing the cart only empties it, it doesn't delete
+// anything from the catalog or the shopper's account, and is fully
+// recoverable by re-adding items - not the kind of destructive/hard-to-undo
+// action that justifies an extra round trip. Every other mutation tool
+// (add/update/remove_cart_item) already executes directly for the same
+// reason; this used to be the one exception, requiring a schema `confirm`
+// argument (and, briefly, an attempted interrupt()-based pause - reverted,
+// see git history) before running. Removed per explicit product decision.
+async function runClearCart(ctx: AgentGraphData): Promise<[string, ToolArtifact]> {
     const cart = await fetchCart(ctx.env, ctx.cartId, ctx.cartToken);
     if (!cart) {
       await auditGraphAction(
@@ -3049,11 +3014,11 @@ async function runClearCart(
 const clearCartTool = defineAssistantTool({
   name: "clear_cart",
   description:
-    "Empties the shopper's entire cart. Always call this directly for any request to empty/clear the cart, even the first time - pass confirm=true only if the shopper already clearly confirmed in this message, otherwise pass confirm=false so the tool can ask them to confirm. Do not call get_cart instead of this.",
-  schema: clearCartSchema,
+    "Empties the shopper's entire cart. Always call this directly for any request to empty/clear the cart - it is not a destructive action (nothing is deleted from the catalog, items can be re-added) so it needs no separate confirmation step. Do not call get_cart instead of this.",
+  schema: z.object({}),
   intent: "CLEAR_CART",
   requires: { cartToken: true, mutation: true },
-  run: (args, ctx) => runClearCart(ctx, args)
+  run: (_args, ctx) => runClearCart(ctx)
 });
 
 const addFavoriteSchema = z.object({
@@ -4262,7 +4227,7 @@ async function handleAssistantHeuristicFallback(
           artifact = (await runRemoveCartItem(ctx, { item_query: message }))[1];
           break;
         case "CLEAR_CART":
-          artifact = (await runClearCart(ctx, { confirm: /confirm|confirmar/i.test(message) }))[1];
+          artifact = (await runClearCart(ctx))[1];
           break;
         case "CHECKOUT_REQUEST":
           artifact = (await runCheckoutGuidance(ctx))[1];
