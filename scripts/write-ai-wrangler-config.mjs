@@ -22,6 +22,9 @@ config.vars = {
   AI_CORS_ALLOWED_ORIGINS:
     process.env.APP_ORIGIN_STORE || config.vars.AI_CORS_ALLOWED_ORIGINS,
   AI_DEPLOYMENT_ENVIRONMENT: deployEnvironment,
+  AI_TOOL_CALLING_ENABLED:
+    process.env.AI_TOOL_CALLING_ENABLED || config.vars.AI_TOOL_CALLING_ENABLED,
+  AI_MUTATIONS_ENABLED: process.env.AI_MUTATIONS_ENABLED || config.vars.AI_MUTATIONS_ENABLED,
 };
 config.services = [
   {

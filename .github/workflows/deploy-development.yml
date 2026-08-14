@@ -30,6 +30,8 @@ jobs:
     env:
       AETHER_DEPLOY_ENV: development
       CLOUDFLARE_DEPLOY_ENABLED: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED }}
+      AI_TOOL_CALLING_ENABLED: ${{ vars.AI_TOOL_CALLING_ENABLED }}
+      AI_MUTATIONS_ENABLED: ${{ vars.AI_MUTATIONS_ENABLED }}
       AETHER_API_WORKER_NAME: ${{ vars.AETHER_API_WORKER_NAME || 'aether-api-dev' }}
       AETHER_AI_WORKER_NAME: ${{ vars.AETHER_AI_WORKER_NAME || 'aether-ai-dev' }}
       AETHER_FRONT_WORKER_NAME: ${{ vars.AETHER_FRONT_WORKER_NAME || 'aether-storefront-dev' }}
