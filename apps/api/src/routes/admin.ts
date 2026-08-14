@@ -16,6 +16,7 @@ import { clearCatalogCache } from "../services/catalog";
 import { createUploadSignature } from "../services/cloudinary";
 import { createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
+import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -624,8 +625,78 @@ adminRoutes.patch(
   }
 );
 
-adminRoutes.get("/users", requirePermission("users.read"), async (c) => ok(c, (await c.env.DB.prepare("select id, name, roles_json, created_at from users limit 100").all()).results));
-adminRoutes.patch("/users/:id/status", requirePermission("users.read"), (c) => ok(c, { userId: c.req.param("id"), status: "local_status_updated" }));
+const customerListQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(["active", "suspended"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25)
+});
+
+adminRoutes.get(
+  "/users",
+  requirePermission("users.read"),
+  zValidator("query", customerListQuerySchema),
+  async (c) => ok(c, await listCustomersForAdmin(c.env, c.req.valid("query")))
+);
+
+adminRoutes.get("/users/:id", requirePermission("users.read"), async (c) => {
+  const detail = await getCustomerDetail(c.env, c.req.param("id"));
+  return detail ? ok(c, detail) : fail(c, 404, "USER_NOT_FOUND", "Customer not found.");
+});
+
+adminRoutes.patch(
+  "/users/:id/status",
+  requirePermission("users.write"),
+  zValidator("json", z.object({ status: z.enum(["active", "suspended"]) })),
+  async (c) => {
+    const targetId = c.req.param("id");
+    if (c.get("actor").userId === targetId) {
+      return fail(c, 400, "CANNOT_SUSPEND_SELF", "You cannot change your own account status.");
+    }
+    const { status } = c.req.valid("json");
+    const result = await setCustomerStatus(c.env, targetId, status, {
+      actorId: c.get("actor").userId ?? "admin",
+      requestId: c.get("requestId")
+    });
+    if (!result.updated) {
+      if (result.error === "not_found") return fail(c, 404, "USER_NOT_FOUND", "Customer not found.");
+      return fail(c, 422, "GUEST_ACCOUNT", "This person has not created an account yet.");
+    }
+    return ok(c, { userId: targetId, status });
+  }
+);
+
+// "guest" is excluded on purpose - it isn't a role anyone should ever be
+// assigned from this panel, only granted implicitly to unauthenticated
+// requests by auth.ts. Every other role, including super_admin, is
+// assignable - the users.manage_roles permission gate above is what
+// keeps this from being a privilege-escalation hole, not the role list.
+const assignableRoleSchema = z.object({
+  role: z.enum(["customer", "support", "catalog_manager", "order_manager", "admin", "super_admin", "demo_viewer"])
+});
+
+adminRoutes.patch(
+  "/users/:id/role",
+  requirePermission("users.manage_roles"),
+  zValidator("json", assignableRoleSchema),
+  async (c) => {
+    const targetId = c.req.param("id");
+    if (c.get("actor").userId === targetId) {
+      return fail(c, 400, "CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role.");
+    }
+    const { role } = c.req.valid("json");
+    const result = await setCustomerRole(c.env, targetId, role, {
+      actorId: c.get("actor").userId ?? "admin",
+      requestId: c.get("requestId")
+    });
+    if (!result.updated) {
+      if (result.error === "not_found") return fail(c, 404, "USER_NOT_FOUND", "Customer not found.");
+      if (result.error === "guest_account") return fail(c, 422, "GUEST_ACCOUNT", "This person has not created an account yet.");
+      return fail(c, 500, "CLERK_UPDATE_FAILED", "Could not update the role in Clerk.");
+    }
+    return ok(c, { userId: targetId, role });
+  }
+);
 
 adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from coupons").all()).results));
 adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {

@@ -41,6 +41,15 @@ type OrderSummary = {
   currency: string;
 };
 
+type CustomerSummary = {
+  id: string;
+  source: "registered" | "guest";
+  name: string | null;
+  email: string;
+  status: "active" | "suspended";
+  orderCount: number;
+};
+
 type Summary = {
   mode: "private" | "demo";
   revenue: number;
@@ -105,6 +114,9 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [recentCustomers, setRecentCustomers] = useState<CustomerSummary[]>([]);
+  const [customersTotal, setCustomersTotal] = useState<number | null>(null);
+  const [customersStatus, setCustomersStatus] = useState<"loading" | "ready" | "error">("loading");
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
@@ -221,6 +233,38 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         }
       } catch {
         if (!cancelled) setOrdersStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, getToken]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/v1/admin/users?pageSize=4`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {}
+        });
+        if (cancelled) return;
+        const payload = (await response.json()) as {
+          success: boolean;
+          data?: { data: CustomerSummary[]; pagination: { total: number } };
+        };
+        if (payload.success && payload.data) {
+          setRecentCustomers(payload.data.data);
+          setCustomersTotal(payload.data.pagination.total);
+          setCustomersStatus("ready");
+        } else {
+          setCustomersStatus("error");
+        }
+      } catch {
+        if (!cancelled) setCustomersStatus("error");
       }
     })();
 
@@ -385,6 +429,43 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
+      <section id="customers" className="mt-6 rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+          <div>
+            <h2 className="text-lg font-semibold">Customers</h2>
+            <p className="text-sm text-zinc-500">
+              {customersTotal !== null ? `${customersTotal} customer${customersTotal === 1 ? "" : "s"} tracked.` : "Accounts, guest checkouts and access."}
+            </p>
+          </div>
+          <a href="/customers/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+            View all
+          </a>
+        </div>
+        {customersStatus === "error" ? (
+          <p className="p-4 text-sm text-zinc-500">Could not load recent customers.</p>
+        ) : customersStatus === "loading" ? (
+          <p className="p-4 text-sm text-zinc-500">Loading...</p>
+        ) : recentCustomers.length === 0 ? (
+          <p className="p-4 text-sm text-zinc-500">No customers yet.</p>
+        ) : (
+          recentCustomers.map((customer) => (
+            <div key={customer.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
+              <span className="text-zinc-950">{customer.name ?? customer.email}</span>
+              <span className="text-sm text-zinc-600">{customer.source === "guest" ? "Guest checkout" : "Registered"}</span>
+              <span className={`text-sm font-semibold ${customer.status === "suspended" ? "text-rose-700" : "text-teal-700"}`}>
+                {customer.status}
+              </span>
+              <a
+                href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`}
+                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+              >
+                Open customer
+              </a>
+            </div>
+          ))
+        )}
+      </section>
+
       <section id="messages" className="mt-6 rounded-lg border border-zinc-200 bg-white">
         <div className="border-b border-zinc-200 p-4">
           <h2 className="text-lg font-semibold">Contact messages</h2>
@@ -447,7 +528,6 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {([
           ["Inventory", "Reservations, movements, returns and low-stock alerts.", ["AET-ARC-STD: 12 available", "AET-PULSE-STD: low stock", "Expired reservations: 0"]],
-          ["Users", "Commerce profiles synced from Clerk without storing credentials.", ["customer@example.com", "admin@example.com", "Local status: active"]],
           ["Coupons", "Case-insensitive coupons with usage and subtotal rules.", ["AETHER10: 10% off", "FREESHIP: simulated", "Usage logged in D1"]],
           ["Reviews", "Moderation queue for verified or seeded demo reviews.", ["2 approved", "1 pending", "Helpful votes tracked"]],
           ["Audit", "Every privileged action records actor, entity and request ID.", ["products.write", "orders.write", "settings.manage"]]

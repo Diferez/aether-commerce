@@ -89,4 +89,76 @@ describe("auth middleware", () => {
 
     expect(captured).toMatchObject({ roles: ["guest"] });
   });
+
+  function fakeDb(row: { status: string } | null) {
+    return {
+      prepare: vi.fn(() => ({
+        bind: vi.fn(() => ({
+          first: vi.fn(() => Promise.resolve(row))
+        }))
+      }))
+    };
+  }
+
+  it("downgrades a verified admin token to guest when the matching users row is suspended", async () => {
+    const jose = await import("jose");
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: { sub: "usr_1", public_metadata: { roles: ["admin"] } }
+    } as never);
+
+    const middleware = auth();
+    let captured: unknown;
+    const context = {
+      req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
+      env: { CLERK_JWT_ISSUER: "https://clerk.example.com", DB: fakeDb({ status: "suspended" }) },
+      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+    } as unknown as MiddlewareContext;
+    await middleware(context, async () => {});
+
+    expect(captured).toMatchObject({ roles: ["guest"], mode: "public" });
+  });
+
+  it("keeps admin roles when no users row exists yet for the token's subject (fail-open on absence)", async () => {
+    const jose = await import("jose");
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: { sub: "usr_1", public_metadata: { roles: ["admin"] } }
+    } as never);
+
+    const middleware = auth();
+    let captured: unknown;
+    const context = {
+      req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
+      env: { CLERK_JWT_ISSUER: "https://clerk.example.com", DB: fakeDb(null) },
+      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+    } as unknown as MiddlewareContext;
+    await middleware(context, async () => {});
+
+    expect(captured).toMatchObject({ userId: "usr_1", roles: ["admin"], mode: "private" });
+  });
+
+  it("keeps admin roles when the suspension lookup itself throws (fail-open on D1 error)", async () => {
+    const jose = await import("jose");
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: { sub: "usr_1", public_metadata: { roles: ["admin"] } }
+    } as never);
+
+    const throwingDb = {
+      prepare: vi.fn(() => ({
+        bind: vi.fn(() => ({
+          first: vi.fn(() => Promise.reject(new Error("D1 unavailable")))
+        }))
+      }))
+    };
+
+    const middleware = auth();
+    let captured: unknown;
+    const context = {
+      req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
+      env: { CLERK_JWT_ISSUER: "https://clerk.example.com", DB: throwingDb },
+      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+    } as unknown as MiddlewareContext;
+    await middleware(context, async () => {});
+
+    expect(captured).toMatchObject({ userId: "usr_1", roles: ["admin"], mode: "private" });
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Boxes, ClipboardList, Mail, Settings, ShieldCheck } from "lucide-react";
+import { BarChart3, Boxes, ClipboardList, Mail, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth, UserButton } from "@clerk/react";
 import { storefrontUrl } from "./config";
 
@@ -9,6 +9,7 @@ const nav = [
   { href: "/demo", label: "Public demo", icon: ShieldCheck },
   { href: "/products/", label: "Products", icon: Boxes },
   { href: "/orders/", label: "Orders", icon: ClipboardList },
+  { href: "/customers/", label: "Customers", icon: UsersRound },
   { href: "#messages", label: "Messages", icon: Mail },
   { href: "#settings", label: "Settings", icon: Settings }
 ];

@@ -11,6 +11,7 @@ export type Env = {
   APP_STORE_BASE_PATH?: string;
   CLERK_SECRET_KEY?: string;
   CLERK_JWT_ISSUER?: string;
+  CLERK_WEBHOOK_SECRET?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   RESEND_API_KEY?: string;
