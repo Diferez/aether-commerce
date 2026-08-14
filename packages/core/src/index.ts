@@ -1,3 +1,4 @@
+export * from "./brand";
 export * from "./catalog";
 export * from "./checkout-mode";
 export * from "./inventory";

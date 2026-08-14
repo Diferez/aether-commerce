@@ -12,6 +12,15 @@ type CheckoutSettings = {
   whatsappMessageTemplate: string;
 };
 
+type BrandSettings = {
+  name: string;
+  tagline: { en: string; es: string };
+  logoUrl: string;
+  primaryColor: string;
+  portfolioUrl: string;
+  features: { reviews: boolean };
+};
+
 type Summary = {
   mode: "private" | "demo";
   revenue: number;
@@ -62,6 +71,15 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
     whatsappMessageTemplate: ""
   });
   const [checkoutSaveStatus, setCheckoutSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [brandForm, setBrandForm] = useState<BrandSettings>({
+    name: "Aether",
+    tagline: { en: "Technology, elevated.", es: "Tecnologia a otro nivel." },
+    logoUrl: "",
+    primaryColor: "#8b5cf6",
+    portfolioUrl: "",
+    features: { reviews: true }
+  });
+  const [brandSaveStatus, setBrandSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
@@ -71,7 +89,32 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         if (payload.success && payload.data) setCheckoutForm(payload.data);
       })
       .catch(() => {});
+    void fetch(`${apiBaseUrl}/api/v1/brand`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: BrandSettings }) => {
+        if (payload.success && payload.data) setBrandForm(payload.data);
+      })
+      .catch(() => {});
   }, []);
+
+  async function saveBrandSettings() {
+    setBrandSaveStatus("saving");
+    const token = await getToken().catch(() => null);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings/brand`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(brandForm)
+      });
+      const payload = (await response.json()) as { success: boolean };
+      setBrandSaveStatus(payload.success ? "saved" : "error");
+    } catch {
+      setBrandSaveStatus("error");
+    }
+  }
 
   async function saveCheckoutSettings() {
     setCheckoutSaveStatus("saving");
@@ -312,6 +355,90 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             </div>
             <div className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
               Reservation TTL: 15 minutes
+            </div>
+          </div>
+
+          <div className="mt-4 border-t border-zinc-200 pt-4">
+            <h3 className="text-sm font-semibold">Branding</h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Store name, logo and accent color used across the storefront.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-zinc-700">Store name</span>
+                <input
+                  disabled={demo}
+                  value={brandForm.name}
+                  onChange={(event) => setBrandForm((current) => ({ ...current, name: event.target.value }))}
+                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-zinc-700">Accent color</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    disabled={demo}
+                    value={brandForm.primaryColor}
+                    onChange={(event) =>
+                      setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))
+                    }
+                    className="h-10 w-12 rounded-md border border-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <input
+                    disabled={demo}
+                    value={brandForm.primaryColor}
+                    onChange={(event) =>
+                      setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))
+                    }
+                    placeholder="#8b5cf6"
+                    className="focus-ring min-h-10 flex-1 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </label>
+              <label className="grid gap-1 text-sm sm:col-span-2">
+                <span className="font-medium text-zinc-700">Logo URL</span>
+                <input
+                  disabled={demo}
+                  value={brandForm.logoUrl}
+                  onChange={(event) => setBrandForm((current) => ({ ...current, logoUrl: event.target.value }))}
+                  placeholder="https://.../logo.png"
+                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span className="text-xs text-zinc-500">Leave empty to keep the default Aether mark.</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  disabled={demo}
+                  checked={brandForm.features.reviews}
+                  onChange={(event) =>
+                    setBrandForm((current) => ({
+                      ...current,
+                      features: { ...current.features, reviews: event.target.checked }
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-zinc-300 disabled:cursor-not-allowed"
+                />
+                <span className="font-medium text-zinc-700">Show product reviews</span>
+              </label>
+              <div className="flex items-center gap-3 sm:col-span-2">
+                <button
+                  type="button"
+                  disabled={demo || brandSaveStatus === "saving"}
+                  onClick={() => void saveBrandSettings()}
+                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {brandSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {brandSaveStatus === "saved" ? (
+                  <span className="text-sm text-teal-700">Saved.</span>
+                ) : brandSaveStatus === "error" ? (
+                  <span className="text-sm text-rose-700">
+                    Could not save - check the color format and your permissions.
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 

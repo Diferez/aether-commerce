@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { canTransitionOrder, isValidWhatsappNumber } from "@aether/core";
+import { canTransitionOrder, isValidHexColor, isValidWhatsappNumber } from "@aether/core";
 import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
@@ -279,6 +279,32 @@ adminRoutes.patch(
     await c.env.DB.prepare(
       `insert into application_settings (key, value_json, updated_at)
        values ('checkout', ?, CURRENT_TIMESTAMP)
+       on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
+    )
+      .bind(JSON.stringify(value))
+      .run();
+    return ok(c, value);
+  }
+);
+
+const brandSettingsSchema = z.object({
+  name: z.string().min(1).max(60),
+  tagline: z.object({ en: z.string().max(120), es: z.string().max(120) }),
+  logoUrl: z.union([z.string().url(), z.literal("")]),
+  primaryColor: z.string().refine(isValidHexColor, { message: "primaryColor must be a 6-digit hex color (e.g. #8b5cf6)" }),
+  portfolioUrl: z.union([z.string().url(), z.literal("")]),
+  features: z.object({ reviews: z.boolean() })
+});
+
+adminRoutes.patch(
+  "/settings/brand",
+  requirePermission("settings.manage"),
+  zValidator("json", brandSettingsSchema),
+  async (c) => {
+    const value = c.req.valid("json");
+    await c.env.DB.prepare(
+      `insert into application_settings (key, value_json, updated_at)
+       values ('brand', ?, CURRENT_TIMESTAMP)
        on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
     )
       .bind(JSON.stringify(value))
