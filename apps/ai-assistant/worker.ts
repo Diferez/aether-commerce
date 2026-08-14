@@ -24,6 +24,11 @@ type Env = {
   AI_CONVERSATION_RETENTION_DAYS?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
+  // Already configured in production (see docs/ai-assistant/) but never read
+  // by any code path until the tool-calling agent's model-fallback: retried
+  // on a 429/quota error from GEMINI_MODEL, since per-model Gemini quotas are
+  // independent pools - a different model can still have headroom.
+  GEMINI_FALLBACK_MODEL?: string;
   GEMINI_TEMPERATURE?: string;
   GEMINI_MAX_OUTPUT_TOKENS?: string;
   AI_INTENT_CONFIDENCE_THRESHOLD?: string;
@@ -4629,6 +4634,52 @@ async function validateAgentRequestNode({
   return { data: next, messages: [...priorMessages, new HumanMessage(message)] };
 }
 
+// Gemini quotas are per-model, independent pools (observed directly: a key
+// exhausted on gemini-3.5-flash-lite's daily free-tier quota still had full
+// quota on gemini-3.1-flash-lite). A 429 on the primary model doesn't mean
+// the API is unavailable, just that one specific model's bucket is empty.
+function isGeminiQuotaError(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status;
+  if (status === 429) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /RateLimitQuotaExhaustedError|429 Too Many Requests|quota/i.test(message);
+}
+
+async function invokeAgentModel(data: AgentGraphData, messages: BaseMessage[]): Promise<AIMessage> {
+  // Guaranteed by the handleAssistant dispatcher (only routes here when a key
+  // is configured), asserted again here since a raw string, not env lookup,
+  // must always be passed explicitly - see the Workers compatibility note
+  // this migration's plan captured about ChatGoogleGenerativeAI's implicit
+  // GOOGLE_API_KEY environment fallback not being safe to rely on here.
+  if (!data.env.GEMINI_API_KEY) throw new Error("agent_node_missing_gemini_api_key");
+  const primaryModel = data.env.GEMINI_MODEL || "gemini-3.5-flash";
+  const modelNames = [primaryModel, data.env.GEMINI_FALLBACK_MODEL].filter(
+    (name): name is string => Boolean(name) && name !== primaryModel
+  );
+  const systemPrompt = AGENT_SYSTEM_PROMPT_BY_LANGUAGE[data.language];
+  let lastError: unknown;
+  for (const [index, modelName] of [primaryModel, ...modelNames].entries()) {
+    try {
+      const model = new ChatGoogleGenerativeAI({
+        apiKey: data.env.GEMINI_API_KEY,
+        model: modelName,
+        temperature: Number(data.env.GEMINI_TEMPERATURE || 0.1),
+        maxOutputTokens: Number(data.env.GEMINI_MAX_OUTPUT_TOKENS || 600)
+      });
+      return (await model
+        .bindTools(assistantTools)
+        .invoke([new SystemMessage(systemPrompt), ...messages])) as AIMessage;
+    } catch (error) {
+      lastError = error;
+      // Only fall through to the next model for quota/rate-limit errors - any
+      // other failure (bad schema, network) would fail identically on the
+      // fallback model too, so surface it immediately instead of masking it.
+      if (!isGeminiQuotaError(error) || index === modelNames.length) throw error;
+    }
+  }
+  throw lastError;
+}
+
 async function agentNode({
   data,
   messages
@@ -4636,21 +4687,7 @@ async function agentNode({
   data: AgentGraphData;
   messages: BaseMessage[];
 }): Promise<{ data: AgentGraphData; messages: BaseMessage[] }> {
-  // Guaranteed by the handleAssistant dispatcher (only routes here when a key
-  // is configured), asserted again here since a raw string, not env lookup,
-  // must always be passed explicitly - see the Workers compatibility note
-  // this migration's plan captured about ChatGoogleGenerativeAI's implicit
-  // GOOGLE_API_KEY environment fallback not being safe to rely on here.
-  if (!data.env.GEMINI_API_KEY) throw new Error("agent_node_missing_gemini_api_key");
-  const model = new ChatGoogleGenerativeAI({
-    apiKey: data.env.GEMINI_API_KEY,
-    model: data.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
-    temperature: Number(data.env.GEMINI_TEMPERATURE || 0.1),
-    maxOutputTokens: Number(data.env.GEMINI_MAX_OUTPUT_TOKENS || 600)
-  });
-  const modelWithTools = model.bindTools(assistantTools);
-  const systemPrompt = AGENT_SYSTEM_PROMPT_BY_LANGUAGE[data.language];
-  const response = await modelWithTools.invoke([new SystemMessage(systemPrompt), ...messages]);
+  const response = await invokeAgentModel(data, messages);
   return {
     data: { ...data, agentSteps: data.agentSteps + 1 },
     messages: [response]
