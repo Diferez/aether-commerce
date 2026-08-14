@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether/schemas";
-import { defaultShippingSettings } from "@aether/core";
+import { defaultCheckoutSettings, defaultShippingSettings } from "@aether/core";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getProductById, getProductBySlug } from "../services/catalog";
@@ -127,4 +127,15 @@ publicRoutes.get("/shipping/options", async (c) => {
     value_json: string;
   }>();
   return ok(c, row ? JSON.parse(row.value_json) : defaultShippingSettings);
+});
+
+// wa.me links are public by nature (the number is visible in the URL once a
+// shopper clicks it), so exposing it here unauthenticated carries no
+// confidentiality risk - the storefront needs it to build the link
+// client-side.
+publicRoutes.get("/checkout/options", async (c) => {
+  const row = await c.env.DB.prepare("select value_json from application_settings where key = 'checkout'").first<{
+    value_json: string;
+  }>();
+  return ok(c, row ? JSON.parse(row.value_json) : defaultCheckoutSettings);
 });

@@ -2,9 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, Boxes, ChevronDown, Download, Mail, PackageCheck, Shield, UsersRound } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronDown, Download, Mail, MessageCircle, PackageCheck, Shield, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
+
+type CheckoutSettings = {
+  paymentMode: "stripe" | "whatsapp";
+  whatsappNumber: string;
+  whatsappMessageTemplate: string;
+};
 
 type Summary = {
   mode: "private" | "demo";
@@ -50,7 +56,41 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
   const [openMessageId, setOpenMessageId] = useState<string | null>(null);
+  const [checkoutForm, setCheckoutForm] = useState<CheckoutSettings>({
+    paymentMode: "stripe",
+    whatsappNumber: "",
+    whatsappMessageTemplate: ""
+  });
+  const [checkoutSaveStatus, setCheckoutSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const { isLoaded, getToken } = useAuth();
+
+  useEffect(() => {
+    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: CheckoutSettings }) => {
+        if (payload.success && payload.data) setCheckoutForm(payload.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function saveCheckoutSettings() {
+    setCheckoutSaveStatus("saving");
+    const token = await getToken().catch(() => null);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings/checkout`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(checkoutForm)
+      });
+      const payload = (await response.json()) as { success: boolean };
+      setCheckoutSaveStatus(payload.success ? "saved" : "error");
+    } catch {
+      setCheckoutSaveStatus("error");
+    }
+  }
 
   useEffect(() => {
     const path = demo ? "/api/v1/admin/demo/summary" : "/api/v1/admin/summary";
@@ -243,8 +283,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           ["Users", "Commerce profiles synced from Clerk without storing credentials.", ["customer@example.com", "admin@example.com", "Local status: active"]],
           ["Coupons", "Case-insensitive coupons with usage and subtotal rules.", ["AETHER10: 10% off", "FREESHIP: simulated", "Usage logged in D1"]],
           ["Reviews", "Moderation queue for verified or seeded demo reviews.", ["2 approved", "1 pending", "Helpful votes tracked"]],
-          ["Audit", "Every privileged action records actor, entity and request ID.", ["products.write", "orders.write", "settings.manage"]],
-          ["Settings", "Shipping, countries, reservation TTL, SEO and portfolio link.", ["Free shipping threshold: USD 150", "Reservation TTL: 15 minutes", "Maintenance: off"]]
+          ["Audit", "Every privileged action records actor, entity and request ID.", ["products.write", "orders.write", "settings.manage"]]
         ] as AdminModule[]).map(([title, body, rows]) => (
           <section key={title} className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-lg font-semibold">{title}</h2>
@@ -261,6 +300,85 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             </button>
           </section>
         ))}
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-lg font-semibold">Settings</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Shipping, countries, reservation TTL, SEO and portfolio link.
+          </p>
+          <div className="mt-4 grid gap-2">
+            <div className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
+              Free shipping threshold: USD 150
+            </div>
+            <div className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
+              Reservation TTL: 15 minutes
+            </div>
+          </div>
+
+          <div className="mt-4 border-t border-zinc-200 pt-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <MessageCircle size={15} aria-hidden />
+              Checkout method
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales
+              number instead - no payment gateway required.
+            </p>
+            <div className="mt-3 grid gap-3">
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-zinc-700">Payment method</span>
+                <select
+                  disabled={demo}
+                  value={checkoutForm.paymentMode}
+                  onChange={(event) =>
+                    setCheckoutForm((current) => ({
+                      ...current,
+                      paymentMode: event.target.value as "stripe" | "whatsapp"
+                    }))
+                  }
+                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="stripe">Stripe</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </label>
+              {checkoutForm.paymentMode === "whatsapp" ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-zinc-700">Sales WhatsApp number</span>
+                  <input
+                    disabled={demo}
+                    value={checkoutForm.whatsappNumber}
+                    onChange={(event) =>
+                      setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))
+                    }
+                    placeholder="573001234567"
+                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <span className="text-xs text-zinc-500">
+                    Country code + number, digits only - no +, spaces or dashes.
+                  </span>
+                </label>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={demo || checkoutSaveStatus === "saving"}
+                  onClick={() => void saveCheckoutSettings()}
+                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {checkoutSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {checkoutSaveStatus === "saved" ? (
+                  <span className="text-sm text-teal-700">Saved.</span>
+                ) : checkoutSaveStatus === "error" ? (
+                  <span className="text-sm text-rose-700">
+                    Could not save - check the number format and your permissions.
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
   );

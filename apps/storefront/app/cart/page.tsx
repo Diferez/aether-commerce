@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
+import { CreditCard, MessageCircle, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
 import { formatUsd } from "@aether/core";
 import type { Cart, Product } from "@aether/schemas";
 import { Badge, Button } from "@aether/ui";
@@ -18,6 +18,7 @@ import {
   updateCartItemQuantity,
   getCartCredentials
 } from "../../components/cart-client";
+import { buildCartWhatsappMessage, buildWhatsappUrl } from "../../components/whatsapp-checkout";
 import { useAetherAuth } from "../../components/ClerkAuthProvider";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
@@ -39,6 +40,26 @@ export default function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [checkoutOptions, setCheckoutOptions] = useState<{
+    paymentMode: "stripe" | "whatsapp";
+    whatsappNumber: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: { paymentMode: "stripe" | "whatsapp"; whatsappNumber: string } }) => {
+        if (!cancelled && payload.success && payload.data) setCheckoutOptions(payload.data);
+      })
+      .catch(() => {
+        // Stripe stays the safe default if this read fails - never silently
+        // switch a shopper into a mode with no working checkout.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function refresh() {
     const id = getCartId();
@@ -160,6 +181,13 @@ export default function CartPage() {
   }
 
   async function checkout() {
+    if (checkoutOptions?.paymentMode === "whatsapp") {
+      if (!cart || cart.items.length === 0) return;
+      const message = buildCartWhatsappMessage(cart, locale, window.location.origin + storefrontPath("/cart"));
+      window.open(buildWhatsappUrl(checkoutOptions.whatsappNumber, message), "_blank", "noopener,noreferrer");
+      return;
+    }
+
     if (!customer) {
       router.push(storefrontPath("/register?next=/cart&checkout=1"));
       return;
@@ -378,28 +406,44 @@ export default function CartPage() {
               {t.applyCoupon}
             </Button>
             <Button type="button" onClick={() => void checkout()} disabled={items.length === 0}>
-              <CreditCard size={17} aria-hidden />
-              {t.checkoutSandbox}
+              {checkoutOptions?.paymentMode === "whatsapp" ? (
+                <MessageCircle size={17} aria-hidden />
+              ) : (
+                <CreditCard size={17} aria-hidden />
+              )}
+              {checkoutOptions?.paymentMode === "whatsapp"
+                ? locale === "es"
+                  ? "Comprar por WhatsApp"
+                  : "Buy via WhatsApp"
+                : t.checkoutSandbox}
             </Button>
-            <p className="text-xs leading-5 text-ink-muted">
-              {locale === "es"
-                ? "Checkout de prueba: no hay cobro, venta ni envío real. Al continuar confirmas que leíste "
-                : "Sandbox checkout: there is no real charge, sale, or shipping. By continuing you confirm that you read "}
-              <StorefrontLink
-                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
-                href="/terms"
-              >
-                {locale === "es" ? "los términos" : "the terms"}
-              </StorefrontLink>{" "}
-              {locale === "es" ? "y la " : "and the "}
-              <StorefrontLink
-                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
-                href="/privacy"
-              >
-                {locale === "es" ? "política de privacidad" : "privacy policy"}
-              </StorefrontLink>
-              .
-            </p>
+            {checkoutOptions?.paymentMode === "whatsapp" ? (
+              <p className="text-xs leading-5 text-ink-muted">
+                {locale === "es"
+                  ? "Se abrira WhatsApp con el resumen de tu carrito para coordinar el pago con la tienda."
+                  : "This opens WhatsApp with your cart summary so you can arrange payment with the store."}
+              </p>
+            ) : (
+              <p className="text-xs leading-5 text-ink-muted">
+                {locale === "es"
+                  ? "Checkout de prueba: no hay cobro, venta ni envío real. Al continuar confirmas que leíste "
+                  : "Sandbox checkout: there is no real charge, sale, or shipping. By continuing you confirm that you read "}
+                <StorefrontLink
+                  className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                  href="/terms"
+                >
+                  {locale === "es" ? "los términos" : "the terms"}
+                </StorefrontLink>{" "}
+                {locale === "es" ? "y la " : "and the "}
+                <StorefrontLink
+                  className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                  href="/privacy"
+                >
+                  {locale === "es" ? "política de privacidad" : "privacy policy"}
+                </StorefrontLink>
+                .
+              </p>
+            )}
           </div>
         </aside>
       </div>

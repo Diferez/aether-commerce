@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { canTransitionOrder } from "@aether/core";
+import { canTransitionOrder, isValidWhatsappNumber } from "@aether/core";
 import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
@@ -254,4 +254,36 @@ adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, {
 adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, (await c.env.DB.prepare("select * from audit_logs order by created_at desc limit 100").all()).results));
 adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
 adminRoutes.patch("/settings", requirePermission("settings.manage"), (c) => ok(c, { updated: true }));
+
+const checkoutSettingsSchema = z
+  .object({
+    paymentMode: z.enum(["stripe", "whatsapp"]),
+    whatsappNumber: z.string().max(20),
+    whatsappMessageTemplate: z.string().max(500).optional().default("")
+  })
+  .refine((value) => value.paymentMode !== "whatsapp" || isValidWhatsappNumber(value.whatsappNumber), {
+    message: "whatsappNumber must be digits only with country code (e.g. 573001234567) when paymentMode is whatsapp",
+    path: ["whatsappNumber"]
+  });
+
+// Scoped to this one key rather than a generic "patch any application_settings
+// key" route - the table also holds shipping/brand/reservations, and a
+// generic write endpoint would let settings.manage overwrite those with
+// unvalidated payloads instead of each going through its own typed schema.
+adminRoutes.patch(
+  "/settings/checkout",
+  requirePermission("settings.manage"),
+  zValidator("json", checkoutSettingsSchema),
+  async (c) => {
+    const value = c.req.valid("json");
+    await c.env.DB.prepare(
+      `insert into application_settings (key, value_json, updated_at)
+       values ('checkout', ?, CURRENT_TIMESTAMP)
+       on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
+    )
+      .bind(JSON.stringify(value))
+      .run();
+    return ok(c, value);
+  }
+);
 adminRoutes.get("/export/orders", requirePermission("exports.create"), (c) => ok(c, { format: "csv", simulated: true, rows: 0 }));

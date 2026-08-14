@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
+import { Heart, MessageCircle, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
 import { Badge, Button } from "@aether/ui";
@@ -17,6 +17,7 @@ import { useLanguage } from "../../../components/LanguageProvider";
 import { ProductGrid } from "../../../components/ProductGrid";
 import { getLocalizedProduct } from "../../../components/product-localization";
 import { StorefrontLink } from "../../../components/StorefrontLink";
+import { buildProductWhatsappMessage, buildWhatsappUrl } from "../../../components/whatsapp-checkout";
 
 export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
@@ -30,7 +31,33 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [checkoutOptions, setCheckoutOptions] = useState<{
+    paymentMode: "stripe" | "whatsapp";
+    whatsappNumber: string;
+  } | null>(null);
   const localized = product ? getLocalizedProduct(product, locale) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: { paymentMode: "stripe" | "whatsapp"; whatsappNumber: string } }) => {
+        if (!cancelled && payload.success && payload.data) setCheckoutOptions(payload.data);
+      })
+      .catch(() => {
+        // "Comprar ahora" simply stays hidden if this read fails - the normal
+        // add-to-cart flow is unaffected either way.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function buyNowViaWhatsapp() {
+    if (!product || !checkoutOptions || checkoutOptions.paymentMode !== "whatsapp") return;
+    const message = buildProductWhatsappMessage(product, quantity, locale, window.location.href);
+    window.open(buildWhatsappUrl(checkoutOptions.whatsappNumber, message), "_blank", "noopener,noreferrer");
+  }
 
   const scrollToProductWindow = useCallback((behavior: ScrollBehavior = "auto") => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -259,6 +286,12 @@ export function ProductDetailClient({ slug }: { slug: string }) {
                 <ShoppingBag size={17} aria-hidden />
                 {isAdding ? t.adding : outOfStock ? t.availability.out_of_stock : t.addToCart}
               </Button>
+              {checkoutOptions?.paymentMode === "whatsapp" && !outOfStock ? (
+                <Button type="button" variant="outline" onClick={buyNowViaWhatsapp}>
+                  <MessageCircle size={17} aria-hidden />
+                  {locale === "es" ? "Comprar ahora" : "Buy now"}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
