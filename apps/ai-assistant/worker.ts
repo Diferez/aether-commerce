@@ -2320,7 +2320,7 @@ async function runProductSearchTool(
 const searchProductsTool = defineAssistantTool({
   name: "search_products",
   description:
-    "Searches the real Aether product catalog for a specific product, brand, or category the shopper already named. Use when the shopper knows what they're looking for - never invent products.",
+    "Searches the real Aether product catalog by keyword, brand, category, or filter (price, rating, availability, discount, featured, new arrivals, etc.). Use this for any browsing or filtering request - even a vague one like 'available products', 'highly rated items', or 'featured accessories' - as long as the shopper is not explicitly asking for a recommendation or suggestion. Never invent products.",
   schema: productSearchSchema,
   intent: "SEARCH_PRODUCTS",
   run: (args, ctx) => runProductSearchTool(ctx, args, "SEARCH_PRODUCTS")
@@ -2329,7 +2329,7 @@ const searchProductsTool = defineAssistantTool({
 const recommendProductsTool = defineAssistantTool({
   name: "recommend_products",
   description:
-    "Suggests products from the real Aether catalog when the shopper asks for a recommendation or suggestion based on an occasion, budget, use case, or vague criteria rather than naming a specific product. Use the occasion/use-case as the query keywords - never invent products.",
+    "Suggests products from the real Aether catalog only when the shopper explicitly asks for a recommendation, suggestion, or opinion (e.g. 'recomiendame', 'recomienda', 'sugiere', 'recommend', 'suggest', 'what do you recommend') or describes a gift/occasion they want matched to a product. Use the occasion/use-case as the query keywords. Do not use this for plain browsing or filter requests without that explicit ask - those are search_products, even when the criteria are vague. Never invent products.",
   schema: productSearchSchema,
   intent: "RECOMMEND_PRODUCTS",
   run: (args, ctx) => runProductSearchTool(ctx, args, "RECOMMEND_PRODUCTS")
