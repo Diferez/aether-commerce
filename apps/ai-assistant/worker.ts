@@ -192,8 +192,39 @@ export default {
       if (limit) return json(request, env, limit.payload, limit.status);
       const slot = await acquireConcurrencySlot(request, env);
       if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
+      // Captured before handleAssistant() reads the body below - Request.clone()
+      // throws once bodyUsed is true, so this can't be recomputed inside the catch.
+      const spanish = (
+        ((await request.clone().json().catch(() => ({}))) as AssistantRequest).locale || "es-CO"
+      )
+        .toLowerCase()
+        .startsWith("es");
       try {
         return json(request, env, await handleAssistant(request, env));
+      } catch (error) {
+        // Without this, an exhausted model+fallback (or any other uncaught
+        // error) propagates out of fetch() unhandled - Cloudflare renders its
+        // own generic "error code: 1101" page instead of a parseable JSON
+        // error, and the client never sees why. Confirmed live during
+        // testing: rapid requests against a cold deploy surfaced exactly this.
+        logAgentObservability(env, {
+          type: "assistant_request_failed",
+          error: error instanceof Error ? error.message : String(error)
+        });
+        return json(
+          request,
+          env,
+          {
+            success: false,
+            error: {
+              code: "assistant_unavailable",
+              message: spanish
+                ? "El asistente esta temporalmente ocupado. Intenta de nuevo en un momento."
+                : "The assistant is temporarily busy. Try again in a moment."
+            }
+          },
+          503
+        );
       } finally {
         await releaseConcurrencySlot(env, slot.id);
       }
@@ -930,6 +961,18 @@ function firstRecord(value: unknown): Record<string, unknown> | null {
 function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>): Response {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      // Captured before the body is read further down (both
+      // streamAssistantWithToolCalling and handleAssistantHeuristicFallback
+      // consume it) - Request.clone() throws once bodyUsed is true, so this
+      // can't be recomputed from inside the catch below.
+      const cloneBody = (await request
+        .clone()
+        .json()
+        .catch(() => ({}))) as AssistantRequest;
+      const language = detectLanguageHeuristic(
+        String(cloneBody.message || ""),
+        cloneBody.locale || "es-CO"
+      );
       try {
         controller.enqueue(sse("assistant.status", { message: "Buscando..." }));
         if (env.GEMINI_API_KEY) {
@@ -947,9 +990,20 @@ function streamAssistant(request: Request, env: Env, onDone: () => Promise<void>
             controller.enqueue(sse("assistant.favorites_updated", payload.favorites));
           controller.enqueue(sse("assistant.completed", payload));
         }
-      } catch {
+      } catch (error) {
+        logAgentObservability(env, {
+          type: "assistant_stream_failed",
+          error: error instanceof Error ? error.message : String(error)
+        });
         controller.enqueue(
-          sse("assistant.error", { message: "El asistente esta temporalmente ocupado." })
+          sse("assistant.error", {
+            message: localize(language, {
+              es: "El asistente esta temporalmente ocupado.",
+              en: "The assistant is temporarily busy.",
+              fr: "L'assistant est temporairement occupe.",
+              it: "L'assistente e temporaneamente occupato."
+            })
+          })
         );
       } finally {
         await onDone();
@@ -2188,7 +2242,13 @@ function defineAssistantTool<Schema extends z.ZodType>(spec: {
       if (blocked) return blocked;
       try {
         return await spec.run(args, ctx);
-      } catch {
+      } catch (error) {
+        logAgentObservability(ctx.env, {
+          type: "tool_exception",
+          request_id: ctx.requestId,
+          tool_name: spec.name,
+          error: error instanceof Error ? error.message : String(error)
+        });
         await auditGraphAction(
           ctx,
           spec.name,
