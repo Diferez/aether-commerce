@@ -30,6 +30,17 @@ type ProductSummary = {
   visibility: "draft" | "visible" | "hidden";
 };
 
+type OrderSummary = {
+  id: string;
+  number: string;
+  email: string;
+  channel: "stripe" | "whatsapp";
+  payment_status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
+  fulfillment_status: "unfulfilled" | "processing" | "shipped" | "delivered" | "cancelled";
+  total: number;
+  currency: string;
+};
+
 type Summary = {
   mode: "private" | "demo";
   revenue: number;
@@ -91,6 +102,9 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const [brandSaveStatus, setBrandSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [recentProducts, setRecentProducts] = useState<ProductSummary[]>([]);
   const [productsTotal, setProductsTotal] = useState<number | null>(null);
+  const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
+  const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
+  const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error">("loading");
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
@@ -116,6 +130,21 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       })
       .catch(() => {});
   }, []);
+
+  async function exportOrdersCsv() {
+    const token = await getToken().catch(() => null);
+    const response = await fetch(`${apiBaseUrl}/api/v1/admin/export/orders`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {}
+    });
+    if (!response.ok) return;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "orders-export.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function saveBrandSettings() {
     setBrandSaveStatus("saving");
@@ -175,6 +204,38 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
     void (async () => {
       const token = await getToken().catch(() => null);
       try {
+        const response = await fetch(`${apiBaseUrl}/api/v1/admin/orders?pageSize=4`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {}
+        });
+        if (cancelled) return;
+        const payload = (await response.json()) as {
+          success: boolean;
+          data?: { data: OrderSummary[]; pagination: { total: number } };
+        };
+        if (payload.success && payload.data) {
+          setRecentOrders(payload.data.data);
+          setOrdersTotal(payload.data.pagination.total);
+          setOrdersStatus("ready");
+        } else {
+          setOrdersStatus("error");
+        }
+      } catch {
+        if (!cancelled) setOrdersStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, getToken]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      try {
         const response = await fetch(`${apiBaseUrl}/api/v1/admin/contact-messages`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -219,9 +280,14 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             Monitor catalog health, order operations, customer support, coupons, reviews, and audit events.
           </p>
         </div>
-        <button disabled={demo} className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400">
+        <button
+          type="button"
+          disabled={demo}
+          onClick={() => void exportOrdersCsv()}
+          className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
           <Download size={17} aria-hidden />
-          Export CSV
+          Export orders CSV
         </button>
       </div>
 
@@ -283,18 +349,40 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       </section>
 
       <section id="orders" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 p-4">
-          <h2 className="text-lg font-semibold">Order operations</h2>
-        </div>
-        {["reserved", "paid", "fulfillment_pending", "shipped"].map((state, index) => (
-          <div key={state} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[140px_1fr_160px]">
-            <strong>AET-{20260700 + index}</strong>
-            <span className="text-zinc-600">{state.replaceAll("_", " ")}</span>
-            <button disabled={demo} className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
-              Advance state
-            </button>
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+          <div>
+            <h2 className="text-lg font-semibold">Orders</h2>
+            <p className="text-sm text-zinc-500">
+              {ordersTotal !== null ? `${ordersTotal} order${ordersTotal === 1 ? "" : "s"} recorded.` : "Fulfillment, payments and refunds."}
+            </p>
           </div>
-        ))}
+          <a href="/orders/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+            View all
+          </a>
+        </div>
+        {ordersStatus === "error" ? (
+          <p className="p-4 text-sm text-zinc-500">Could not load recent orders.</p>
+        ) : ordersStatus === "loading" ? (
+          <p className="p-4 text-sm text-zinc-500">Loading...</p>
+        ) : recentOrders.length === 0 ? (
+          <p className="p-4 text-sm text-zinc-500">No orders yet.</p>
+        ) : (
+          recentOrders.map((order) => (
+            <div key={order.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
+              <strong>{order.number}</strong>
+              <span className="text-zinc-600">{order.email}</span>
+              <span className="text-sm text-zinc-600">
+                {order.payment_status.replaceAll("_", " ")} &middot; {order.fulfillment_status.replaceAll("_", " ")}
+              </span>
+              <a
+                href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
+                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+              >
+                Open order
+              </a>
+            </div>
+          ))
+        )}
       </section>
 
       <section id="messages" className="mt-6 rounded-lg border border-zinc-200 bg-white">

@@ -1,13 +1,21 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { canTransitionOrder, isValidHexColor, isValidWhatsappNumber } from "@aether/core";
+import {
+  canTransitionFulfillment,
+  canTransitionOrder,
+  canTransitionPayment,
+  isValidHexColor,
+  isValidWhatsappNumber
+} from "@aether/core";
 import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
 import { createUploadSignature } from "../services/cloudinary";
+import { createManualOrder } from "../services/orders";
+import { createRefund } from "../services/stripe";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -275,14 +283,288 @@ adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), asy
   return ok(c, rows.results);
 });
 
-adminRoutes.get("/orders", requirePermission("orders.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select id, number, email, state, total, currency, created_at from orders order by created_at desc limit 100").all();
-  return ok(c, rows.results);
+const orderListQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  channel: z.enum(["stripe", "whatsapp"]).optional(),
+  paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]).optional(),
+  fulfillmentStatus: z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25)
 });
 
+adminRoutes.get(
+  "/orders",
+  requirePermission("orders.read"),
+  zValidator("query", orderListQuerySchema),
+  async (c) => {
+    const query = c.req.valid("query");
+    const where: string[] = [];
+    const params: unknown[] = [];
+
+    if (query.search) {
+      where.push("(number like ? or email like ?)");
+      const needle = `%${query.search}%`;
+      params.push(needle, needle);
+    }
+    if (query.channel) {
+      where.push("channel = ?");
+      params.push(query.channel);
+    }
+    if (query.paymentStatus) {
+      where.push("payment_status = ?");
+      params.push(query.paymentStatus);
+    }
+    if (query.fulfillmentStatus) {
+      where.push("fulfillment_status = ?");
+      params.push(query.fulfillmentStatus);
+    }
+
+    const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
+    const total = await c.env.DB.prepare(`select count(*) as count from orders ${whereClause}`)
+      .bind(...params)
+      .first<{ count: number }>();
+    const offset = (query.page - 1) * query.pageSize;
+    const rows = await c.env.DB.prepare(
+      `select id, number, email, state, channel, payment_status, fulfillment_status, total, currency, created_at
+       from orders ${whereClause} order by created_at desc limit ? offset ?`
+    )
+      .bind(...params, query.pageSize, offset)
+      .all();
+
+    const totalCount = total?.count ?? 0;
+    return ok(c, {
+      data: rows.results,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total: totalCount,
+        pageCount: Math.max(1, Math.ceil(totalCount / query.pageSize))
+      }
+    });
+  }
+);
+
 adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
-  const row = await c.env.DB.prepare("select payload_json from orders where id = ?").bind(c.req.param("id")).first<{ payload_json: string }>();
-  return ok(c, row ? JSON.parse(row.payload_json) : null);
+  const row = await c.env.DB.prepare(
+    "select payload_json, channel, payment_status, fulfillment_status, internal_notes, tracking_carrier, tracking_number, tracking_url from orders where id = ?"
+  )
+    .bind(c.req.param("id"))
+    .first<{
+      payload_json: string;
+      channel: string;
+      payment_status: string;
+      fulfillment_status: string;
+      internal_notes: string | null;
+      tracking_carrier: string | null;
+      tracking_number: string | null;
+      tracking_url: string | null;
+    }>();
+  if (!row) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+
+  // The columns (not the payload_json blob) are the source of truth for
+  // these fields - orders created before migration 0015 have them
+  // backfilled onto the columns but not into their already-stored JSON.
+  const parsed = JSON.parse(row.payload_json) as Record<string, unknown>;
+  const history = await c.env.DB.prepare(
+    "select id, previous_state, new_state, actor_id, reason, created_at from order_status_history where order_id = ? order by created_at asc"
+  )
+    .bind(c.req.param("id"))
+    .all();
+
+  return ok(c, {
+    ...parsed,
+    channel: row.channel,
+    paymentStatus: row.payment_status,
+    fulfillmentStatus: row.fulfillment_status,
+    internalNotes: row.internal_notes,
+    tracking: row.tracking_carrier || row.tracking_number || row.tracking_url
+      ? { carrier: row.tracking_carrier, number: row.tracking_number, url: row.tracking_url }
+      : null,
+    history: history.results
+  });
+});
+
+adminRoutes.post(
+  "/orders/manual",
+  requirePermission("orders.write"),
+  zValidator(
+    "json",
+    z.object({
+      email: z.string().email(),
+      items: z.array(z.object({ productId: z.string().min(1), quantity: z.number().int().min(1) })).min(1),
+      notes: z.string().max(2000).optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const result = await createManualOrder(c.env, {
+      email: body.email,
+      items: body.items,
+      notes: body.notes,
+      actorId: c.get("actor").userId ?? "admin",
+      requestId: c.get("requestId")
+    });
+    if ("error" in result) {
+      return fail(
+        c,
+        422,
+        result.error === "empty_items" ? "EMPTY_ORDER" : "PRODUCT_NOT_FOUND",
+        result.error === "empty_items" ? "An order needs at least one item." : "One of the products was not found."
+      );
+    }
+    return ok(c, result.order, 201);
+  }
+);
+
+adminRoutes.patch(
+  "/orders/:id/fulfillment",
+  requirePermission("orders.write"),
+  zValidator("json", z.object({ fulfillmentStatus: z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]) })),
+  async (c) => {
+    const orderId = c.req.param("id");
+    const body = c.req.valid("json");
+    const current = await c.env.DB.prepare("select fulfillment_status from orders where id = ?")
+      .bind(orderId)
+      .first<{ fulfillment_status: string }>();
+    if (!current) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+
+    const from = current.fulfillment_status as Parameters<typeof canTransitionFulfillment>[0];
+    if (!canTransitionFulfillment(from, body.fulfillmentStatus)) {
+      return fail(c, 409, "FULFILLMENT_TRANSITION_INVALID", `Cannot transition ${from} to ${body.fulfillmentStatus}.`);
+    }
+
+    const result = await c.env.DB.prepare(
+      "update orders set fulfillment_status = ?, updated_at = ? where id = ? and fulfillment_status = ?"
+    )
+      .bind(body.fulfillmentStatus, new Date().toISOString(), orderId, from)
+      .run();
+    if ((result.meta.changes ?? 0) !== 1) {
+      return fail(c, 409, "FULFILLMENT_CONFLICT", "The order changed while this update was being applied.");
+    }
+    return ok(c, { orderId, previousFulfillmentStatus: from, fulfillmentStatus: body.fulfillmentStatus });
+  }
+);
+
+adminRoutes.patch(
+  "/orders/:id/payment",
+  requirePermission("orders.write"),
+  zValidator("json", z.object({ paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]) })),
+  async (c) => {
+    const orderId = c.req.param("id");
+    const body = c.req.valid("json");
+    const current = await c.env.DB.prepare("select channel, payment_status from orders where id = ?")
+      .bind(orderId)
+      .first<{ channel: string; payment_status: string }>();
+    if (!current) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+
+    // Stripe orders' payment_status only moves through POST .../refund,
+    // which calls the real Stripe API - this route would let someone mark
+    // a Stripe order "refunded" without any money actually moving.
+    // WhatsApp orders have no payment reference to reconcile against, so
+    // the admin confirming payment by hand here is the intended flow.
+    if (current.channel !== "whatsapp") {
+      return fail(c, 409, "PAYMENT_STATUS_NOT_MANUAL", "Only WhatsApp orders can have their payment status set directly.");
+    }
+
+    const from = current.payment_status as Parameters<typeof canTransitionPayment>[0];
+    if (!canTransitionPayment(from, body.paymentStatus)) {
+      return fail(c, 409, "PAYMENT_TRANSITION_INVALID", `Cannot transition ${from} to ${body.paymentStatus}.`);
+    }
+
+    await c.env.DB.prepare("update orders set payment_status = ?, updated_at = ? where id = ?")
+      .bind(body.paymentStatus, new Date().toISOString(), orderId)
+      .run();
+    return ok(c, { orderId, previousPaymentStatus: from, paymentStatus: body.paymentStatus });
+  }
+);
+
+adminRoutes.patch(
+  "/orders/:id/notes",
+  requirePermission("orders.write"),
+  zValidator("json", z.object({ notes: z.string().max(2000).nullable() })),
+  async (c) => {
+    await c.env.DB.prepare("update orders set internal_notes = ?, updated_at = ? where id = ?")
+      .bind(c.req.valid("json").notes, new Date().toISOString(), c.req.param("id"))
+      .run();
+    return ok(c, { orderId: c.req.param("id"), notes: c.req.valid("json").notes });
+  }
+);
+
+adminRoutes.patch(
+  "/orders/:id/tracking",
+  requirePermission("orders.write"),
+  zValidator(
+    "json",
+    z.object({
+      carrier: z.string().max(80).nullable(),
+      number: z.string().max(80).nullable(),
+      url: z.union([z.string().url(), z.null()])
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    await c.env.DB.prepare(
+      "update orders set tracking_carrier = ?, tracking_number = ?, tracking_url = ?, updated_at = ? where id = ?"
+    )
+      .bind(body.carrier, body.number, body.url, new Date().toISOString(), c.req.param("id"))
+      .run();
+    return ok(c, { orderId: c.req.param("id"), tracking: body });
+  }
+);
+
+adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zValidator("json", z.object({ amountCents: z.number().int().min(1).optional(), reason: z.string().max(300).optional() })), async (c) => {
+  const orderId = c.req.param("id");
+  const body = c.req.valid("json");
+  const order = await c.env.DB.prepare("select channel, payment_status, payload_json, total from orders where id = ?")
+    .bind(orderId)
+    .first<{ channel: string; payment_status: string; payload_json: string; total: number }>();
+  if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+  if (order.channel !== "stripe") {
+    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe orders can be refunded through Stripe.");
+  }
+  if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
+    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only a paid order can be refunded.");
+  }
+
+  const payload = JSON.parse(order.payload_json) as { payment?: { providerPaymentIntentId?: string } };
+  const paymentIntentId = payload.payment?.providerPaymentIntentId;
+  if (!paymentIntentId) {
+    return fail(c, 422, "REFUND_MISSING_PAYMENT_INTENT", "This order has no Stripe payment intent to refund.");
+  }
+
+  try {
+    const refund = await createRefund(c.env, paymentIntentId, body.amountCents);
+    const nextStatus = body.amountCents && body.amountCents < order.total ? "partially_refunded" : "refunded";
+    await c.env.DB.batch([
+      c.env.DB.prepare("update orders set payment_status = ?, updated_at = ? where id = ?").bind(
+        nextStatus,
+        new Date().toISOString(),
+        orderId
+      ),
+      c.env.DB.prepare(
+        "update payments set status = ?, updated_at = CURRENT_TIMESTAMP where order_id = ?"
+      ).bind(nextStatus === "refunded" ? "refunded" : "paid", orderId),
+      // order_status_history's previous_state/new_state columns are plain
+      // TEXT (no CHECK against orderStateSchema) - reused here for the
+      // payment-status axis's own audit trail rather than adding a new
+      // table, same table other admin order actions already write to.
+      c.env.DB.prepare(
+        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
+         values (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        crypto.randomUUID(),
+        orderId,
+        order.payment_status,
+        nextStatus,
+        c.get("actor").userId ?? "admin",
+        body.reason ?? `stripe_refund:${refund.id}`,
+        c.get("requestId")
+      )
+    ]);
+    return ok(c, { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id }, 201);
+  } catch (error) {
+    return fail(c, 500, "STRIPE_REFUND_FAILED", error instanceof Error ? error.message : "Stripe refund failed.");
+  }
 });
 
 adminRoutes.patch(
@@ -353,7 +635,39 @@ adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("js
     .run();
   return ok(c, { code: body.code.toUpperCase() }, 201);
 });
-adminRoutes.patch("/coupons/:id", requirePermission("coupons.manage"), (c) => ok(c, { code: c.req.param("id"), updated: true }));
+adminRoutes.patch(
+  "/coupons/:id",
+  requirePermission("coupons.manage"),
+  zValidator(
+    "json",
+    z.object({
+      type: z.string().optional(),
+      value: z.number().int().optional(),
+      active: z.boolean().optional(),
+      minimumSubtotal: z.number().int().min(0).optional()
+    })
+  ),
+  async (c) => {
+    const code = c.req.param("id").toUpperCase();
+    const existing = await c.env.DB.prepare("select * from coupons where code = ?")
+      .bind(code)
+      .first<{ type: string; value: number; active: number; minimum_subtotal: number }>();
+    if (!existing) return fail(c, 404, "COUPON_NOT_FOUND", "Coupon not found.");
+    const body = c.req.valid("json");
+    await c.env.DB.prepare(
+      `update coupons set type = ?, value = ?, active = ?, minimum_subtotal = ?, updated_at = CURRENT_TIMESTAMP where code = ?`
+    )
+      .bind(
+        body.type ?? existing.type,
+        body.value ?? existing.value,
+        body.active !== undefined ? (body.active ? 1 : 0) : existing.active,
+        body.minimumSubtotal ?? existing.minimum_subtotal,
+        code
+      )
+      .run();
+    return ok(c, { code, updated: true });
+  }
+);
 adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c) => {
   await c.env.DB.prepare("update coupons set active = 0 where code = ?").bind(c.req.param("id").toUpperCase()).run();
   return ok(c, { code: c.req.param("id"), active: false });
@@ -436,4 +750,40 @@ adminRoutes.patch(
     return ok(c, value);
   }
 );
-adminRoutes.get("/export/orders", requirePermission("exports.create"), (c) => ok(c, { format: "csv", simulated: true, rows: 0 }));
+function csvCell(value: string | number | null | undefined): string {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+// Exported for characterization tests only - not part of the admin API surface.
+export const __testables = { csvCell };
+
+adminRoutes.get("/export/orders", requirePermission("exports.create"), async (c) => {
+  const rows = await c.env.DB.prepare(
+    "select id, number, email, state, channel, payment_status, fulfillment_status, total, currency, created_at from orders order by created_at desc limit 1000"
+  ).all<{
+    id: string;
+    number: string;
+    email: string;
+    state: string;
+    channel: string;
+    payment_status: string;
+    fulfillment_status: string;
+    total: number;
+    currency: string;
+    created_at: string;
+  }>();
+
+  const header = ["id", "number", "email", "state", "channel", "payment_status", "fulfillment_status", "total", "currency", "created_at"];
+  const lines = [header.join(",")];
+  for (const row of rows.results || []) {
+    lines.push(header.map((key) => csvCell(row[key as keyof typeof row])).join(","));
+  }
+
+  return new Response(lines.join("\n"), {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="orders-export.csv"`
+    }
+  });
+});

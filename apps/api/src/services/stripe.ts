@@ -185,6 +185,51 @@ export async function retrieveCheckoutSession(env: Env, sessionId: string): Prom
   return response.json();
 }
 
+export type StripeRefund = {
+  id: string;
+  status?: string;
+  amount?: number;
+};
+
+// Same fetch + form-encoded + Bearer pattern as createCheckoutSession -
+// deliberately not a new client abstraction. Sandbox-safe: STRIPE_SECRET_KEY
+// in this deployment is a test-mode (sk_test_) key, so real money never
+// moves - confirmed via getStripeSecretKeyStatus, which every admin route
+// calling this already surfaces to the UI.
+export async function createRefund(env: Env, paymentIntentId: string, amountCents?: number): Promise<StripeRefund> {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new Error("Stripe secret key is not configured");
+  }
+
+  const params = new URLSearchParams();
+  params.set("payment_intent", paymentIntentId);
+  if (amountCents !== undefined) {
+    params.set("amount", String(amountCents));
+  }
+
+  const response = await fetch("https://api.stripe.com/v1/refunds", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: params
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    const stripeError = parseStripeError(errorBody);
+    console.error("Stripe refund failed", {
+      status: response.status,
+      statusText: response.statusText,
+      stripeError
+    });
+    throw new Error(stripeError.message ?? "Stripe refund could not be created");
+  }
+
+  return response.json();
+}
+
 export async function verifyStripeSignature(secret: string, body: string, signatureHeader: string) {
   const timestamp = signatureHeader
     .split(",")
