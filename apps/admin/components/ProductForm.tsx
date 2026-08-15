@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, GripVertical, ImagePlus, Loader2, Star, Trash2, X } from "lucide-react";
 import { apiBaseUrl } from "./config";
+import { FormSection } from "./FormSection";
+import { StickyFormActions } from "./StickyFormActions";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export type ProductFormValues = {
   name: string;
@@ -57,9 +60,9 @@ export const emptyProductForm: ProductFormValues = {
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const inputClass =
-  "focus-ring min-h-11 w-full rounded-md border border-zinc-300 px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50";
+  "focus-ring min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-50";
 const labelClass = "grid gap-1 text-sm";
-const labelTextClass = "font-medium text-zinc-700";
+const labelTextClass = "font-medium text-ink-muted";
 
 function centsToInput(cents: number | null): string {
   return cents === null ? "" : (cents / 100).toFixed(2);
@@ -90,6 +93,7 @@ export function ProductForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function set<K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) {
@@ -248,19 +252,20 @@ export function ProductForm({
 
   async function handleDelete() {
     if (!productId) return;
-    setStatus("saving");
+    setDeleting(true);
     try {
       const response = await authorizedFetch(`/api/v1/admin/products/${productId}`, { method: "DELETE" });
       const payload = (await response.json()) as { success: boolean; data?: { deleted: boolean; softDeleted: boolean } };
       if (!payload.success) {
-        setStatus("error");
         setErrorMessage("Could not delete the product.");
         return;
       }
       router.push("/products/");
     } catch {
-      setStatus("error");
       setErrorMessage("Network error - the product was not deleted.");
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -269,15 +274,14 @@ export function ProductForm({
   return (
     <form onSubmit={(event) => void handleSubmit(event)} className="grid gap-6 pb-16">
       {errorMessage ? (
-        <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <div className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft p-3 text-sm text-danger">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           <p>{errorMessage}</p>
         </div>
       ) : null}
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Basic information</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <FormSection title="Basic information">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
             <span className={labelTextClass}>Name *</span>
             <input required className={inputClass} value={values.name} onChange={(event) => set("name", event.target.value)} />
@@ -344,25 +348,24 @@ export function ProductForm({
             <input className={inputClass} value={values.highlights} onChange={(event) => set("highlights", event.target.value)} />
           </label>
           <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.featured} onChange={(event) => set("featured", event.target.checked)} />
               Featured
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.isNew} onChange={(event) => set("isNew", event.target.checked)} />
               New arrival
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.isDeal} onChange={(event) => set("isDeal", event.target.checked)} />
               On sale
             </label>
           </div>
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Price</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <FormSection title="Price">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
             <span className={labelTextClass}>Price (USD) *</span>
             <input
@@ -385,14 +388,13 @@ export function ProductForm({
               value={centsToInput(values.compareAtPriceCents)}
               onChange={(event) => set("compareAtPriceCents", inputToCents(event.target.value))}
             />
-            <span className="text-xs text-zinc-500">Must be higher than the price - shown struck through.</span>
+            <span className="text-xs text-ink-subtle">Must be higher than the price - shown struck through.</span>
           </label>
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Inventory</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <FormSection title="Inventory">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className={labelClass}>
             <span className={labelTextClass}>SKU</span>
             <input className={inputClass} value={values.sku} placeholder="auto-generated if empty" onChange={(event) => set("sku", event.target.value)} />
@@ -419,25 +421,23 @@ export function ProductForm({
             />
           </label>
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Images</h2>
-        <p className="mt-1 text-sm text-zinc-500">The first image is the main image shown in the catalog.</p>
-        <div className="mt-4 flex flex-wrap gap-3">
+      <FormSection title="Images" description="The first image is the main image shown in the catalog.">
+        <div className="flex flex-wrap gap-3">
           {allImages.map((url) => (
-            <div key={url} className="group relative h-24 w-24 overflow-hidden rounded-md border border-zinc-200">
+            <div key={url} className="group relative h-24 w-24 overflow-hidden rounded-md border border-border">
               {/* Plain <img>, not next/image - admin-managed, arbitrary remote URLs */}
               <img src={url} alt="" className="h-full w-full object-cover" />
               {url === values.images.main ? (
-                <span className="absolute left-1 top-1 rounded bg-zinc-950/80 p-1 text-white">
+                <span className="absolute left-1 top-1 rounded bg-ink/80 p-1 text-surface">
                   <Star size={11} aria-hidden />
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => makeMainImage(url)}
-                  className="focus-ring absolute left-1 top-1 rounded bg-zinc-950/70 p-1 text-white opacity-0 group-hover:opacity-100"
+                  className="focus-ring absolute left-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
                   aria-label="Make main image"
                 >
                   <Star size={11} aria-hidden />
@@ -446,12 +446,12 @@ export function ProductForm({
               <button
                 type="button"
                 onClick={() => removeImage(url)}
-                className="focus-ring absolute right-1 top-1 rounded bg-zinc-950/70 p-1 text-white opacity-0 group-hover:opacity-100"
+                className="focus-ring absolute right-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
                 aria-label="Remove image"
               >
                 <X size={11} aria-hidden />
               </button>
-              <span className="absolute bottom-1 right-1 text-zinc-300 opacity-0 group-hover:opacity-100" aria-hidden>
+              <span className="absolute bottom-1 right-1 text-ink-subtle opacity-0 group-hover:opacity-100" aria-hidden>
                 <GripVertical size={12} />
               </span>
             </div>
@@ -460,7 +460,7 @@ export function ProductForm({
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="focus-ring grid h-24 w-24 place-items-center gap-1 rounded-md border-2 border-dashed border-zinc-300 text-xs font-medium text-zinc-500 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="focus-ring grid h-24 w-24 place-items-center gap-1 rounded-md border-2 border-dashed border-border-strong text-xs font-medium text-ink-muted hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <ImagePlus size={18} aria-hidden />}
             {uploading ? "Uploading..." : "Add image"}
@@ -477,11 +477,10 @@ export function ProductForm({
             }}
           />
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold">SEO</h2>
-        <div className="mt-4 grid gap-3">
+      <FormSection title="SEO">
+        <div className="grid gap-3">
           <label className={labelClass}>
             <span className={labelTextClass}>SEO title</span>
             <input
@@ -502,54 +501,47 @@ export function ProductForm({
               onChange={(event) => set("seoDescription", event.target.value)}
             />
           </label>
-          <p className="text-xs text-zinc-500">
-            Preview: <span className="font-medium text-zinc-700">{values.seoTitle || (values.name ? `${values.name} | Aether` : "...")}</span>
+          <p className="text-xs text-ink-subtle">
+            Preview: <span className="font-medium text-ink-muted">{values.seoTitle || (values.name ? `${values.name} | Aether` : "...")}</span>
             {" - "}
             /products/{values.slug || "..."}
           </p>
         </div>
-      </section>
+      </FormSection>
 
-      <div className="sticky bottom-0 flex items-center gap-3 border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
+      <StickyFormActions>
         <button
           type="submit"
           disabled={status === "saving"}
-          className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "saving" ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
           {mode === "create" ? "Create product" : "Save changes"}
         </button>
-        {status === "saved" ? <span className="text-sm text-teal-700">Saved.</span> : null}
+        {status === "saved" ? <span className="text-sm text-success">Saved.</span> : null}
 
         {mode === "edit" ? (
-          <div className="ml-auto">
-            {confirmingDelete ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-600">Delete this product?</span>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  className="focus-ring rounded-md bg-rose-600 px-3 py-2 font-semibold text-white"
-                >
-                  Confirm delete
-                </button>
-                <button type="button" onClick={() => setConfirmingDelete(false)} className="focus-ring rounded-md border border-zinc-300 px-3 py-2 font-semibold">
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(true)}
-                className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-rose-300 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-              >
-                <Trash2 size={15} aria-hidden />
-                Delete
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="focus-ring ml-auto inline-flex min-h-11 items-center gap-2 rounded-md border border-danger/30 px-3 text-sm font-semibold text-danger hover:bg-danger-soft"
+          >
+            <Trash2 size={15} aria-hidden />
+            Delete
+          </button>
         ) : null}
-      </div>
+      </StickyFormActions>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this product?"
+        description="This removes it from the catalog. If it has order history, it's archived instead of hard-deleted."
+        confirmLabel="Confirm delete"
+        tone="danger"
+        pending={deleting}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </form>
   );
 }

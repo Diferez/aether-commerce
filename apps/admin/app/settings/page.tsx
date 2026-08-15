@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { ArrowLeft, MessageCircle, Timer, Truck } from "lucide-react";
+import { MessageCircle, Timer, Truck } from "lucide-react";
 import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
+import { PageHeader } from "../../components/PageHeader";
+import { FormSection } from "../../components/FormSection";
+import { ErrorState } from "../../components/ErrorState";
 
 type CheckoutSettings = {
   paymentMode: "stripe" | "whatsapp";
@@ -108,223 +111,199 @@ export default function SettingsPage() {
   }
 
   function saveNote(status: SaveStatus, errorMessage: string) {
-    if (status === "saved") return <span className="text-sm text-teal-700">Saved.</span>;
-    if (status === "error") return <span className="text-sm text-rose-700">{errorMessage}</span>;
+    if (status === "saved") return <span className="text-sm text-success">Saved.</span>;
+    if (status === "error") return <span className="text-sm text-danger">{errorMessage}</span>;
     return null;
   }
 
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Dashboard
-        </a>
-
-        <h1 className="text-2xl font-semibold text-zinc-950">Settings</h1>
-        <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-          Branding, checkout method, shipping, and cart reservation hold time.
-        </p>
+        <PageHeader title="Settings" description="Branding, checkout method, shipping, and cart reservation hold time." />
 
         {loadStatus === "error" ? (
-          <div className="mt-6 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-            Could not load current settings. Try again in a moment.
-          </div>
+          <ErrorState title="Could not load current settings" />
         ) : (
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="text-lg font-semibold">Branding</h2>
-              <p className="mt-1 text-sm text-zinc-500">Store name, logo and accent color used across the storefront.</p>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Store name</span>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <FormSection title="Branding" description="Store name, logo and accent color used across the storefront.">
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Store name</span>
+                <input
+                  value={brandForm.name}
+                  onChange={(event) => setBrandForm((current) => ({ ...current, name: event.target.value }))}
+                  className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Accent color</span>
+                <div className="flex items-center gap-2">
                   <input
-                    value={brandForm.name}
-                    onChange={(event) => setBrandForm((current) => ({ ...current, name: event.target.value }))}
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3"
+                    type="color"
+                    aria-label="Accent color picker"
+                    value={brandForm.primaryColor}
+                    onChange={(event) => setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))}
+                    className="h-10 w-12 rounded-md border border-border"
                   />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Accent color</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      aria-label="Accent color picker"
-                      value={brandForm.primaryColor}
-                      onChange={(event) => setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))}
-                      className="h-10 w-12 rounded-md border border-zinc-300"
-                    />
-                    <input
-                      value={brandForm.primaryColor}
-                      onChange={(event) => setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))}
-                      placeholder="#8b5cf6"
-                      className="focus-ring min-h-10 flex-1 rounded-md border border-zinc-300 px-3"
-                    />
-                  </div>
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Logo URL</span>
                   <input
-                    value={brandForm.logoUrl}
-                    onChange={(event) => setBrandForm((current) => ({ ...current, logoUrl: event.target.value }))}
-                    placeholder="https://.../logo.png"
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3"
+                    value={brandForm.primaryColor}
+                    onChange={(event) => setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))}
+                    placeholder="#8b5cf6"
+                    className="focus-ring min-h-10 flex-1 rounded-md border border-border bg-surface px-3 text-ink"
                   />
-                </label>
-                <label className="flex items-center gap-2 text-sm">
+                </div>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Logo URL</span>
+                <input
+                  value={brandForm.logoUrl}
+                  onChange={(event) => setBrandForm((current) => ({ ...current, logoUrl: event.target.value }))}
+                  placeholder="https://.../logo.png"
+                  className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={brandForm.features.reviews}
+                  onChange={(event) => setBrandForm((current) => ({ ...current, features: { ...current.features, reviews: event.target.checked } }))}
+                  className="h-4 w-4 rounded border-border-strong"
+                />
+                <span className="font-medium text-ink-muted">Show product reviews</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={brandSaveStatus === "saving"}
+                  onClick={() => void saveSettings("brand", brandForm, setBrandSaveStatus)}
+                  className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {brandSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {saveNote(brandSaveStatus, "Could not save - check the color format and your permissions.")}
+              </div>
+            </FormSection>
+
+            <FormSection
+              title={
+                <>
+                  <MessageCircle size={16} aria-hidden />
+                  Checkout method
+                </>
+              }
+              description="Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead."
+            >
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Payment method</span>
+                <select
+                  value={checkoutForm.paymentMode}
+                  onChange={(event) => setCheckoutForm((current) => ({ ...current, paymentMode: event.target.value as "stripe" | "whatsapp" }))}
+                  className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
+                >
+                  <option value="stripe">Stripe</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </label>
+              {checkoutForm.paymentMode === "whatsapp" ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-ink-muted">Sales WhatsApp number</span>
                   <input
-                    type="checkbox"
-                    checked={brandForm.features.reviews}
-                    onChange={(event) =>
-                      setBrandForm((current) => ({ ...current, features: { ...current.features, reviews: event.target.checked } }))
-                    }
-                    className="h-4 w-4 rounded border-zinc-300"
+                    value={checkoutForm.whatsappNumber}
+                    onChange={(event) => setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))}
+                    placeholder="573001234567"
+                    className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
                   />
-                  <span className="font-medium text-zinc-700">Show product reviews</span>
+                  <span className="text-xs text-ink-subtle">Country code + number, digits only - no +, spaces or dashes.</span>
                 </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={brandSaveStatus === "saving"}
-                    onClick={() => void saveSettings("brand", brandForm, setBrandSaveStatus)}
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {brandSaveStatus === "saving" ? "Saving..." : "Save"}
-                  </button>
-                  {saveNote(brandSaveStatus, "Could not save - check the color format and your permissions.")}
-                </div>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={checkoutSaveStatus === "saving"}
+                  onClick={() => void saveSettings("checkout", checkoutForm, setCheckoutSaveStatus)}
+                  className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {checkoutSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {saveNote(checkoutSaveStatus, "Could not save - check the number format and your permissions.")}
               </div>
-            </section>
+            </FormSection>
 
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <MessageCircle size={17} aria-hidden />
-                Checkout method
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead.
-              </p>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Payment method</span>
-                  <select
-                    value={checkoutForm.paymentMode}
-                    onChange={(event) =>
-                      setCheckoutForm((current) => ({ ...current, paymentMode: event.target.value as "stripe" | "whatsapp" }))
-                    }
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3"
-                  >
-                    <option value="stripe">Stripe</option>
-                    <option value="whatsapp">WhatsApp</option>
-                  </select>
-                </label>
-                {checkoutForm.paymentMode === "whatsapp" ? (
-                  <label className="grid gap-1 text-sm">
-                    <span className="font-medium text-zinc-700">Sales WhatsApp number</span>
-                    <input
-                      value={checkoutForm.whatsappNumber}
-                      onChange={(event) => setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))}
-                      placeholder="573001234567"
-                      className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3"
-                    />
-                    <span className="text-xs text-zinc-500">Country code + number, digits only - no +, spaces or dashes.</span>
-                  </label>
-                ) : null}
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={checkoutSaveStatus === "saving"}
-                    onClick={() => void saveSettings("checkout", checkoutForm, setCheckoutSaveStatus)}
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {checkoutSaveStatus === "saving" ? "Saving..." : "Save"}
-                  </button>
-                  {saveNote(checkoutSaveStatus, "Could not save - check the number format and your permissions.")}
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Truck size={17} aria-hidden />
-                Shipping
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Orders at or above this subtotal get free standard shipping on the storefront.
-              </p>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Free shipping threshold</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      aria-label="Free shipping threshold in dollars"
-                      value={shippingForm.freeShippingThreshold / 100}
-                      onChange={(event) =>
-                        setShippingForm((current) => ({
-                          ...current,
-                          freeShippingThreshold: Math.max(0, Math.round(Number(event.target.value) * 100))
-                        }))
-                      }
-                      className="focus-ring min-h-10 w-32 rounded-md border border-zinc-300 px-3"
-                    />
-                    <span className="text-sm text-zinc-500">= {money(shippingForm.freeShippingThreshold)}</span>
-                  </div>
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={shippingSaveStatus === "saving"}
-                    onClick={() => void saveSettings("shipping", shippingForm, setShippingSaveStatus)}
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {shippingSaveStatus === "saving" ? "Saving..." : "Save"}
-                  </button>
-                  {saveNote(shippingSaveStatus, "Could not save - check your permissions.")}
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Timer size={17} aria-hidden />
-                Cart reservations
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                How long an item stays held for a shopper after being added to their cart, before it's released back
-                to available stock.
-              </p>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Reservation TTL (minutes)</span>
+            <FormSection
+              title={
+                <>
+                  <Truck size={16} aria-hidden />
+                  Shipping
+                </>
+              }
+              description="Orders at or above this subtotal get free standard shipping on the storefront."
+            >
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Free shipping threshold</span>
+                <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    min={1}
-                    max={1440}
+                    min={0}
                     step={1}
-                    aria-label="Reservation TTL in minutes"
-                    value={reservationsForm.ttlMinutes}
+                    aria-label="Free shipping threshold in dollars"
+                    value={shippingForm.freeShippingThreshold / 100}
                     onChange={(event) =>
-                      setReservationsForm({ ttlMinutes: Math.max(1, Math.round(Number(event.target.value))) })
+                      setShippingForm((current) => ({
+                        ...current,
+                        freeShippingThreshold: Math.max(0, Math.round(Number(event.target.value) * 100))
+                      }))
                     }
-                    className="focus-ring min-h-10 w-24 rounded-md border border-zinc-300 px-3"
+                    className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
                   />
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={reservationsSaveStatus === "saving"}
-                    onClick={() => void saveSettings("reservations", reservationsForm, setReservationsSaveStatus)}
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {reservationsSaveStatus === "saving" ? "Saving..." : "Save"}
-                  </button>
-                  {saveNote(reservationsSaveStatus, "Could not save - check your permissions.")}
+                  <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.freeShippingThreshold)}</span>
                 </div>
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={shippingSaveStatus === "saving"}
+                  onClick={() => void saveSettings("shipping", shippingForm, setShippingSaveStatus)}
+                  className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {shippingSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {saveNote(shippingSaveStatus, "Could not save - check your permissions.")}
               </div>
-            </section>
+            </FormSection>
+
+            <FormSection
+              title={
+                <>
+                  <Timer size={16} aria-hidden />
+                  Cart reservations
+                </>
+              }
+              description="How long an item stays held for a shopper after being added to their cart, before it's released back to available stock."
+            >
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Reservation TTL (minutes)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  step={1}
+                  aria-label="Reservation TTL in minutes"
+                  value={reservationsForm.ttlMinutes}
+                  onChange={(event) => setReservationsForm({ ttlMinutes: Math.max(1, Math.round(Number(event.target.value))) })}
+                  className="focus-ring min-h-10 w-24 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
+                />
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={reservationsSaveStatus === "saving"}
+                  onClick={() => void saveSettings("reservations", reservationsForm, setReservationsSaveStatus)}
+                  className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {reservationsSaveStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+                {saveNote(reservationsSaveStatus, "Could not save - check your permissions.")}
+              </div>
+            </FormSection>
           </div>
         )}
       </main>

@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, MapPin, ShieldCheck, UserRound } from "lucide-react";
+import { MapPin, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "@clerk/react";
 import { RequireAdminAuth } from "../../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../../components/config";
+import { PageHeader } from "../../../components/PageHeader";
+import { FormSection } from "../../../components/FormSection";
+import { EmptyState } from "../../../components/EmptyState";
+import { ErrorState } from "../../../components/ErrorState";
+import { StatusBadge } from "../../../components/StatusBadge";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 // Same reason as orders/detail/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime ids (and customer ids can be a raw
@@ -139,94 +145,76 @@ export default function CustomerDetailPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/customers/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Customers
-        </a>
-
         {state === "loading" ? (
           <div className="grid gap-3">
-            <div className="h-8 w-64 animate-pulse rounded bg-zinc-200" />
-            <div className="h-40 animate-pulse rounded-lg bg-zinc-100" />
+            <div className="skeleton h-8 w-64 rounded" />
+            <div className="skeleton h-40 rounded-lg" />
           </div>
         ) : state === "not-found" ? (
           <NotFound />
         ) : state === "error" || !customer ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
-            Could not load this customer. Try again in a moment.
-          </div>
+          <ErrorState title="Could not load this customer" />
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-zinc-500">
-                  <UserRound size={20} aria-hidden />
-                </span>
-                <div>
-                  <h1 className="text-2xl font-semibold text-zinc-950">{customer.name ?? customer.email}</h1>
-                  <p className="mt-1 text-sm text-zinc-500">
-                    {customer.email} &middot; {customer.source === "guest" ? "Guest checkout" : "Registered account"}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                  customer.status === "suspended" ? "bg-rose-50 text-rose-700" : "bg-teal-50 text-teal-700"
-                }`}
-              >
-                {customer.status}
-              </span>
-            </div>
+            <PageHeader
+              title={customer.name ?? customer.email}
+              breadcrumb={[{ label: "Customers", href: "/customers/" }]}
+              description={`${customer.email} · ${customer.source === "guest" ? "Guest checkout" : "Registered account"}`}
+              meta={<StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{customer.status}</StatusBadge>}
+            />
 
             {actionError ? (
-              <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{actionError}</div>
+              <div className="mb-4">
+                <ErrorState title="Action failed" description={actionError} />
+              </div>
             ) : null}
 
             {customer.source === "guest" ? (
-              <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                This person checked out as a guest and has no Clerk account yet - there is nothing to suspend or
-                promote until they sign up.
+              <div className="mb-6 rounded-lg border border-border bg-surface-hover p-4 text-sm text-ink-muted">
+                This person checked out as a guest and has no Clerk account yet - there is nothing to suspend or promote until they sign up.
               </div>
             ) : null}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+            <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="grid gap-6">
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Order history</h2>
+                <FormSection title="Order history">
                   {customer.orders.length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500">No orders yet.</p>
+                    <EmptyState title="No orders yet" />
                   ) : (
-                    <div className="mt-3 grid gap-2">
+                    <div className="grid gap-2">
                       {customer.orders.map((order) => (
                         <a
                           key={order.id}
                           href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
-                          className="focus-ring grid gap-1 rounded-md border border-zinc-200 p-3 hover:bg-zinc-50 sm:grid-cols-[140px_1fr_120px_100px] sm:items-center sm:gap-3"
+                          className="focus-ring grid gap-1 rounded-md border border-border p-3 hover:bg-surface-hover sm:grid-cols-[140px_1fr_120px_100px] sm:items-center sm:gap-3"
                         >
-                          <strong className="text-zinc-950">{order.number}</strong>
-                          <span className="text-sm text-zinc-600">
+                          <strong className="text-ink">{order.number}</strong>
+                          <span className="text-sm text-ink-muted">
                             {order.paymentStatus?.replaceAll("_", " ")} &middot; {order.fulfillmentStatus?.replaceAll("_", " ")}
                           </span>
-                          <span className="text-sm text-zinc-600">{money(order.totals.total, order.totals.currency)}</span>
-                          <span className="text-xs text-zinc-500">{new Date(order.createdAt).toLocaleDateString()}</span>
+                          <span className="text-sm tabular-nums text-ink-muted">{money(order.totals.total, order.totals.currency)}</span>
+                          <span className="text-xs text-ink-subtle">{new Date(order.createdAt).toLocaleDateString()}</span>
                         </a>
                       ))}
                     </div>
                   )}
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
-                    <MapPin size={17} aria-hidden />
-                    Addresses
-                  </h2>
+                <FormSection
+                  title={
+                    <span className="flex items-center gap-2">
+                      <MapPin size={16} aria-hidden />
+                      Addresses
+                    </span>
+                  }
+                >
                   {customer.addresses.length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500">No saved addresses.</p>
+                    <p className="text-sm text-ink-muted">No saved addresses.</p>
                   ) : (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {customer.addresses.map((address, index) => (
-                        <div key={index} className="rounded-md border border-zinc-200 p-3 text-sm text-zinc-600">
-                          <p className="font-medium text-zinc-950">{address.fullName}</p>
+                        <div key={index} className="rounded-md border border-border p-3 text-sm text-ink-muted">
+                          <p className="font-medium text-ink">{address.fullName}</p>
                           <p>{address.line1}</p>
                           {address.line2 ? <p>{address.line2}</p> : null}
                           <p>
@@ -237,73 +225,44 @@ export default function CustomerDetailPage() {
                       ))}
                     </div>
                   )}
-                </section>
+                </FormSection>
               </div>
 
               <div className="grid gap-6">
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Account access</h2>
-                  <p className="mt-2 text-sm text-zinc-600">
-                    Suspending blocks this person from signing in or making any authenticated request on their next
-                    request - not just future logins.
+                <FormSection title="Account access">
+                  <p className="text-sm text-ink-muted">
+                    Suspending blocks this person from signing in or making any authenticated request on their next request - not just future logins.
                   </p>
                   {customer.source === "registered" ? (
-                    suspendConfirming ? (
-                      <div className="mt-3 grid gap-2 rounded-md border border-rose-200 bg-rose-50 p-3">
-                        <p className="text-sm font-semibold text-rose-800">
-                          {customer.status === "suspended" ? "Reactivate this account?" : "Suspend this account?"}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={actionStatus === "pending"}
-                            onClick={() => {
-                              setSuspendConfirming(false);
-                              void runAction("/status", { status: customer.status === "suspended" ? "active" : "suspended" });
-                            }}
-                            className="focus-ring min-h-9 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSuspendConfirming(false)}
-                            className="focus-ring min-h-9 rounded-md border border-zinc-300 px-3 text-sm font-semibold"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setSuspendConfirming(true)}
-                        className={`focus-ring mt-3 inline-flex min-h-10 items-center rounded-md border px-3 text-sm font-semibold ${
-                          customer.status === "suspended"
-                            ? "border-teal-300 text-teal-700 hover:bg-teal-50"
-                            : "border-rose-300 text-rose-700 hover:bg-rose-50"
-                        }`}
-                      >
-                        {customer.status === "suspended" ? "Reactivate account" : "Suspend account"}
-                      </button>
-                    )
+                    <button
+                      type="button"
+                      onClick={() => setSuspendConfirming(true)}
+                      className={`focus-ring inline-flex min-h-10 items-center justify-self-start rounded-md border px-3 text-sm font-semibold ${
+                        customer.status === "suspended" ? "border-success/30 text-success hover:bg-success-soft" : "border-danger/30 text-danger hover:bg-danger-soft"
+                      }`}
+                    >
+                      {customer.status === "suspended" ? "Reactivate account" : "Suspend account"}
+                    </button>
                   ) : null}
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
-                    <ShieldCheck size={17} aria-hidden />
-                    Role
-                  </h2>
-                  <p className="mt-2 text-sm text-zinc-600">
-                    Current: <span className="font-semibold text-zinc-950">{customer.roles.join(", ")}</span>
+                <FormSection
+                  title={
+                    <span className="flex items-center gap-2">
+                      <ShieldCheck size={16} aria-hidden />
+                      Role
+                    </span>
+                  }
+                >
+                  <p className="text-sm text-ink-muted">
+                    Current: <span className="font-semibold text-ink">{customer.roles.join(", ")}</span>
                   </p>
                   {customer.source === "registered" ? (
-                    <div className="mt-3 grid gap-2">
+                    <>
                       <select
                         value={roleDraft}
                         onChange={(event) => setRoleDraft(event.target.value)}
-                        className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                        className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                       >
                         {assignableRoles.map((role) => (
                           <option key={role} value={role}>
@@ -311,51 +270,46 @@ export default function CustomerDetailPage() {
                           </option>
                         ))}
                       </select>
-                      {roleConfirming ? (
-                        <div className="grid gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-                          <p className="text-sm font-semibold text-amber-900">
-                            Change this person&apos;s role to &quot;{roleDraft.replaceAll("_", " ")}&quot;? This calls
-                            Clerk directly and takes effect on their next request.
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              disabled={actionStatus === "pending"}
-                              onClick={() => {
-                                setRoleConfirming(false);
-                                void runAction("/role", { role: roleDraft });
-                              }}
-                              className="focus-ring min-h-9 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRoleConfirming(false)}
-                              className="focus-ring min-h-9 rounded-md border border-zinc-300 px-3 text-sm font-semibold"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={roleDraft === customer.roles[0]}
-                          onClick={() => setRoleConfirming(true)}
-                          className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Save role
-                        </button>
-                      )}
-                      <p className="text-xs text-zinc-500">
-                        Only super admins can change roles - this action is rejected by the server otherwise.
-                      </p>
-                    </div>
+                      <button
+                        type="button"
+                        disabled={roleDraft === customer.roles[0]}
+                        onClick={() => setRoleConfirming(true)}
+                        className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Save role
+                      </button>
+                      <p className="text-xs text-ink-subtle">Only super admins can change roles - this action is rejected by the server otherwise.</p>
+                    </>
                   ) : null}
-                </section>
+                </FormSection>
               </div>
             </div>
+
+            <ConfirmDialog
+              open={suspendConfirming}
+              title={customer.status === "suspended" ? "Reactivate this account?" : "Suspend this account?"}
+              confirmLabel="Confirm"
+              tone={customer.status === "suspended" ? "default" : "danger"}
+              pending={actionStatus === "pending"}
+              onConfirm={() => {
+                setSuspendConfirming(false);
+                void runAction("/status", { status: customer.status === "suspended" ? "active" : "suspended" });
+              }}
+              onCancel={() => setSuspendConfirming(false)}
+            />
+
+            <ConfirmDialog
+              open={roleConfirming}
+              title="Change this person's role?"
+              description={`Change this person's role to "${roleDraft.replaceAll("_", " ")}"? This calls Clerk directly and takes effect on their next request.`}
+              confirmLabel="Confirm"
+              pending={actionStatus === "pending"}
+              onConfirm={() => {
+                setRoleConfirming(false);
+                void runAction("/role", { role: roleDraft });
+              }}
+              onCancel={() => setRoleConfirming(false)}
+            />
           </>
         )}
       </main>
@@ -365,9 +319,8 @@ export default function CustomerDetailPage() {
 
 function NotFound() {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center">
-      <p className="font-semibold text-zinc-950">Customer not found</p>
-      <p className="mt-1 text-sm text-zinc-500">It may have been deleted, or the link is incorrect.</p>
+    <div className="rounded-lg border border-border bg-surface p-6">
+      <EmptyState title="Customer not found" description="It may have been deleted, or the link is incorrect." icon={UserRound} />
     </div>
   );
 }

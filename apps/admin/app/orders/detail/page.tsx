@@ -1,10 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, MessageCircle, Package, RotateCcw, Truck } from "lucide-react";
+import { MessageCircle, Package, RotateCcw } from "lucide-react";
 import { useAuth } from "@clerk/react";
 import { RequireAdminAuth } from "../../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../../components/config";
+import { PageHeader } from "../../../components/PageHeader";
+import { FormSection } from "../../../components/FormSection";
+import { EmptyState } from "../../../components/EmptyState";
+import { ErrorState } from "../../../components/ErrorState";
+import { StatusBadge, type StatusTone } from "../../../components/StatusBadge";
+import { ActivityTimeline } from "../../../components/ActivityTimeline";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 // Same reason as products/edit/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime-created order ids, so ?id= is read from
@@ -64,6 +71,22 @@ const paymentNext: Record<PaymentStatus, PaymentStatus[]> = {
   paid: ["refunded", "partially_refunded"],
   partially_refunded: ["refunded"],
   refunded: []
+};
+
+const paymentTone: Record<PaymentStatus, StatusTone> = {
+  pending: "pending",
+  paid: "success",
+  failed: "error",
+  refunded: "neutral",
+  partially_refunded: "warning"
+};
+
+const fulfillmentTone: Record<FulfillmentStatus, StatusTone> = {
+  unfulfilled: "neutral",
+  processing: "in-process",
+  shipped: "info",
+  delivered: "success",
+  cancelled: "error"
 };
 
 function money(cents: number, currency: string) {
@@ -157,81 +180,75 @@ export default function OrderDetailPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/orders/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Orders
-        </a>
-
         {state === "loading" ? (
           <div className="grid gap-3">
-            <div className="h-8 w-64 animate-pulse rounded bg-zinc-200" />
-            <div className="h-40 animate-pulse rounded-lg bg-zinc-100" />
+            <div className="skeleton h-8 w-64 rounded" />
+            <div className="skeleton h-40 rounded-lg" />
           </div>
         ) : state === "not-found" ? (
           <NotFound />
         ) : state === "error" || !order ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
-            Could not load this order. Try again in a moment.
-          </div>
+          <ErrorState title="Could not load this order" />
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="flex items-center gap-2 text-2xl font-semibold text-zinc-950">
-                  {order.number}
-                  {order.channel === "whatsapp" ? <MessageCircle size={18} className="text-teal-700" aria-hidden /> : null}
-                </h1>
-                <p className="mt-1 text-sm text-zinc-500">
-                  {order.email} &middot; created {new Date(order.createdAt).toLocaleString()} &middot; state: {order.state}
-                </p>
-              </div>
-              <span className="text-xl font-semibold text-zinc-950">{money(order.totals.total, order.totals.currency)}</span>
-            </div>
+            <PageHeader
+              title={order.number}
+              breadcrumb={[{ label: "Orders", href: "/orders/" }]}
+              description={`${order.email} · created ${new Date(order.createdAt).toLocaleString()} · state: ${order.state}`}
+              meta={
+                <>
+                  {order.channel === "whatsapp" ? <MessageCircle size={18} className="text-accent-2" aria-hidden /> : null}
+                  <StatusBadge tone={paymentTone[order.paymentStatus]}>{order.paymentStatus.replaceAll("_", " ")}</StatusBadge>
+                  <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus]}>{order.fulfillmentStatus.replaceAll("_", " ")}</StatusBadge>
+                </>
+              }
+              primaryAction={<span className="text-xl font-semibold tabular-nums text-ink">{money(order.totals.total, order.totals.currency)}</span>}
+            />
 
             {actionError ? (
-              <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{actionError}</div>
+              <div className="mb-4">
+                <ErrorState title="Action failed" description={actionError} />
+              </div>
             ) : null}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+            <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="grid gap-6">
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Items</h2>
-                  <div className="mt-3 grid gap-3">
+                <FormSection title="Items">
+                  <div className="grid gap-3">
                     {order.items.map((item) => (
-                      <div key={item.productId} className="flex items-center justify-between gap-3 border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0">
+                      <div key={item.productId} className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0">
                         <div className="flex items-center gap-3">
                           {/* Plain <img>, not next/image - same as products list, arbitrary URLs */}
-                          <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-md border border-zinc-200 object-cover" />
+                          <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
                           <div>
-                            <p className="font-medium text-zinc-950">{item.name}</p>
-                            <p className="text-xs text-zinc-500">Qty {item.quantity}</p>
+                            <p className="font-medium text-ink">{item.name}</p>
+                            <p className="text-xs text-ink-subtle">Qty {item.quantity}</p>
                           </div>
                         </div>
-                        <span className="text-sm text-zinc-600">{money(item.lineTotal, item.currency)}</span>
+                        <span className="text-sm tabular-nums text-ink-muted">{money(item.lineTotal, item.currency)}</span>
                       </div>
                     ))}
                   </div>
-                  <dl className="mt-4 grid gap-1 border-t border-zinc-100 pt-3 text-sm">
-                    <div className="flex justify-between text-zinc-600">
+                  <dl className="grid gap-1 border-t border-border pt-3 text-sm">
+                    <div className="flex justify-between text-ink-muted">
                       <dt>Subtotal</dt>
-                      <dd>{money(order.totals.subtotal, order.totals.currency)}</dd>
+                      <dd className="tabular-nums">{money(order.totals.subtotal, order.totals.currency)}</dd>
                     </div>
                     {order.totals.discount > 0 ? (
-                      <div className="flex justify-between text-zinc-600">
+                      <div className="flex justify-between text-ink-muted">
                         <dt>Discount</dt>
-                        <dd>-{money(order.totals.discount, order.totals.currency)}</dd>
+                        <dd className="tabular-nums">-{money(order.totals.discount, order.totals.currency)}</dd>
                       </div>
                     ) : null}
-                    <div className="flex justify-between font-semibold text-zinc-950">
+                    <div className="flex justify-between font-semibold text-ink">
                       <dt>Total</dt>
-                      <dd>{money(order.totals.total, order.totals.currency)}</dd>
+                      <dd className="tabular-nums">{money(order.totals.total, order.totals.currency)}</dd>
                     </div>
                   </dl>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Shipping address</h2>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                <FormSection title="Shipping address">
+                  <p className="text-sm leading-6 text-ink-muted">
                     {order.shippingAddress.fullName}
                     <br />
                     {order.shippingAddress.line1}
@@ -240,31 +257,27 @@ export default function OrderDetailPage() {
                     <br />
                     {order.shippingAddress.country}
                   </p>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
-                    <Truck size={17} aria-hidden />
-                    Tracking
-                  </h2>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <FormSection title="Tracking">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <input
                       value={trackingDraft.carrier}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, carrier: event.target.value }))}
                       placeholder="Carrier"
-                      className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                      className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                     <input
                       value={trackingDraft.number}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, number: event.target.value }))}
                       placeholder="Tracking number"
-                      className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                      className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                     <input
                       value={trackingDraft.url}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, url: event.target.value }))}
                       placeholder="Tracking URL"
-                      className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                      className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                   </div>
                   <button
@@ -277,63 +290,51 @@ export default function OrderDetailPage() {
                         url: trackingDraft.url || null
                       })
                     }
-                    className="focus-ring mt-3 min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Save tracking
                   </button>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Internal notes</h2>
-                  <p className="mt-1 text-sm text-zinc-500">Only visible to admin staff, never shown to the customer.</p>
+                <FormSection title="Internal notes" description="Only visible to admin staff, never shown to the customer.">
                   <textarea
                     value={notesDraft}
                     onChange={(event) => setNotesDraft(event.target.value)}
                     rows={4}
                     maxLength={2000}
-                    className="focus-ring mt-3 w-full rounded-md border border-zinc-300 p-3 text-sm"
+                    className="focus-ring w-full rounded-md border border-border bg-surface p-3 text-sm text-ink"
                   />
                   <button
                     type="button"
                     disabled={actionStatus === "pending"}
                     onClick={() => void runAction("/notes", "PATCH", { notes: notesDraft || null })}
-                    className="focus-ring mt-3 min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Save notes
                   </button>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Timeline</h2>
-                  <ol className="mt-3 grid gap-3">
-                    {order.history.map((entry) => (
-                      <li key={entry.id} className="border-b border-zinc-100 pb-3 text-sm last:border-b-0 last:pb-0">
-                        <p className="font-medium text-zinc-950">
-                          {entry.previous_state ? `${entry.previous_state} -> ` : ""}
-                          {entry.new_state}
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                          {new Date(entry.created_at).toLocaleString()} &middot; {entry.actor_id}
-                          {entry.reason ? ` · ${entry.reason}` : ""}
-                        </p>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
+                <FormSection title="Timeline">
+                  <ActivityTimeline
+                    items={order.history.map((entry) => ({
+                      id: entry.id,
+                      title: entry.previous_state ? `${entry.previous_state} -> ${entry.new_state}` : entry.new_state,
+                      ...(entry.reason ? { detail: entry.reason } : {}),
+                      timestamp: `${new Date(entry.created_at).toLocaleString()} · ${entry.actor_id}`
+                    }))}
+                  />
+                </FormSection>
               </div>
 
               <div className="grid gap-6">
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
-                    <Package size={17} aria-hidden />
-                    Fulfillment
-                  </h2>
-                  <p className="mt-2 text-sm text-zinc-600">
-                    Current: <span className="font-semibold text-zinc-950">{order.fulfillmentStatus.replaceAll("_", " ")}</span>
-                  </p>
-                  <div className="mt-3 grid gap-2">
+                <FormSection title="Fulfillment">
+                  <div className="flex items-center gap-2 text-sm text-ink-muted">
+                    <Package size={15} aria-hidden />
+                    Current: <span className="font-semibold text-ink">{order.fulfillmentStatus.replaceAll("_", " ")}</span>
+                  </div>
+                  <div className="grid gap-2">
                     {fulfillmentNext[order.fulfillmentStatus].length === 0 ? (
-                      <p className="text-sm text-zinc-500">No further transitions available.</p>
+                      <p className="text-sm text-ink-muted">No further transitions available.</p>
                     ) : (
                       fulfillmentNext[order.fulfillmentStatus].map((next) => (
                         <button
@@ -341,25 +342,24 @@ export default function OrderDetailPage() {
                           type="button"
                           disabled={actionStatus === "pending"}
                           onClick={() => void runAction("/fulfillment", "PATCH", { fulfillmentStatus: next })}
-                          className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-left text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-left text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Mark as {next.replaceAll("_", " ")}
                         </button>
                       ))
                     )}
                   </div>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-zinc-200 bg-white p-5">
-                  <h2 className="text-lg font-semibold">Payment</h2>
-                  <p className="mt-2 text-sm text-zinc-600">
-                    Current: <span className="font-semibold text-zinc-950">{order.paymentStatus.replaceAll("_", " ")}</span>
+                <FormSection title="Payment">
+                  <p className="text-sm text-ink-muted">
+                    Current: <span className="font-semibold text-ink">{order.paymentStatus.replaceAll("_", " ")}</span>
                   </p>
 
                   {order.channel === "whatsapp" ? (
-                    <div className="mt-3 grid gap-2">
+                    <div className="grid gap-2">
                       {paymentNext[order.paymentStatus].length === 0 ? (
-                        <p className="text-sm text-zinc-500">No further transitions available.</p>
+                        <p className="text-sm text-ink-muted">No further transitions available.</p>
                       ) : (
                         paymentNext[order.paymentStatus].map((next) => (
                           <button
@@ -367,7 +367,7 @@ export default function OrderDetailPage() {
                             type="button"
                             disabled={actionStatus === "pending"}
                             onClick={() => void runAction("/payment", "PATCH", { paymentStatus: next })}
-                            className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-left text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-left text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Mark as {next.replaceAll("_", " ")}
                           </button>
@@ -375,57 +375,37 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="mt-3">
-                      <p className="text-sm text-zinc-500">
-                        Stripe orders can only change payment status through a real refund below.
-                      </p>
-                      {(order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded") &&
-                      order.payment?.providerPaymentIntentId ? (
-                        <div className="mt-3">
-                          {refundConfirming ? (
-                            <div className="grid gap-2 rounded-md border border-rose-200 bg-rose-50 p-3">
-                              <p className="text-sm font-semibold text-rose-800">
-                                Refund the full amount ({money(order.totals.total, order.totals.currency)}) via Stripe?
-                                This calls the real Stripe API and cannot be undone.
-                              </p>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  disabled={actionStatus === "pending"}
-                                  onClick={() => {
-                                    setRefundConfirming(false);
-                                    void runAction("/refund", "POST", {});
-                                  }}
-                                  className="focus-ring min-h-9 rounded-md bg-rose-700 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Confirm refund
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setRefundConfirming(false)}
-                                  className="focus-ring min-h-9 rounded-md border border-zinc-300 px-3 text-sm font-semibold"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setRefundConfirming(true)}
-                              className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md border border-rose-300 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-                            >
-                              <RotateCcw size={14} aria-hidden />
-                              Refund via Stripe
-                            </button>
-                          )}
-                        </div>
+                    <div>
+                      <p className="text-sm text-ink-muted">Stripe orders can only change payment status through a real refund below.</p>
+                      {(order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded") && order.payment?.providerPaymentIntentId ? (
+                        <button
+                          type="button"
+                          onClick={() => setRefundConfirming(true)}
+                          className="focus-ring mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-danger/30 px-3 text-sm font-semibold text-danger hover:bg-danger-soft"
+                        >
+                          <RotateCcw size={14} aria-hidden />
+                          Refund via Stripe
+                        </button>
                       ) : null}
                     </div>
                   )}
-                </section>
+                </FormSection>
               </div>
             </div>
+
+            <ConfirmDialog
+              open={refundConfirming}
+              title="Refund via Stripe?"
+              description={`Refund the full amount (${money(order.totals.total, order.totals.currency)}) via Stripe? This calls the real Stripe API and cannot be undone.`}
+              confirmLabel="Confirm refund"
+              tone="danger"
+              pending={actionStatus === "pending"}
+              onConfirm={() => {
+                setRefundConfirming(false);
+                void runAction("/refund", "POST", {});
+              }}
+              onCancel={() => setRefundConfirming(false)}
+            />
           </>
         )}
       </main>
@@ -435,9 +415,8 @@ export default function OrderDetailPage() {
 
 function NotFound() {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center">
-      <p className="font-semibold text-zinc-950">Order not found</p>
-      <p className="mt-1 text-sm text-zinc-500">It may have been deleted, or the link is incorrect.</p>
+    <div className="rounded-lg border border-border bg-surface p-6">
+      <EmptyState title="Order not found" description="It may have been deleted, or the link is incorrect." />
     </div>
   );
 }

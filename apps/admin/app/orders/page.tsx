@@ -2,9 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, ArrowLeft, Download, MessageCircle, Plus, Search } from "lucide-react";
+import { Download, MessageCircle, Plus } from "lucide-react";
 import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
+import { PageHeader } from "../../components/PageHeader";
+import { TableToolbar } from "../../components/TableToolbar";
+import { FilterBar, type FilterChip } from "../../components/FilterBar";
+import { DataTable, type Column } from "../../components/DataTable";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
+import { StatusBadge, type StatusTone } from "../../components/StatusBadge";
 
 type AdminOrderSummary = {
   id: string;
@@ -45,21 +52,28 @@ function money(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 
-const paymentStyles: Record<AdminOrderSummary["payment_status"], string> = {
-  pending: "bg-amber-50 text-amber-700",
-  paid: "bg-teal-50 text-teal-700",
-  failed: "bg-rose-50 text-rose-700",
-  refunded: "bg-zinc-100 text-zinc-600",
-  partially_refunded: "bg-zinc-100 text-zinc-600"
+const paymentTone: Record<AdminOrderSummary["payment_status"], StatusTone> = {
+  pending: "pending",
+  paid: "success",
+  failed: "error",
+  refunded: "neutral",
+  partially_refunded: "warning"
 };
 
-const fulfillmentStyles: Record<AdminOrderSummary["fulfillment_status"], string> = {
-  unfulfilled: "bg-zinc-100 text-zinc-600",
-  processing: "bg-amber-50 text-amber-700",
-  shipped: "bg-sky-50 text-sky-700",
-  delivered: "bg-teal-50 text-teal-700",
-  cancelled: "bg-rose-50 text-rose-700"
+const fulfillmentTone: Record<AdminOrderSummary["fulfillment_status"], StatusTone> = {
+  unfulfilled: "neutral",
+  processing: "in-process",
+  shipped: "info",
+  delivered: "success",
+  cancelled: "error"
 };
+
+const paymentLabel: Record<string, string> = { partially_refunded: "Partially refunded" };
+const fulfillmentLabel: Record<string, string> = {};
+
+function label(map: Record<string, string>, value: string) {
+  return map[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 export default function OrdersListPage() {
   const { getToken } = useAuth();
@@ -125,177 +139,136 @@ export default function OrdersListPage() {
     URL.revokeObjectURL(url);
   }
 
+  const hasFilters = Boolean(filters.search || filters.channel || filters.paymentStatus || filters.fulfillmentStatus);
+  const chips: FilterChip[] = [];
+  if (filters.channel) chips.push({ key: "channel", label: `Channel: ${filters.channel === "whatsapp" ? "WhatsApp" : "Stripe"}`, onRemove: () => updateFilter("channel", "") });
+  if (filters.paymentStatus) chips.push({ key: "payment", label: `Payment: ${label(paymentLabel, filters.paymentStatus)}`, onRemove: () => updateFilter("paymentStatus", "") });
+  if (filters.fulfillmentStatus) chips.push({ key: "fulfillment", label: `Fulfillment: ${label(fulfillmentLabel, filters.fulfillmentStatus)}`, onRemove: () => updateFilter("fulfillmentStatus", "") });
+
+  const columns: Column<AdminOrderSummary>[] = [
+    {
+      key: "order",
+      header: "Order",
+      render: (order) => (
+        <a href={`/orders/detail/?id=${encodeURIComponent(order.id)}`} className="focus-ring font-medium text-ink hover:underline">
+          {order.number}
+        </a>
+      )
+    },
+    { key: "customer", header: "Customer", hideBelow: "md", render: (order) => <span className="text-ink-muted">{order.email}</span> },
+    {
+      key: "channel",
+      header: "Channel",
+      hideBelow: "sm",
+      render: (order) => (
+        <span className="inline-flex items-center gap-1.5 text-ink-muted">
+          {order.channel === "whatsapp" ? <MessageCircle size={13} aria-hidden /> : null}
+          {order.channel === "whatsapp" ? "WhatsApp" : "Stripe"}
+        </span>
+      )
+    },
+    { key: "payment", header: "Payment", render: (order) => <StatusBadge tone={paymentTone[order.payment_status]}>{label(paymentLabel, order.payment_status)}</StatusBadge> },
+    { key: "fulfillment", header: "Fulfillment", render: (order) => <StatusBadge tone={fulfillmentTone[order.fulfillment_status]}>{label(fulfillmentLabel, order.fulfillment_status)}</StatusBadge> },
+    { key: "total", header: "Total", align: "end", render: (order) => money(order.total, order.currency) },
+    {
+      key: "created",
+      header: "Created",
+      hideBelow: "sm",
+      render: (order) => <span className="text-xs text-ink-subtle">{new Date(order.created_at).toLocaleDateString()}</span>
+    }
+  ];
+
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Dashboard
-        </a>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-zinc-950">Orders</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              {result ? `${result.pagination.total} order${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="Orders"
+          description={result ? `${result.pagination.total} order${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
+          secondaryActions={
             <button
               type="button"
               onClick={() => void exportCsv()}
-              className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-border-strong px-4 text-sm font-semibold text-ink hover:bg-surface-hover"
             >
               <Download size={16} aria-hidden />
               Export CSV
             </button>
-            <a
-              href="/orders/new/"
-              className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
-            >
+          }
+          primaryAction={
+            <a href="/orders/new/" className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover">
               <Plus size={16} aria-hidden />
               New WhatsApp order
             </a>
-          </div>
-        </div>
+          }
+        />
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <form onSubmit={submitSearch} className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-zinc-300 px-3">
-            <Search size={15} className="text-zinc-400" aria-hidden />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by order number or email"
-              aria-label="Search orders by order number or email"
-              className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
+        <TableToolbar
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
+          onSearchSubmit={submitSearch}
+          searchPlaceholder="Search by order number or email"
+          searchLabel="Search orders by order number or email"
+          filters={
+            <>
+              <select
+                value={filters.channel}
+                onChange={(event) => updateFilter("channel", event.target.value)}
+                aria-label="Filter by channel"
+                className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">All channels</option>
+                <option value="stripe">Stripe</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+              <select
+                value={filters.paymentStatus}
+                onChange={(event) => updateFilter("paymentStatus", event.target.value)}
+                aria-label="Filter by payment status"
+                className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">All payment statuses</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+                <option value="partially_refunded">Partially refunded</option>
+              </select>
+              <select
+                value={filters.fulfillmentStatus}
+                onChange={(event) => updateFilter("fulfillmentStatus", event.target.value)}
+                aria-label="Filter by fulfillment status"
+                className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">All fulfillment statuses</option>
+                <option value="unfulfilled">Unfulfilled</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </>
+          }
+        />
+        <FilterBar
+          chips={chips}
+          onClearAll={() => setFilters((current) => ({ ...current, channel: "", paymentStatus: "", fulfillmentStatus: "", page: 1 }))}
+        />
+
+        <DataTable<AdminOrderSummary>
+          columns={columns}
+          rows={result?.data ?? []}
+          status={status}
+          getRowId={(order) => order.id}
+          pagination={result?.pagination ?? null}
+          onPageChange={(page) => updateFilter("page", page)}
+          errorState={<ErrorState title="Could not load orders" />}
+          emptyState={
+            <EmptyState
+              title={hasFilters ? "No orders match these filters" : "No orders yet"}
+              description={hasFilters ? "Try adjusting or clearing your filters." : "Orders placed on the storefront or created manually will show up here."}
             />
-          </form>
-          <select
-            value={filters.channel}
-            onChange={(event) => updateFilter("channel", event.target.value)}
-            aria-label="Filter by channel"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All channels</option>
-            <option value="stripe">Stripe</option>
-            <option value="whatsapp">WhatsApp</option>
-          </select>
-          <select
-            value={filters.paymentStatus}
-            onChange={(event) => updateFilter("paymentStatus", event.target.value)}
-            aria-label="Filter by payment status"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All payment statuses</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
-            <option value="partially_refunded">Partially refunded</option>
-          </select>
-          <select
-            value={filters.fulfillmentStatus}
-            onChange={(event) => updateFilter("fulfillmentStatus", event.target.value)}
-            aria-label="Filter by fulfillment status"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All fulfillment statuses</option>
-            <option value="unfulfilled">Unfulfilled</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-          {status === "loading" ? (
-            <div className="grid gap-2 p-4">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-14 animate-pulse rounded-md bg-zinc-100" />
-              ))}
-            </div>
-          ) : status === "error" ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-rose-700">
-              <AlertTriangle size={16} aria-hidden />
-              Could not load orders. Try again in a moment.
-            </div>
-          ) : !result || result.data.length === 0 ? (
-            <div className="p-10 text-center text-sm text-zinc-500">
-              {filters.search || filters.channel || filters.paymentStatus || filters.fulfillmentStatus
-                ? "No orders match these filters."
-                : "No orders yet."}
-            </div>
-          ) : (
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500">
-                <tr>
-                  <th className="px-3 py-3">Order</th>
-                  <th className="px-3 py-3">Customer</th>
-                  <th className="px-3 py-3">Channel</th>
-                  <th className="px-3 py-3">Payment</th>
-                  <th className="px-3 py-3">Fulfillment</th>
-                  <th className="px-3 py-3">Total</th>
-                  <th className="px-3 py-3">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.data.map((order) => (
-                  <tr key={order.id} className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50">
-                    <td className="px-3 py-3">
-                      <a href={`/orders/detail/?id=${encodeURIComponent(order.id)}`} className="focus-ring font-medium text-zinc-950 hover:underline">
-                        {order.number}
-                      </a>
-                    </td>
-                    <td className="px-3 py-3 text-zinc-600">{order.email}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-zinc-600">
-                        {order.channel === "whatsapp" ? <MessageCircle size={13} aria-hidden /> : null}
-                        {order.channel === "whatsapp" ? "WhatsApp" : "Stripe"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStyles[order.payment_status]}`}>
-                        {order.payment_status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${fulfillmentStyles[order.fulfillment_status]}`}>
-                        {order.fulfillment_status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-zinc-600">{money(order.total, order.currency)}</td>
-                    <td className="px-3 py-3 text-xs text-zinc-500">{new Date(order.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {result && result.pagination.pageCount > 1 ? (
-          <div className="mt-4 flex items-center justify-between text-sm text-zinc-600">
-            <button
-              type="button"
-              disabled={filters.page <= 1}
-              onClick={() => updateFilter("page", filters.page - 1)}
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span>
-              Page {result.pagination.page} of {result.pagination.pageCount}
-            </span>
-            <button
-              type="button"
-              disabled={filters.page >= result.pagination.pageCount}
-              onClick={() => updateFilter("page", filters.page + 1)}
-              className="focus-ring rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        ) : null}
+          }
+        />
       </main>
     </RequireAdminAuth>
   );

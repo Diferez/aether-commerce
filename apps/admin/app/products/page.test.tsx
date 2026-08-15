@@ -76,7 +76,7 @@ describe("ProductsListPage", () => {
     render(<ProductsListPage />);
 
     const stockCell = await screen.findByText("2");
-    expect(stockCell.className).toContain("amber");
+    expect(stockCell.className).toContain("warning");
   });
 
   it("puts search, filters and page into the URL so the view survives a reload", async () => {

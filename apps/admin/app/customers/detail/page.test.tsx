@@ -103,7 +103,7 @@ describe("CustomerDetailPage", () => {
 
     await user.selectOptions(screen.getByRole("combobox"), "support");
     await user.click(screen.getByRole("button", { name: /save role/i }));
-    expect(screen.getByText(/change this person's role/i)).toBeInTheDocument();
+    expect(screen.getByText(/change this person's role to "support"/i)).toBeInTheDocument();
 
     fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: true }) } as Response);
     fetchMock.mockResolvedValueOnce(detailResponse(baseCustomer({ roles: ["support"] })));

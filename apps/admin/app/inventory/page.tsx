@@ -2,9 +2,15 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, ArrowLeft, History, Search } from "lucide-react";
+import { History } from "lucide-react";
 import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
+import { PageHeader } from "../../components/PageHeader";
+import { TableToolbar } from "../../components/TableToolbar";
+import { FilterBar, type FilterChip } from "../../components/FilterBar";
+import { StatusBadge, type StatusTone } from "../../components/StatusBadge";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 
 type AdminProductSummary = {
   id: string;
@@ -46,10 +52,12 @@ function readFiltersFromUrl() {
   };
 }
 
-function stockStatus(product: AdminProductSummary): { label: string; className: string } {
-  if (product.stock <= 0) return { label: "Out of stock", className: "bg-rose-50 text-rose-700" };
-  if (product.stock <= product.lowStockThreshold) return { label: "Low stock", className: "bg-amber-50 text-amber-700" };
-  return { label: "In stock", className: "bg-teal-50 text-teal-700" };
+const stockLabel: Record<"low" | "out", string> = { low: "Low stock", out: "Out of stock" };
+
+function stockStatus(product: AdminProductSummary): { label: string; tone: StatusTone } {
+  if (product.stock <= 0) return { label: "Out of stock", tone: "error" };
+  if (product.stock <= product.lowStockThreshold) return { label: "Low stock", tone: "warning" };
+  return { label: "In stock", tone: "success" };
 }
 
 export default function InventoryListPage() {
@@ -169,73 +177,67 @@ export default function InventoryListPage() {
     }
   }
 
+  const hasFilters = Boolean(filters.search || filters.stock);
+  const chips: FilterChip[] = [];
+  if (filters.stock) {
+    chips.push({ key: "stock", label: `Stock: ${stockLabel[filters.stock as "low" | "out"]}`, onRemove: () => updateFilter("stock", "") });
+  }
+
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Dashboard
-        </a>
+        <PageHeader title="Inventory" description={result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."} />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-zinc-950">Inventory</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              {result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <form onSubmit={submitSearch} className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-zinc-300 px-3">
-            <Search size={15} className="text-zinc-400" aria-hidden />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by name or SKU"
-              aria-label="Search inventory by product name or SKU"
-              className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
-            />
-          </form>
-          <select
-            value={filters.stock}
-            onChange={(event) => updateFilter("stock", event.target.value)}
-            aria-label="Filter by stock status"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All inventory</option>
-            <option value="low">Low stock</option>
-            <option value="out">Out of stock</option>
-          </select>
-        </div>
+        <TableToolbar
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
+          onSearchSubmit={submitSearch}
+          searchPlaceholder="Search by name or SKU"
+          searchLabel="Search inventory by product name or SKU"
+          filters={
+            <select
+              value={filters.stock}
+              onChange={(event) => updateFilter("stock", event.target.value)}
+              aria-label="Filter by stock status"
+              className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+            >
+              <option value="">All inventory</option>
+              <option value="low">Low stock</option>
+              <option value="out">Out of stock</option>
+            </select>
+          }
+        />
+        <FilterBar chips={chips} onClearAll={() => updateFilter("stock", "")} />
 
         {adjustError ? (
-          <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{adjustError}</div>
+          <div className="mb-3">
+            <ErrorState title="Could not adjust stock" description={adjustError} />
+          </div>
         ) : null}
 
-        <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
           {status === "loading" ? (
             <div className="grid gap-2 p-4">
               {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-14 animate-pulse rounded-md bg-zinc-100" />
+                <div key={index} className="skeleton h-14 rounded-md" />
               ))}
             </div>
           ) : status === "error" ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-rose-700">
-              <AlertTriangle size={16} aria-hidden />
-              Could not load inventory. Try again in a moment.
+            <div className="p-4">
+              <ErrorState title="Could not load inventory" />
             </div>
           ) : !result || result.data.length === 0 ? (
-            <div className="p-10 text-center text-sm text-zinc-500">
-              {filters.search || filters.stock ? "No products match these filters." : "No products yet."}
-            </div>
+            <EmptyState
+              title={hasFilters ? "No products match these filters" : "No products yet"}
+              description={hasFilters ? "Try adjusting or clearing your filters." : "Products you create will show up here once they have stock to track."}
+            />
           ) : (
             <table className="w-full min-w-[880px] text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500">
+              <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
                 <tr>
                   <th className="px-3 py-3">Product</th>
-                  <th className="px-3 py-3">SKU</th>
-                  <th className="px-3 py-3">Stock</th>
+                  <th className="hidden px-3 py-3 sm:table-cell">SKU</th>
+                  <th className="px-3 py-3 text-right">Stock</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3">Adjust</th>
                   <th className="px-3 py-3">History</th>
@@ -247,27 +249,27 @@ export default function InventoryListPage() {
                   const draft = draftFor(product.id);
                   return (
                     <Fragment key={product.id}>
-                      <tr className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50">
+                      <tr className="border-b border-border last:border-b-0 hover:bg-surface-hover">
                         <td className="px-3 py-3">
                           <a href={`/products/edit/?id=${encodeURIComponent(product.id)}`} className="focus-ring flex items-center gap-3">
                             {product.thumbnail ? (
                               // Plain <img>, not next/image - admin-managed, arbitrary remote/local URLs
-                              <img src={product.thumbnail} alt="" className="h-10 w-10 rounded-md border border-zinc-200 object-cover" />
+                              <img src={product.thumbnail} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
                             ) : (
-                              <span className="h-10 w-10 rounded-md border border-zinc-200 bg-zinc-100" aria-hidden />
+                              <span className="h-10 w-10 rounded-md border border-border bg-surface-hover" aria-hidden />
                             )}
-                            <span className="font-medium text-zinc-950 hover:underline">{product.name}</span>
+                            <span className="font-medium text-ink hover:underline">{product.name}</span>
                           </a>
                         </td>
-                        <td className="px-3 py-3 text-zinc-600">{product.sku}</td>
-                        <td className="px-3 py-3">
-                          <span className={product.stock <= 0 ? "font-semibold text-rose-700" : product.stock <= product.lowStockThreshold ? "font-semibold text-amber-700" : "text-zinc-600"}>
+                        <td className="hidden px-3 py-3 text-ink-muted sm:table-cell">{product.sku}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">
+                          <span className={product.stock <= 0 ? "font-semibold text-danger" : product.stock <= product.lowStockThreshold ? "font-semibold text-warning" : "text-ink-muted"}>
                             {product.stock}
                           </span>
-                          <span className="ml-1 text-xs text-zinc-400">/ {product.lowStockThreshold}</span>
+                          <span className="ml-1 text-xs text-ink-subtle">/ {product.lowStockThreshold}</span>
                         </td>
                         <td className="px-3 py-3">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rowStatus.className}`}>{rowStatus.label}</span>
+                          <StatusBadge tone={rowStatus.tone}>{rowStatus.label}</StatusBadge>
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5">
@@ -276,20 +278,20 @@ export default function InventoryListPage() {
                               onChange={(event) => updateDraft(product.id, { delta: event.target.value })}
                               placeholder="+/-"
                               aria-label={`Stock adjustment amount for ${product.name}`}
-                              className="focus-ring min-h-9 w-16 rounded-md border border-zinc-300 px-2 text-sm"
+                              className="focus-ring min-h-9 w-16 rounded-md border border-border bg-surface px-2 text-sm text-ink"
                             />
                             <input
                               value={draft.reason}
                               onChange={(event) => updateDraft(product.id, { reason: event.target.value })}
                               placeholder="Reason"
                               aria-label={`Reason for stock adjustment for ${product.name}`}
-                              className="focus-ring min-h-9 w-28 rounded-md border border-zinc-300 px-2 text-sm"
+                              className="focus-ring min-h-9 w-28 rounded-md border border-border bg-surface px-2 text-sm text-ink"
                             />
                             <button
                               type="button"
                               disabled={adjustingId === product.id}
                               onClick={() => void submitAdjustment(product.id)}
-                              className="focus-ring min-h-9 rounded-md border border-zinc-300 px-2.5 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="focus-ring min-h-9 rounded-md border border-border-strong px-2.5 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               Apply
                             </button>
@@ -299,7 +301,7 @@ export default function InventoryListPage() {
                           <button
                             type="button"
                             onClick={() => void openHistory(product.id)}
-                            className="focus-ring inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-700 hover:underline"
+                            className="focus-ring inline-flex items-center gap-1.5 text-sm font-semibold text-ink hover:underline"
                           >
                             <History size={14} aria-hidden />
                             {historyProductId === product.id ? "Hide" : "View"}
@@ -307,22 +309,22 @@ export default function InventoryListPage() {
                         </td>
                       </tr>
                       {historyProductId === product.id ? (
-                        <tr className="border-b border-zinc-100 bg-zinc-50 last:border-b-0">
+                        <tr className="border-b border-border bg-surface-hover last:border-b-0">
                           <td colSpan={6} className="px-3 py-3">
                             {historyStatus === "loading" ? (
-                              <p className="text-sm text-zinc-500">Loading history...</p>
+                              <p className="text-sm text-ink-muted">Loading history...</p>
                             ) : historyStatus === "error" ? (
-                              <p className="text-sm text-rose-700">Could not load movement history.</p>
+                              <p className="text-sm text-danger">Could not load movement history.</p>
                             ) : history.length === 0 ? (
-                              <p className="text-sm text-zinc-500">No movements recorded yet.</p>
+                              <p className="text-sm text-ink-muted">No movements recorded yet.</p>
                             ) : (
                               <div className="grid gap-1.5">
                                 {history.map((movement) => (
-                                  <div key={movement.id} className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
-                                    <span className="font-semibold text-zinc-950">{movement.type}</span>
-                                    <span>{movement.quantity}</span>
-                                    {movement.reason ? <span className="text-zinc-500">&middot; {movement.reason}</span> : null}
-                                    <span className="text-xs text-zinc-400">
+                                  <div key={movement.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+                                    <span className="font-semibold text-ink">{movement.type}</span>
+                                    <span className="tabular-nums">{movement.quantity}</span>
+                                    {movement.reason ? <span className="text-ink-subtle">&middot; {movement.reason}</span> : null}
+                                    <span className="text-xs text-ink-subtle">
                                       {new Date(movement.created_at).toLocaleString()} &middot; {movement.actor_id ?? "system"}
                                     </span>
                                   </div>
@@ -341,23 +343,23 @@ export default function InventoryListPage() {
         </div>
 
         {result && result.pagination.pageCount > 1 ? (
-          <div className="mt-4 flex items-center justify-between text-sm text-zinc-600">
+          <div className="mt-4 flex items-center justify-between text-sm text-ink-muted">
             <button
               type="button"
               disabled={filters.page <= 1}
               onClick={() => updateFilter("page", filters.page - 1)}
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="focus-ring inline-flex items-center gap-1 rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               Previous
             </button>
-            <span>
+            <span className="tabular-nums">
               Page {result.pagination.page} of {result.pagination.pageCount}
             </span>
             <button
               type="button"
               disabled={filters.page >= result.pagination.pageCount}
               onClick={() => updateFilter("page", filters.page + 1)}
-              className="focus-ring rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="focus-ring rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
-import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { RequireAdminAuth } from "../../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../../components/config";
+import { PageHeader } from "../../../components/PageHeader";
+import { FormSection } from "../../../components/FormSection";
 
 type ProductOption = {
   id: string;
@@ -105,73 +107,67 @@ export default function NewManualOrderPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/orders/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Orders
-        </a>
+        <PageHeader
+          title="New WhatsApp order"
+          description="For sales coordinated by chat. Line items are priced from the live catalog, not typed by hand - the order starts as payment pending, and you confirm payment from the order detail page once you have it."
+          breadcrumb={[{ label: "Orders", href: "/orders/" }]}
+        />
 
-        <h1 className="text-2xl font-semibold text-zinc-950">New WhatsApp order</h1>
-        <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-          For sales coordinated by chat. Line items are priced from the live catalog, not typed by hand - the
-          order starts as payment pending, and you confirm payment from the order detail page once you have it.
-        </p>
-
-        <form onSubmit={(event) => void submit(event)} className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
+        <form onSubmit={(event) => void submit(event)} className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="grid gap-6">
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
+            <FormSection title="Customer">
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-zinc-700">Customer email</span>
+                <span className="font-medium text-ink-muted">Customer email</span>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="customer@example.com"
-                  className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3"
+                  className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-ink"
                 />
               </label>
-              <label className="mt-4 grid gap-1 text-sm">
-                <span className="font-medium text-zinc-700">Internal notes (optional)</span>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Internal notes (optional)</span>
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   rows={3}
                   maxLength={2000}
                   placeholder="Coordinated by WhatsApp on..."
-                  className="focus-ring rounded-md border border-zinc-300 p-3"
+                  className="focus-ring rounded-md border border-border bg-surface p-3 text-ink"
                 />
               </label>
-            </section>
+            </FormSection>
 
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="text-lg font-semibold">Add products</h2>
-              <form onSubmit={(event) => void runSearch(event)} className="mt-3 flex items-center gap-2 rounded-md border border-zinc-300 px-3">
-                <Search size={15} className="text-zinc-400" aria-hidden />
+            <FormSection title="Add products">
+              <form onSubmit={(event) => void runSearch(event)} className="flex items-center gap-2 rounded-md border border-border bg-bg px-3">
+                <Search size={15} className="text-ink-subtle" aria-hidden />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search by name or SKU"
-                  className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
+                  className="min-h-11 w-full border-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
                 />
               </form>
-              <div className="mt-3 grid gap-2">
+              <div className="grid gap-2">
                 {searching ? (
-                  <p className="text-sm text-zinc-500">Searching...</p>
+                  <p className="text-sm text-ink-muted">Searching...</p>
                 ) : results.length === 0 ? (
-                  <p className="text-sm text-zinc-500">Search the catalog to add line items.</p>
+                  <p className="text-sm text-ink-muted">Search the catalog to add line items.</p>
                 ) : (
                   results.map((product) => (
-                    <div key={product.id} className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 px-3 py-2">
+                    <div key={product.id} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                       <div>
-                        <p className="text-sm font-medium text-zinc-950">{product.name}</p>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-sm font-medium text-ink">{product.name}</p>
+                        <p className="text-xs text-ink-subtle">
                           SKU {product.sku} &middot; {money(product.final_price_cents)}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => addItem(product)}
-                        className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 text-sm font-semibold hover:bg-zinc-50"
+                        className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-sm font-semibold text-ink hover:bg-surface-hover"
                       >
                         <Plus size={14} aria-hidden />
                         Add
@@ -180,58 +176,57 @@ export default function NewManualOrderPage() {
                   ))
                 )}
               </div>
-            </section>
+            </FormSection>
           </div>
 
           <div className="grid gap-6">
-            <section className="rounded-lg border border-zinc-200 bg-white p-5">
-              <h2 className="text-lg font-semibold">Order summary</h2>
+            <FormSection title="Order summary">
               {items.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-500">No items yet.</p>
+                <p className="text-sm text-ink-muted">No items yet.</p>
               ) : (
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-3">
                   {items.map((item) => (
-                    <div key={item.productId} className="grid gap-2 border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0">
+                    <div key={item.productId} className="grid gap-2 border-b border-border pb-3 last:border-b-0 last:pb-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-zinc-950">{item.name}</p>
+                        <p className="text-sm font-medium text-ink">{item.name}</p>
                         <button
                           type="button"
                           onClick={() => removeItem(item.productId)}
                           aria-label={`Remove ${item.name}`}
-                          className="focus-ring text-zinc-400 hover:text-rose-700"
+                          className="focus-ring text-ink-subtle hover:text-danger"
                         >
                           <Trash2 size={15} aria-hidden />
                         </button>
                       </div>
-                      <div className="flex items-center justify-between gap-2 text-sm text-zinc-600">
+                      <div className="flex items-center justify-between gap-2 text-sm text-ink-muted">
                         <input
                           type="number"
                           min={1}
                           value={item.quantity}
                           onChange={(event) => updateQuantity(item.productId, Number(event.target.value))}
-                          className="focus-ring min-h-9 w-20 rounded-md border border-zinc-300 px-2"
+                          className="focus-ring min-h-9 w-20 rounded-md border border-border bg-surface px-2 text-ink tabular-nums"
                         />
-                        <span>{money(item.unitPriceCents * item.quantity)}</span>
+                        <span className="tabular-nums">{money(item.unitPriceCents * item.quantity)}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="mt-4 flex justify-between border-t border-zinc-100 pt-3 text-sm font-semibold text-zinc-950">
+              <div className="flex justify-between border-t border-border pt-3 text-sm font-semibold text-ink">
                 <span>Subtotal</span>
-                <span>{money(subtotal)}</span>
+                <span className="tabular-nums">{money(subtotal)}</span>
               </div>
 
-              {submitError ? <p className="mt-3 text-sm text-rose-700">{submitError}</p> : null}
+              {submitError ? <p className="text-sm text-danger">{submitError}</p> : null}
 
               <button
                 type="submit"
                 disabled={submitStatus === "submitting" || !email.trim() || items.length === 0}
-                className="focus-ring mt-4 min-h-11 w-full rounded-md bg-zinc-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+                className="focus-ring min-h-11 w-full rounded-md bg-accent text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-ink-subtle"
               >
                 {submitStatus === "submitting" ? "Creating..." : "Create order"}
               </button>
-            </section>
+            </FormSection>
           </div>
         </form>
       </main>

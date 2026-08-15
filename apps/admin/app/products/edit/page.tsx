@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@clerk/react";
 import { RequireAdminAuth } from "../../../components/RequireAdminAuth";
 import { ProductForm, emptyProductForm, type ProductFormValues } from "../../../components/ProductForm";
 import { apiBaseUrl } from "../../../components/config";
+import { PageHeader } from "../../../components/PageHeader";
+import { EmptyState } from "../../../components/EmptyState";
+import { ErrorState } from "../../../components/ErrorState";
 
 // admin/next.config.mjs sets output: "export" (static, deployed to Cloudflare
 // Pages) - a dynamic [id] route segment can't work here since product ids
@@ -118,32 +120,25 @@ export default function EditProductPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/products/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Products
-        </a>
-
         {state === "loading" ? (
           <div className="grid gap-3">
-            <div className="h-8 w-64 animate-pulse rounded bg-zinc-200" />
-            <div className="h-40 animate-pulse rounded-lg bg-zinc-100" />
+            <div className="skeleton h-8 w-64 rounded" />
+            <div className="skeleton h-40 rounded-lg" />
           </div>
         ) : state === "not-found" ? (
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center">
-            <p className="font-semibold text-zinc-950">Product not found</p>
-            <p className="mt-1 text-sm text-zinc-500">It may have been deleted, or the link is incorrect.</p>
+          <div className="rounded-lg border border-border bg-surface p-6">
+            <EmptyState title="Product not found" description="It may have been deleted, or the link is incorrect." />
           </div>
         ) : state === "error" ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
-            Could not load this product. Try again in a moment.
-          </div>
+          <ErrorState title="Could not load this product" />
         ) : (
           <>
-            <h1 className="text-2xl font-semibold text-zinc-950">{initialValues.name}</h1>
-            <p className="mt-1 text-sm text-zinc-500">SKU {initialValues.sku}</p>
-            <div className="mt-6">
-              <ProductForm mode="edit" productId={id ?? undefined} initialValues={initialValues} />
-            </div>
+            <PageHeader
+              title={initialValues.name}
+              description={`SKU ${initialValues.sku}`}
+              breadcrumb={[{ label: "Products", href: "/products/" }]}
+            />
+            <ProductForm mode="edit" productId={id ?? undefined} initialValues={initialValues} />
           </>
         )}
       </main>

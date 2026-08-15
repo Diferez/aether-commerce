@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, Boxes, ChevronDown, Download, Mail, PackageCheck, Settings, Shield, UsersRound } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronDown, Download, History, Mail, PackageCheck, Settings, Shield, TicketPercent, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
+import { Metric } from "./Metric";
+import { EmptyState } from "./EmptyState";
+import { StatusBadge, type StatusTone } from "./StatusBadge";
 
 type ProductSummary = {
   id: string;
@@ -44,8 +47,6 @@ type Summary = {
   notice?: { en: string; es: string };
 };
 
-type AdminModule = [title: string, body: string, rows: string[]];
-
 type ContactMessage = {
   id: string;
   name: string;
@@ -71,6 +72,13 @@ const fallback: Summary = {
 
 function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
+const stockTone: Record<"in" | "low" | "out", StatusTone> = { in: "success", low: "warning", out: "error" };
+function stockStatus(product: ProductSummary): { label: string; tone: StatusTone } {
+  if (product.stock <= 0) return { label: "Out of stock", tone: stockTone.out };
+  if (product.stock <= product.lowStockThreshold) return { label: "Low stock", tone: stockTone.low };
+  return { label: "In stock", tone: stockTone.in };
 }
 
 export function AdminDashboard({ demo = false }: { demo?: boolean }) {
@@ -208,7 +216,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       const token = await getToken().catch(() => null);
       try {
         const response = await fetch(`${apiBaseUrl}/api/v1/admin/contact-messages`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: token ? { authorization: `Bearer ${token}` } : {}
         });
         if (cancelled) return;
         if (response.status === 403) {
@@ -243,19 +251,17 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
     <main id="main-content" className="admin-shell py-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase text-teal-700">{status}</p>
-          <h1 className="mt-1 text-4xl font-semibold text-zinc-950">
-            {demo ? "Public demo admin" : "Private admin dashboard"}
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
-            Monitor catalog health, order operations, customer support, coupons, reviews, and audit events.
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent-hover">{status}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{demo ? "Public demo admin" : "Home"}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">
+            Catalog health, order operations, customer support, and audit events at a glance.
           </p>
         </div>
         <button
           type="button"
           disabled={demo}
           onClick={() => void exportOrdersCsv()}
-          className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+          className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download size={17} aria-hidden />
           Export orders CSV
@@ -263,54 +269,48 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       </div>
 
       {summary.notice ? (
-        <section className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <section className="mt-5 rounded-lg border border-warning/25 bg-warning-soft p-4 text-sm text-ink">
           <div className="flex gap-3">
-            <Shield size={18} aria-hidden />
+            <Shield size={18} aria-hidden className="mt-0.5 shrink-0 text-warning" />
             <div>
               <p className="font-semibold">{summary.notice.en}</p>
-              <p>{summary.notice.es}</p>
+              <p className="text-ink-muted">{summary.notice.es}</p>
             </div>
           </div>
         </section>
       ) : null}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Metrics">
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Metrics">
         {metrics.map(([label, value, Icon]) => (
-          <article key={label} className="rounded-lg border border-zinc-200 bg-white p-5">
-            <Icon className="text-teal-700" aria-hidden />
-            <p className="mt-4 text-sm text-zinc-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-950">{value}</p>
-          </article>
+          <Metric key={label} label={label} value={value} icon={Icon} />
         ))}
       </section>
 
-      <section id="products" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+      <section id="products" className="mt-6 rounded-lg border border-border bg-surface">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-lg font-semibold">Products</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className="text-base font-semibold text-ink">Products</h2>
+            <p className="text-sm text-ink-muted">
               {productsTotal !== null ? `${productsTotal} product${productsTotal === 1 ? "" : "s"} in the catalog.` : "Create, edit, publish and archive products."}
             </p>
           </div>
-          <a href="/products/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+          <a href="/products/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             View all
           </a>
         </div>
         {recentProducts.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">No products yet.</p>
+          <EmptyState title="No products yet" description="Create the first product to start building the catalog." />
         ) : (
           recentProducts.map((product) => (
-            <div key={product.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_180px_180px] md:items-center">
+            <div key={product.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
               <div>
-                <h3 className="font-semibold">{product.name}</h3>
-                <p className="text-sm text-zinc-500">SKU {product.sku}</p>
+                <h3 className="font-medium text-ink">{product.name}</h3>
+                <p className="text-sm text-ink-muted">SKU {product.sku}</p>
               </div>
-              <span className="text-sm text-zinc-600">
-                {product.stock <= 0 ? "Out of stock" : product.stock <= product.lowStockThreshold ? "Low stock" : "In stock"}
-              </span>
+              <StatusBadge tone={stockStatus(product).tone}>{stockStatus(product).label}</StatusBadge>
               <a
                 href={`/products/edit/?id=${encodeURIComponent(product.id)}`}
-                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 Edit product
               </a>
@@ -319,33 +319,33 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
-      <section id="inventory" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+      <section id="inventory" className="mt-6 rounded-lg border border-border bg-surface">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-lg font-semibold">Inventory</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className="text-base font-semibold text-ink">Inventory</h2>
+            <p className="text-sm text-ink-muted">
               {summary.lowStock} product{summary.lowStock === 1 ? "" : "s"} at or below its low-stock threshold.
             </p>
           </div>
-          <a href="/inventory/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+          <a href="/inventory/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             View all
           </a>
         </div>
         {lowStockProducts.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">Nothing running low right now.</p>
+          <EmptyState title="Nothing running low" description="Every product is above its low-stock threshold right now." />
         ) : (
           lowStockProducts.map((product) => (
-            <div key={product.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
+            <div key={product.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
               <div>
-                <h3 className="font-semibold">{product.name}</h3>
-                <p className="text-sm text-zinc-500">SKU {product.sku}</p>
+                <h3 className="font-medium text-ink">{product.name}</h3>
+                <p className="text-sm text-ink-muted">SKU {product.sku}</p>
               </div>
-              <span className={product.stock <= 0 ? "text-sm font-semibold text-rose-700" : "text-sm font-semibold text-amber-700"}>
+              <span className={`text-sm font-semibold tabular-nums ${product.stock <= 0 ? "text-danger" : "text-warning"}`}>
                 {product.stock} left (threshold {product.lowStockThreshold})
               </span>
               <a
                 href="/inventory/"
-                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 Adjust stock
               </a>
@@ -354,35 +354,39 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
-      <section id="orders" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+      <section id="orders" className="mt-6 rounded-lg border border-border bg-surface">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-lg font-semibold">Orders</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className="text-base font-semibold text-ink">Orders</h2>
+            <p className="text-sm text-ink-muted">
               {ordersTotal !== null ? `${ordersTotal} order${ordersTotal === 1 ? "" : "s"} recorded.` : "Fulfillment, payments and refunds."}
             </p>
           </div>
-          <a href="/orders/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+          <a href="/orders/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             View all
           </a>
         </div>
         {ordersStatus === "error" ? (
-          <p className="p-4 text-sm text-zinc-500">Could not load recent orders.</p>
+          <p className="p-4 text-sm text-ink-muted">Could not load recent orders.</p>
         ) : ordersStatus === "loading" ? (
-          <p className="p-4 text-sm text-zinc-500">Loading...</p>
+          <div className="grid gap-2 p-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="skeleton h-12 rounded-md" />
+            ))}
+          </div>
         ) : recentOrders.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">No orders yet.</p>
+          <EmptyState title="No orders yet" description="Orders placed on the storefront or created manually will show up here." />
         ) : (
           recentOrders.map((order) => (
-            <div key={order.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
-              <strong>{order.number}</strong>
-              <span className="text-zinc-600">{order.email}</span>
-              <span className="text-sm text-zinc-600">
+            <div key={order.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
+              <strong className="text-ink">{order.number}</strong>
+              <span className="truncate text-ink-muted">{order.email}</span>
+              <span className="text-sm text-ink-muted">
                 {order.payment_status.replaceAll("_", " ")} &middot; {order.fulfillment_status.replaceAll("_", " ")}
               </span>
               <a
                 href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
-                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 Open order
               </a>
@@ -391,35 +395,37 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
-      <section id="customers" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+      <section id="customers" className="mt-6 rounded-lg border border-border bg-surface">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-lg font-semibold">Customers</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className="text-base font-semibold text-ink">Customers</h2>
+            <p className="text-sm text-ink-muted">
               {customersTotal !== null ? `${customersTotal} customer${customersTotal === 1 ? "" : "s"} tracked.` : "Accounts, guest checkouts and access."}
             </p>
           </div>
-          <a href="/customers/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+          <a href="/customers/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             View all
           </a>
         </div>
         {customersStatus === "error" ? (
-          <p className="p-4 text-sm text-zinc-500">Could not load recent customers.</p>
+          <p className="p-4 text-sm text-ink-muted">Could not load recent customers.</p>
         ) : customersStatus === "loading" ? (
-          <p className="p-4 text-sm text-zinc-500">Loading...</p>
+          <div className="grid gap-2 p-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="skeleton h-12 rounded-md" />
+            ))}
+          </div>
         ) : recentCustomers.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">No customers yet.</p>
+          <EmptyState title="No customers yet" description="Registered accounts and guest checkouts will show up here." />
         ) : (
           recentCustomers.map((customer) => (
-            <div key={customer.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
-              <span className="text-zinc-950">{customer.name ?? customer.email}</span>
-              <span className="text-sm text-zinc-600">{customer.source === "guest" ? "Guest checkout" : "Registered"}</span>
-              <span className={`text-sm font-semibold ${customer.status === "suspended" ? "text-rose-700" : "text-teal-700"}`}>
-                {customer.status}
-              </span>
+            <div key={customer.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
+              <span className="text-ink">{customer.name ?? customer.email}</span>
+              <span className="text-sm text-ink-muted">{customer.source === "guest" ? "Guest checkout" : "Registered"}</span>
+              <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{customer.status}</StatusBadge>
               <a
                 href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`}
-                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
                 Open customer
               </a>
@@ -428,57 +434,51 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
-      <section id="messages" className="mt-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 p-4">
-          <h2 className="text-lg font-semibold">Contact messages</h2>
-          <p className="text-sm text-zinc-500">
-            Every submission from the portfolio and storefront contact forms lands in the same D1 table.
-          </p>
+      <section id="messages" className="mt-6 rounded-lg border border-border bg-surface">
+        <div className="border-b border-border p-4">
+          <h2 className="text-base font-semibold text-ink">Contact messages</h2>
+          <p className="text-sm text-ink-muted">Every submission from the portfolio and storefront contact forms lands here.</p>
         </div>
         {messagesStatus === "forbidden" ? (
-          <p className="p-4 text-sm text-zinc-500">
-            {demo
-              ? "Public demo mode hides real visitor messages."
-              : "Your role does not have the contacts.read permission."}
+          <p className="p-4 text-sm text-ink-muted">
+            {demo ? "Public demo mode hides real visitor messages." : "Your role does not have the contacts.read permission."}
           </p>
         ) : messagesStatus === "error" ? (
-          <p className="p-4 text-sm text-zinc-500">Could not load contact messages.</p>
+          <p className="p-4 text-sm text-ink-muted">Could not load contact messages.</p>
         ) : messagesStatus === "loading" ? (
-          <p className="p-4 text-sm text-zinc-500">Loading...</p>
+          <div className="grid gap-2 p-4">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div key={index} className="skeleton h-12 rounded-md" />
+            ))}
+          </div>
         ) : messages.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">No messages yet.</p>
+          <EmptyState title="No messages yet" description="Contact form submissions will appear here as they come in." />
         ) : (
           messages.map((entry) => {
             const isOpen = openMessageId === entry.id;
             return (
-              <div key={entry.id} className="border-b border-zinc-200 last:border-b-0">
+              <div key={entry.id} className="border-b border-border last:border-b-0">
                 <button
                   type="button"
                   onClick={() => setOpenMessageId(isOpen ? null : entry.id)}
                   aria-expanded={isOpen}
                   className="focus-ring grid w-full gap-1 p-4 text-left md:grid-cols-[1fr_1fr_180px_24px] md:items-center md:gap-3"
                 >
-                  <span className="font-semibold text-zinc-950">{entry.name}</span>
-                  <span className="truncate text-sm text-zinc-600">{entry.subject}</span>
-                  <span className="text-xs text-zinc-500">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </span>
-                  <ChevronDown
-                    size={16}
-                    aria-hidden
-                    className={`justify-self-end text-zinc-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                  />
+                  <span className="font-medium text-ink">{entry.name}</span>
+                  <span className="truncate text-sm text-ink-muted">{entry.subject}</span>
+                  <span className="text-xs text-ink-subtle">{new Date(entry.created_at).toLocaleString()}</span>
+                  <ChevronDown size={16} aria-hidden className={`justify-self-end text-ink-subtle transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 </button>
                 {isOpen ? (
-                  <div className="grid gap-2 border-t border-zinc-100 bg-zinc-50 p-4 text-sm">
-                    <p className="flex items-center gap-2 text-zinc-600">
+                  <div className="grid gap-2 border-t border-border bg-surface-hover p-4 text-sm">
+                    <p className="flex items-center gap-2 text-ink-muted">
                       <Mail size={14} aria-hidden />
                       <a href={`mailto:${entry.email}`} className="underline">
                         {entry.email}
                       </a>
-                      <span className="text-zinc-400">&middot; {entry.locale}</span>
+                      <span className="text-ink-subtle">&middot; {entry.locale}</span>
                     </p>
-                    <p className="whitespace-pre-wrap text-zinc-700">{entry.message}</p>
+                    <p className="whitespace-pre-wrap text-ink">{entry.message}</p>
                   </div>
                 ) : null}
               </div>
@@ -487,43 +487,32 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
-        {([
-          ["Coupons", "Case-insensitive coupons with usage and subtotal rules.", ["AETHER10: 10% off", "FREESHIP: simulated", "Usage logged in D1"]],
-          ["Reviews", "Moderation queue for verified or seeded demo reviews.", ["2 approved", "1 pending", "Helpful votes tracked"]],
-          ["Audit", "Every privileged action records actor, entity and request ID.", ["products.write", "orders.write", "settings.manage"]]
-        ] as AdminModule[]).map(([title, body, rows]) => (
-          <section key={title} className="rounded-lg border border-zinc-200 bg-white p-5">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">{body}</p>
-            <div className="mt-4 grid gap-2">
-              {rows.map((row) => (
-                <div key={row} className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
-                  {row}
-                </div>
-              ))}
-            </div>
-            <button disabled={demo} className="focus-ring mt-4 min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
-              Open module
-            </button>
-          </section>
-        ))}
-
-        <section className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
+      <section className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+            <TicketPercent size={17} aria-hidden />
+            Coupons
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">Case-insensitive coupons with usage and subtotal rules, managed via the API today.</p>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="text-base font-semibold text-ink">Reviews</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">Moderation queue for verified or seeded demo reviews, managed via the API today.</p>
+        </div>
+        <a href="/activity/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+            <History size={17} aria-hidden />
+            Activity
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">Every privileged action records actor, entity and request ID.</p>
+        </a>
+        <a href="/settings/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <Settings size={17} aria-hidden />
             Settings
           </h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Branding, checkout method, shipping, and cart reservation hold time.
-          </p>
-          <a
-            href="/settings/"
-            className="focus-ring mt-4 inline-flex min-h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
-          >
-            Open settings
-          </a>
-        </section>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">Branding, checkout method, shipping, and cart reservation hold time.</p>
+        </a>
       </section>
     </main>
   );

@@ -2,9 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, ArrowLeft, EyeOff, Plus, Search, Send } from "lucide-react";
+import { EyeOff, Plus, Send } from "lucide-react";
 import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
+import { PageHeader } from "../../components/PageHeader";
+import { TableToolbar } from "../../components/TableToolbar";
+import { FilterBar, type FilterChip } from "../../components/FilterBar";
+import { DataTable, type Column } from "../../components/DataTable";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
+import { StatusBadge, type StatusTone } from "../../components/StatusBadge";
 
 type AdminProductSummary = {
   id: string;
@@ -49,10 +56,15 @@ function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-const statusStyles: Record<AdminProductSummary["visibility"], string> = {
-  visible: "bg-teal-50 text-teal-700",
-  draft: "bg-amber-50 text-amber-700",
-  hidden: "bg-zinc-100 text-zinc-600"
+const visibilityTone: Record<AdminProductSummary["visibility"], StatusTone> = {
+  visible: "success",
+  draft: "pending",
+  hidden: "archived"
+};
+const visibilityLabel: Record<AdminProductSummary["visibility"], string> = {
+  visible: "Published",
+  draft: "Draft",
+  hidden: "Archived"
 };
 
 export default function ProductsListPage() {
@@ -118,9 +130,7 @@ export default function ProductsListPage() {
 
   function toggleSelectAll() {
     if (!result) return;
-    setSelected((current) =>
-      current.size === result.data.length ? new Set() : new Set(result.data.map((product) => product.id))
-    );
+    setSelected((current) => (current.size === result.data.length ? new Set() : new Set(result.data.map((product) => product.id))));
   }
 
   async function bulkAction(action: "publish" | "archive") {
@@ -143,79 +153,133 @@ export default function ProductsListPage() {
     }
   }
 
+  const hasFilters = Boolean(filters.search || filters.visibility || filters.category || filters.stock);
+  const chips: FilterChip[] = [];
+  if (filters.visibility) {
+    chips.push({ key: "visibility", label: `Status: ${visibilityLabel[filters.visibility as AdminProductSummary["visibility"]]}`, onRemove: () => updateFilter("visibility", "") });
+  }
+  if (filters.stock) {
+    chips.push({ key: "stock", label: `Stock: ${filters.stock === "low" ? "Low" : "Out"}`, onRemove: () => updateFilter("stock", "") });
+  }
+  if (filters.category) {
+    chips.push({ key: "category", label: `Category: ${filters.category}`, onRemove: () => updateFilter("category", "") });
+  }
+
+  const columns: Column<AdminProductSummary>[] = [
+    {
+      key: "product",
+      header: "Product",
+      render: (product) => (
+        <a href={`/products/edit/?id=${encodeURIComponent(product.id)}`} className="focus-ring flex items-center gap-3">
+          {product.thumbnail ? (
+            // Plain <img>, not next/image - admin-managed, arbitrary remote/local URLs
+            <img src={product.thumbnail} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
+          ) : (
+            <span className="h-10 w-10 rounded-md border border-border bg-surface-hover" aria-hidden />
+          )}
+          <span className="font-medium text-ink hover:underline">{product.name}</span>
+        </a>
+      )
+    },
+    { key: "sku", header: "SKU", hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.sku}</span> },
+    { key: "category", header: "Category", hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.category}</span> },
+    {
+      key: "price",
+      header: "Price",
+      align: "end",
+      render: (product) => (
+        <>
+          {money(product.finalPriceCents)}
+          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents)}</span> : null}
+        </>
+      )
+    },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "end",
+      render: (product) => (
+        <span className={product.stock <= 0 ? "font-semibold text-danger" : product.stock <= product.lowStockThreshold ? "font-semibold text-warning" : "text-ink-muted"}>
+          {product.stock}
+        </span>
+      )
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (product) => <StatusBadge tone={visibilityTone[product.visibility]}>{visibilityLabel[product.visibility]}</StatusBadge>
+    },
+    {
+      key: "updated",
+      header: "Updated",
+      hideBelow: "sm",
+      render: (product) => <span className="text-xs text-ink-subtle">{new Date(product.updatedAt).toLocaleDateString()}</span>
+    }
+  ];
+
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          <ArrowLeft size={15} aria-hidden />
-          Dashboard
-        </a>
+        <PageHeader
+          title="Products"
+          description={result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
+          primaryAction={
+            <a href="/products/new/" className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover">
+              <Plus size={16} aria-hidden />
+              New product
+            </a>
+          }
+        />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-zinc-950">Products</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              {result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
-            </p>
-          </div>
-          <a
-            href="/products/new/"
-            className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
-          >
-            <Plus size={16} aria-hidden />
-            New product
-          </a>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <form onSubmit={submitSearch} className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-zinc-300 px-3">
-            <Search size={15} className="text-zinc-400" aria-hidden />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by name or SKU"
-              aria-label="Search products by name or SKU"
-              className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
-            />
-          </form>
-          <select
-            value={filters.visibility}
-            onChange={(event) => updateFilter("visibility", event.target.value)}
-            aria-label="Filter by status"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="visible">Published</option>
-            <option value="hidden">Archived</option>
-          </select>
-          <select
-            value={filters.stock}
-            onChange={(event) => updateFilter("stock", event.target.value)}
-            aria-label="Filter by stock status"
-            className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
-          >
-            <option value="">All inventory</option>
-            <option value="low">Low stock</option>
-            <option value="out">Out of stock</option>
-          </select>
-          <input
-            value={filters.category}
-            onChange={(event) => updateFilter("category", event.target.value)}
-            placeholder="Category slug"
-            aria-label="Filter by category slug"
-            className="focus-ring min-h-11 w-40 rounded-md border border-zinc-300 px-3 text-sm"
-          />
-        </div>
+        <TableToolbar
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
+          onSearchSubmit={submitSearch}
+          searchPlaceholder="Search by name or SKU"
+          searchLabel="Search products by name or SKU"
+          filters={
+            <>
+              <select
+                value={filters.visibility}
+                onChange={(event) => updateFilter("visibility", event.target.value)}
+                aria-label="Filter by status"
+                className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="visible">Published</option>
+                <option value="hidden">Archived</option>
+              </select>
+              <select
+                value={filters.stock}
+                onChange={(event) => updateFilter("stock", event.target.value)}
+                aria-label="Filter by stock status"
+                className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">All inventory</option>
+                <option value="low">Low stock</option>
+                <option value="out">Out of stock</option>
+              </select>
+              <input
+                value={filters.category}
+                onChange={(event) => updateFilter("category", event.target.value)}
+                placeholder="Category slug"
+                aria-label="Filter by category slug"
+                className="focus-ring min-h-11 w-40 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-subtle"
+              />
+            </>
+          }
+        />
+        <FilterBar chips={chips} onClearAll={() => setFilters((current) => ({ ...current, visibility: "", stock: "", category: "", page: 1 }))} />
 
         {selected.size > 0 ? (
-          <div className="mt-4 flex items-center gap-3 rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm">
-            <span className="font-medium text-zinc-700">{selected.size} selected</span>
+          <div className="mb-3 flex items-center gap-3 rounded-md border border-border bg-surface-hover px-3 py-2 text-sm">
+            <span className="font-medium text-ink">{selected.size} selected</span>
             <button
               type="button"
               disabled={bulkPending}
               onClick={() => void bulkAction("publish")}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-semibold text-zinc-700 disabled:opacity-50"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 py-1.5 font-semibold text-ink disabled:opacity-50"
             >
               <Send size={13} aria-hidden />
               Publish
@@ -224,7 +288,7 @@ export default function ProductsListPage() {
               type="button"
               disabled={bulkPending}
               onClick={() => void bulkAction("archive")}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-semibold text-zinc-700 disabled:opacity-50"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 py-1.5 font-semibold text-ink disabled:opacity-50"
             >
               <EyeOff size={13} aria-hidden />
               Archive
@@ -232,116 +296,30 @@ export default function ProductsListPage() {
           </div>
         ) : null}
 
-        <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-          {status === "loading" ? (
-            <div className="grid gap-2 p-4">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-14 animate-pulse rounded-md bg-zinc-100" />
-              ))}
-            </div>
-          ) : status === "error" ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-rose-700">
-              <AlertTriangle size={16} aria-hidden />
-              Could not load products. Try again in a moment.
-            </div>
-          ) : !result || result.data.length === 0 ? (
-            <div className="p-10 text-center text-sm text-zinc-500">
-              {filters.search || filters.visibility || filters.category || filters.stock
-                ? "No products match these filters."
-                : "No products yet - create the first one."}
-            </div>
-          ) : (
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500">
-                <tr>
-                  <th className="w-10 px-3 py-3">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all products on this page"
-                      checked={selected.size === result.data.length}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th className="px-3 py-3">Product</th>
-                  <th className="px-3 py-3">SKU</th>
-                  <th className="px-3 py-3">Category</th>
-                  <th className="px-3 py-3">Price</th>
-                  <th className="px-3 py-3">Stock</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.data.map((product) => (
-                  <tr key={product.id} className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50">
-                    <td className="px-3 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${product.name}`}
-                        checked={selected.has(product.id)}
-                        onChange={() => toggleSelected(product.id)}
-                      />
-                    </td>
-                    <td className="px-3 py-3">
-                      <a href={`/products/edit/?id=${encodeURIComponent(product.id)}`} className="focus-ring flex items-center gap-3">
-                        {product.thumbnail ? (
-                          // Plain <img>, not next/image - admin-managed, arbitrary remote/local URLs
-                          <img src={product.thumbnail} alt="" className="h-10 w-10 rounded-md border border-zinc-200 object-cover" />
-                        ) : (
-                          <span className="h-10 w-10 rounded-md border border-zinc-200 bg-zinc-100" aria-hidden />
-                        )}
-                        <span className="font-medium text-zinc-950 hover:underline">{product.name}</span>
-                      </a>
-                    </td>
-                    <td className="px-3 py-3 text-zinc-600">{product.sku}</td>
-                    <td className="px-3 py-3 text-zinc-600">{product.category}</td>
-                    <td className="px-3 py-3 text-zinc-600">
-                      {money(product.finalPriceCents)}
-                      {product.compareAtPriceCents ? (
-                        <span className="ml-1.5 text-xs text-zinc-400 line-through">{money(product.compareAtPriceCents)}</span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={product.stock <= 0 ? "font-semibold text-rose-700" : product.stock <= product.lowStockThreshold ? "font-semibold text-amber-700" : "text-zinc-600"}>
-                        {product.stock}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles[product.visibility]}`}>
-                        {product.visibility === "visible" ? "Published" : product.visibility === "draft" ? "Draft" : "Archived"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-zinc-500">{new Date(product.updatedAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {result && result.pagination.pageCount > 1 ? (
-          <div className="mt-4 flex items-center justify-between text-sm text-zinc-600">
-            <button
-              type="button"
-              disabled={filters.page <= 1}
-              onClick={() => updateFilter("page", filters.page - 1)}
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span>
-              Page {result.pagination.page} of {result.pagination.pageCount}
-            </span>
-            <button
-              type="button"
-              disabled={filters.page >= result.pagination.pageCount}
-              onClick={() => updateFilter("page", filters.page + 1)}
-              className="focus-ring rounded-md border border-zinc-300 px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        ) : null}
+        <DataTable<AdminProductSummary>
+          columns={columns}
+          rows={result?.data ?? []}
+          status={status}
+          getRowId={(product) => product.id}
+          pagination={result?.pagination ?? null}
+          onPageChange={(page) => updateFilter("page", page)}
+          selection={{ selectedIds: selected, onToggle: toggleSelected, onToggleAll: toggleSelectAll, getRowLabel: (product) => product.name }}
+          errorState={<ErrorState title="Could not load products" />}
+          emptyState={
+            <EmptyState
+              title={hasFilters ? "No products match these filters" : "No products yet"}
+              description={hasFilters ? "Try adjusting or clearing your filters." : "Create the first product to start building the catalog."}
+              action={
+                !hasFilters ? (
+                  <a href="/products/new/" className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover">
+                    <Plus size={15} aria-hidden />
+                    Create product
+                  </a>
+                ) : undefined
+              }
+            />
+          }
+        />
       </main>
     </RequireAdminAuth>
   );

@@ -82,12 +82,18 @@ importers:
       '@aether/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
+      '@aether/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@clerk/react':
         specifier: ^6.12.3
         version: 6.12.3(react-dom@19.2.3)(react@19.2.3)
       '@tanstack/react-query':
         specifier: ^5.90.0
         version: 5.90.1(react@19.2.3)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       framer-motion:
         specifier: ^12.42.0
         version: 12.42.0(react-dom@19.2.3)(react@19.2.3)

@@ -132,15 +132,21 @@ describe("AdminDashboard", () => {
     );
   });
 
-  it("disables export and module-open actions in demo mode", async () => {
+  it("disables the export action in demo mode", async () => {
     defaultRouter();
     render(<AdminDashboard demo />);
     await screen.findByText("Auriculares QA");
 
     expect(screen.getByRole("button", { name: /export orders csv/i })).toBeDisabled();
-    for (const button of screen.getAllByRole("button", { name: /open module/i })) {
-      expect(button).toBeDisabled();
-    }
+  });
+
+  it("links the Activity and Settings cards to their real routes", async () => {
+    defaultRouter();
+    render(<AdminDashboard />);
+    await screen.findByText("Auriculares QA");
+
+    expect(screen.getByRole("link", { name: /activity/i })).toHaveAttribute("href", "/activity/");
+    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings/");
   });
 
   it("requests the demo summary endpoint when demo is true", async () => {
