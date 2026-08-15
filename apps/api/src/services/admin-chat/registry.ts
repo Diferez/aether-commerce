@@ -1,5 +1,6 @@
-import { z } from "zod";
+import { tool } from "@langchain/core/tools";
 import type { AdminChatTool } from "./define-tool";
+import type { AdminChatContext } from "./context";
 import type { PendingActionExecutor } from "./executors";
 import { navigateToTool, openProductTool, openOrderTool, openCustomerTool, focusFormFieldTool } from "./tools/navigation";
 import { getDashboardSummaryTool, getRecentActivityTool, getStoreAlertsTool, getSalesSummaryTool } from "./tools/dashboard";
@@ -75,13 +76,48 @@ export const ADMIN_CHAT_EXECUTORS: Record<string, PendingActionExecutor> = {
   prepare_order_status_change: executeOrderStatusChange
 };
 
-// zod v4 ships a native JSON Schema converter - used only to build each
-// tool's provider-facing parameter declaration (ProviderToolDeclaration),
-// completely independent of which provider ends up reading it.
-export function buildToolDeclarations(): Array<{ name: string; description: string; parameters: Record<string, unknown> }> {
-  return ADMIN_CHAT_TOOLS.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    parameters: z.toJSONSchema(tool.schema, { target: "draft-07" }) as Record<string, unknown>
-  }));
+// Custom-event payloads dispatched from inside this file's tool wrapper and
+// loop.ts's agent node - a discriminated `kind` field rather than relying
+// on the event name string passed to dispatchCustomEvent surviving into
+// the "custom" stream chunk (the installed LangGraph version's types don't
+// guarantee that; only the payload argument is documented as the streamed
+// value). Shared here since both files dispatch/consume it.
+export type AdminChatCustomEvent = { kind: "text_delta"; text: string } | { kind: "status"; phase: "consulting" | "preparing" };
+
+// Wraps one AdminChatTool (whose precondition checks, validation, and error
+// boundary already live in define-tool.ts and don't change here) as a
+// LangChain tool() - the only new surface is the calling convention.
+// `ctx` comes from the graph's own state (threaded in by loop.ts's agent
+// node, read here the same way defineAssistantTool reads
+// runtime.state.data in apps/ai-assistant/worker.ts), never from the
+// model's own arguments. `responseFormat: "content_and_artifact"` lets the
+// tool return a [content, artifact] tuple: content is the compact summary
+// the model sees on its next turn, artifact is the structured payload the
+// admin-chat SSE route reads back off the resulting ToolMessage to render
+// in the UI - same split apps/ai-assistant's tools already use.
+function toLangchainTool(adminTool: AdminChatTool) {
+  return tool(
+    async (rawArgs: unknown, runtime: unknown) => {
+      const typedRuntime = runtime as { state?: { data?: { ctx?: AdminChatContext } }; writer?: (chunk: AdminChatCustomEvent) => void } | undefined;
+      const ctx = typedRuntime?.state?.data?.ctx;
+      if (!ctx) {
+        return ["Internal error: missing request context.", { type: "error", code: "NO_CONTEXT", message: "Missing request context." }] as const;
+      }
+      // config.writer, not @langchain/core's dispatchCustomEvent, is what
+      // actually reaches loop.ts's streamMode:["updates","custom"] consumer
+      // in this installed LangGraph version - verified live (see loop.ts's
+      // AdminChatNodeConfig comment for the full story).
+      typedRuntime?.writer?.({ kind: "status", phase: adminTool.requires?.mutation ? "preparing" : "consulting" });
+      const result = await adminTool.run(rawArgs, ctx);
+      return [result.message, result.artifact] as const;
+    },
+    {
+      name: adminTool.name,
+      description: adminTool.description,
+      schema: adminTool.schema,
+      responseFormat: "content_and_artifact"
+    }
+  );
 }
+
+export const ADMIN_CHAT_LANGCHAIN_TOOLS = ADMIN_CHAT_TOOLS.map(toLangchainTool);

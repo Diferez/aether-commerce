@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AIMessageChunk } from "@langchain/core/messages";
 import type { Env } from "../types";
 import type * as AiProviderModule from "../services/ai-provider";
-import type { GenerativeProvider, ProviderEvent } from "../services/ai-provider";
 import worker from "../index";
 
 vi.mock("jose", () => ({
@@ -9,10 +9,10 @@ vi.mock("jose", () => ({
   jwtVerify: vi.fn()
 }));
 
-const resolveGenerativeProviderMock = vi.fn<(...args: unknown[]) => GenerativeProvider | null>();
+const resolveChatModelMock = vi.fn<(...args: unknown[]) => ReturnType<typeof AiProviderModule.resolveChatModel>>();
 vi.mock("../services/ai-provider", async () => {
   const actual = await vi.importActual<typeof AiProviderModule>("../services/ai-provider");
-  return { ...actual, resolveGenerativeProvider: (...args: unknown[]) => resolveGenerativeProviderMock(...args) };
+  return { ...actual, resolveChatModel: (...args: unknown[]) => resolveChatModelMock(...args) };
 });
 
 type QueuedResponse = { first?: unknown; all?: unknown[]; run?: { changes?: number } };
@@ -68,15 +68,22 @@ async function mockVerifiedActor(roles: string[], sub = "usr_1") {
   vi.mocked(jose.jwtVerify).mockResolvedValueOnce({ payload: { sub, public_metadata: { roles } } } as never);
 }
 
-function fakeProvider(turns: ProviderEvent[][]): GenerativeProvider {
+// Same fake shape as services/admin-chat/loop.test.ts's fakeModel - one
+// array of AIMessageChunks per agent-node pass through the graph.
+function fakeModel(turns: AIMessageChunk[][]) {
   let call = 0;
   return {
-    async *converse() {
-      await Promise.resolve();
-      const events = turns[call] ?? [{ type: "done" as const, finishReason: "stop" as const }];
-      call += 1;
-      for (const event of events) yield event;
-    }
+    bindTools: () => ({
+      async stream() {
+        await Promise.resolve();
+        const chunks = turns[call] ?? [new AIMessageChunk({ content: "" })];
+        call += 1;
+        return (async function* () {
+          await Promise.resolve();
+          for (const chunk of chunks) yield chunk;
+        })();
+      }
+    })
   };
 }
 
@@ -129,11 +136,16 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
 
   it("surfaces a permission denial from a tool call all the way through the real HTTP path, without pretending anything happened", async () => {
     await mockVerifiedActor(["support"], "usr_2"); // support has no orders.write
-    resolveGenerativeProviderMock.mockReturnValue(
-      fakeProvider([
-        [{ type: "tool_call", toolCall: { id: "call_1", name: "prepare_order_status_change", args: { orderId: "ord_1", fulfillmentStatus: "shipped" } } }],
-        [{ type: "text_delta", text: "I could not do that." }, { type: "done", finishReason: "stop" }]
-      ])
+    resolveChatModelMock.mockReturnValue(
+      fakeModel([
+        [
+          new AIMessageChunk({
+            content: "",
+            tool_calls: [{ name: "prepare_order_status_change", args: { orderId: "ord_1", fulfillmentStatus: "shipped" }, id: "call_1" }]
+          })
+        ],
+        [new AIMessageChunk({ content: "I could not do that." })]
+      ]) as unknown as ReturnType<typeof AiProviderModule.resolveChatModel>
     );
     const { env } = fakeEnv([
       { first: null }, // suspension check

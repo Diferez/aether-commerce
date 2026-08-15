@@ -9,7 +9,7 @@ import { sse } from "../services/admin-chat/sse";
 import { claimPendingAction, resolvePendingAction } from "../services/admin-chat/pending-actions";
 import { ADMIN_CHAT_EXECUTORS } from "../services/admin-chat/registry";
 import { ADMIN_CHAT_SYSTEM_PROMPT } from "../prompts/admin-chat-system-prompt";
-import type { ProviderMessage } from "../services/ai-provider";
+import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
 export const adminChatRoutes = new Hono<AppBindings>();
 
@@ -45,19 +45,19 @@ async function loadOrCreateConversation(env: AppBindings["Bindings"], actorId: s
 // partial reconstruction across separate HTTP requests risks a malformed
 // history, so each turn's tool activity stays local to that turn's own loop
 // invocation (see loop.ts) and only the final summary carries forward.
-async function loadHistory(env: AppBindings["Bindings"], conversationId: string): Promise<ProviderMessage[]> {
+async function loadHistory(env: AppBindings["Bindings"], conversationId: string): Promise<BaseMessage[]> {
   const rows = await env.DB.prepare(
     "select role, content, tool_calls_json from admin_chat_messages where conversation_id = ? order by created_at asc"
   )
     .bind(conversationId)
     .all<MessageRow>();
 
-  const history: ProviderMessage[] = [];
+  const history: BaseMessage[] = [];
   for (const row of rows.results || []) {
     if (row.role === "user" && row.content) {
-      history.push({ role: "user", content: row.content });
+      history.push(new HumanMessage(row.content));
     } else if (row.role === "assistant" && row.tool_calls_json === null && row.content) {
-      history.push({ role: "assistant", content: row.content });
+      history.push(new AIMessage(row.content));
     }
   }
   return history;
@@ -104,7 +104,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
       console.log(JSON.stringify({ message: "admin_chat.stream_start", requestId: ctx.requestId, conversationId: conversation.id }));
       let finalMessage = "";
       try {
-        for await (const event of runAdminChatLoop(ctx, [...history, { role: "user", content: body.message }])) {
+        for await (const event of runAdminChatLoop(ctx, [...history, new HumanMessage(body.message)])) {
           if (event.type === "status") {
             controller.enqueue(sse("chat.status", { phase: event.phase }));
           } else if (event.type === "text_delta") {
@@ -159,7 +159,7 @@ adminChatRoutes.post("/messages", zValidator("json", chatMessageSchema), async (
   let finalMessage = "";
   let errorMessage: string | null = null;
 
-  for await (const event of runAdminChatLoop(ctx, [...history, { role: "user", content: body.message }])) {
+  for await (const event of runAdminChatLoop(ctx, [...history, new HumanMessage(body.message)])) {
     if (event.type === "tool_result") {
       toolResults.push(event);
       await insertMessage(c.env, conversation.id, "tool", event.message, { toolName: event.toolName, artifact: event.artifact });

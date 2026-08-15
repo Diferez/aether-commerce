@@ -1,18 +1,28 @@
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Env } from "../../types";
-import { GeminiProvider } from "./gemini";
-import type { GenerativeProvider } from "./types";
 
-export type { GenerativeProvider, ProviderEvent, ProviderMessage, ProviderToolCall, ProviderToolDeclaration } from "./types";
-
-// Resolves the configured provider from Env - swapping AI_PROVIDER/adding a
-// new provider file is the only change needed to point admin-chat at a
-// different model; nothing in services/admin-chat/ imports GeminiProvider
-// directly.
-export function resolveGenerativeProvider(env: Env): GenerativeProvider | null {
+// Resolves the configured LangChain chat model from Env - swapping
+// AI_PROVIDER/adding a new provider is writing one more case that
+// instantiates that provider's own LangChain chat-model class (e.g.
+// `@langchain/openai`'s ChatOpenAI, `@langchain/anthropic`'s ChatAnthropic)
+// rather than hand-writing that provider's REST/SSE wire format the way
+// gemini.ts used to - the CRLF-vs-LF framing bug that motivated this
+// migration was exactly the kind of bug a maintained provider integration
+// doesn't have. Returns the bare model - callers bind tools themselves
+// (services/admin-chat/loop.ts), since this module has no reason to know
+// about admin-chat's tool set.
+export function resolveChatModel(env: Env): BaseChatModel | null {
   if (!env.GEMINI_API_KEY) return null;
   const provider = env.AI_PROVIDER || "gemini";
   if (provider !== "gemini") {
     throw new Error(`Unknown AI_PROVIDER: ${provider}`);
   }
-  return new GeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL || "gemini-3.5-flash-lite");
+  return new ChatGoogleGenerativeAI({
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+    temperature: 0.2,
+    maxOutputTokens: 2048,
+    maxRetries: 1
+  });
 }

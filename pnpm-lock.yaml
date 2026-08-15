@@ -171,6 +171,15 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.8.0
         version: 0.8.0(hono@4.12.34)(zod@4.2.0)
+      '@langchain/core':
+        specifier: 1.2.5
+        version: 1.2.5
+      '@langchain/google-genai':
+        specifier: 2.2.0
+        version: 2.2.0(@langchain/core@1.2.5)
+      '@langchain/langgraph':
+        specifier: 1.4.8
+        version: 1.4.8(@langchain/core@1.2.5)(react-dom@19.2.3)(react@19.2.3)(zod@4.2.0)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2
