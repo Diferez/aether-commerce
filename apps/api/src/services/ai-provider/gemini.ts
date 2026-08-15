@@ -189,10 +189,20 @@ export class GeminiProvider implements GenerativeProvider {
         const { done, value } = await reader.read();
         if (done) break;
         chunkCount += 1;
-        buffer += decoder.decode(value, { stream: true });
+        const decoded = decoder.decode(value, { stream: true });
+        buffer += decoded;
         const { payloads, remainder } = parseGeminiSseBuffer(buffer);
         buffer = remainder;
+        console.log(
+          JSON.stringify({
+            message: "gemini.raw_chunk",
+            chunkIndex: chunkCount,
+            decodedPreview: decoded.slice(0, 800),
+            payloadCount: payloads.length
+          })
+        );
         for (const payload of payloads) {
+          console.log(JSON.stringify({ message: "gemini.parsed_payload", payload }).slice(0, 1200));
           const { textParts, functionCalls, finishReason: chunkFinish } = partsFromChunk(payload);
           if (chunkFinish) finishReason = chunkFinish;
           for (const text of textParts) {
