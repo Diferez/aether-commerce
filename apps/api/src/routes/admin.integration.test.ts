@@ -86,8 +86,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/orders"), env, ctx);
 
     expect(response.status).toBe(403);
-    // Guest actor never touches D1 - auth() returns before any query.
-    expect(db.prepare).not.toHaveBeenCalled();
+    // Guest actor never queries D1 for auth itself - the one call is
+    // requirePermission's fire-and-forget admin_failed_attempts metric.
+    expect(db.prepare).toHaveBeenCalledTimes(1);
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("operational_metrics"));
   });
 
   it("returns 403 when a verified actor lacks the required permission", async () => {
@@ -125,9 +127,10 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/orders", { token: "tok" }), env, ctx);
 
     expect(response.status).toBe(403);
-    // Only the suspension check ran - the downgrade to guest happened before
-    // the /orders handler could issue its own count/select queries.
-    expect(db.prepare).toHaveBeenCalledTimes(1);
+    // The suspension check, then requirePermission's admin_failed_attempts
+    // metric - the downgrade to guest happened before the /orders handler
+    // could issue its own count/select queries.
+    expect(db.prepare).toHaveBeenCalledTimes(2);
   });
 
   it("saves shipping settings and writes an audit log entry through the real HTTP path", async () => {
@@ -208,5 +211,113 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
 
     // Preflight is answered by the cors() middleware before auth/routing run.
     expect(db.prepare).not.toHaveBeenCalled();
+  });
+
+  it("GET /admin/audit returns a paginated response and never exposes ip_address/user_agent", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { count: 1 } }, // count(*)
+      { all: [{ id: "aud_1", actor_id: "usr_1", action: "product.updated", target_type: "product", target_id: "prd_1", payload_json: "{}", created_at: "2026-08-15 10:00:00" }] }
+    ]);
+
+    const response = await worker.fetch(adminRequest("/audit", { token: "tok" }), env, ctx);
+    const body = await response.json<{ success: boolean; data: unknown[]; pagination: { total: number } }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.pagination.total).toBe(1);
+    const selectStatement = statements.find((s) => s.sql.includes("select") && s.sql.includes("from audit_logs"));
+    expect(selectStatement?.sql).not.toContain("ip_address");
+    expect(selectStatement?.sql).not.toContain("user_agent");
+  });
+
+  it("GET /admin/audit builds a parameterized WHERE clause from actor/action/requestId filters, never string interpolation", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([{ first: null }, { first: { count: 0 } }, { all: [] }]);
+
+    await worker.fetch(
+      adminRequest("/audit?actorId=usr_1&action=order.status_changed&requestId=req_abc123", { token: "tok" }),
+      env,
+      ctx
+    );
+
+    const countStatement = statements.find((s) => s.sql.includes("count(*)") && s.sql.includes("audit_logs"));
+    expect(countStatement?.sql).toContain("actor_id = ?");
+    expect(countStatement?.sql).toContain("action = ?");
+    expect(countStatement?.sql).toContain("request_id = ?");
+    expect(countStatement?.args).toEqual(["usr_1", "order.status_changed", "req_abc123"]);
+  });
+
+  it("GET /admin/audit rejects a malformed date filter instead of passing it through to SQL", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, db } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/audit?from=not-a-date", { token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(400);
+    // Only the suspension check ran - validation rejected the request before any audit_logs query.
+    expect(db.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET /admin/audit returns 403 (and never queries audit_logs) for an actor without audit.read, logging the denial", async () => {
+    await mockVerifiedActor(["customer"]);
+    const { env, db } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/audit", { token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(403);
+    // Suspension check, then requirePermission's admin_failed_attempts
+    // metric - never reaches the audit_logs query.
+    expect(db.prepare).toHaveBeenCalledTimes(2);
+  });
+
+  it("GET /admin/system-health returns operational with honest 'no data' signals when nothing bad has happened", async () => {
+    await mockVerifiedActor(["admin"]);
+    // Only the suspension check is queued - every other query defaults to
+    // null/empty via fakeEnv's fallback, which is exactly what "no data
+    // yet" looks like for a freshly deployed instance.
+    const { env } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
+    const body = await response.json<{
+      success: boolean;
+      data: { status: string; components: Record<string, { level: string }>; stats: Record<string, unknown> };
+    }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data.status).toBe("operational");
+    expect(body.data.components.inventory?.level).toBe("operational");
+    expect(body.data.components.webhooks?.level).toBe("operational");
+    expect(body.data.stats.negativeInventoryCount).toBe(0);
+    expect(body.data.stats.avgLatencyMs).toBeNull();
+  });
+
+  it("GET /admin/system-health goes critical when there is negative inventory", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      { all: [] }, // recent webhook statuses
+      { first: null }, // oldest blocked paid order
+      { first: { count: 0 } }, // blocked order count
+      { first: { count: 3 } } // negative inventory count
+    ]);
+
+    const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
+    const body = await response.json<{ success: boolean; data: { status: string; components: Record<string, { level: string }>; stats: { negativeInventoryCount: number } } }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data.components.inventory?.level).toBe("critical");
+    expect(body.data.status).toBe("critical");
+    expect(body.data.stats.negativeInventoryCount).toBe(3);
+  });
+
+  it("GET /admin/system-health returns 403 for an actor without audit.read", async () => {
+    await mockVerifiedActor(["customer"]);
+    const { env } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(403);
   });
 });

@@ -19,6 +19,7 @@
     "@aether/ui": "workspace:*",
     "@clerk/react": "^6.12.3",
     "@hookform/resolvers": "^5.2.0",
+    "@sentry/react": "10.70.0",
     "@tanstack/react-query": "^5.90.0",
     "framer-motion": "^12.42.0",
     "lucide-react": "^1.24.0",

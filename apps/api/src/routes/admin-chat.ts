@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { OBSERVABILITY_EVENTS } from "@aether/core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { buildClientVisibleContext, type AdminChatContext } from "../services/admin-chat/context";
@@ -10,6 +11,7 @@ import { claimPendingAction, resolvePendingAction } from "../services/admin-chat
 import { ADMIN_CHAT_EXECUTORS } from "../services/admin-chat/registry";
 import { ADMIN_CHAT_SYSTEM_PROMPT } from "../prompts/admin-chat-system-prompt";
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { getLogger } from "../services/observability";
 
 export const adminChatRoutes = new Hono<AppBindings>();
 
@@ -101,7 +103,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(sse("chat.conversation", { conversationId: conversation.id }));
-      console.log(JSON.stringify({ message: "admin_chat.stream_start", requestId: ctx.requestId, conversationId: conversation.id }));
+      getLogger(c.env).debug("admin_chat.stream_start", { requestId: ctx.requestId, metadata: { conversationId: conversation.id } });
       let finalMessage = "";
       try {
         for await (const event of runAdminChatLoop(ctx, [...history, new HumanMessage(body.message)])) {
@@ -120,12 +122,14 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
           }
         }
       } catch (error) {
-        console.error(
-          JSON.stringify({ message: "admin_chat.stream_exception", requestId: ctx.requestId, error: error instanceof Error ? error.message : String(error) })
-        );
+        getLogger(c.env).error(OBSERVABILITY_EVENTS.applicationUnhandledError, {
+          requestId: ctx.requestId,
+          metadata: { source: "admin_chat.stream" },
+          error
+        });
         controller.enqueue(sse("chat.error", { message: error instanceof Error ? error.message : "Aether Chat hit an unexpected error." }));
       } finally {
-        console.log(JSON.stringify({ message: "admin_chat.stream_end", requestId: ctx.requestId, hasFinalMessage: Boolean(finalMessage) }));
+        getLogger(c.env).debug("admin_chat.stream_end", { requestId: ctx.requestId, metadata: { hasFinalMessage: Boolean(finalMessage) } });
         if (finalMessage) {
           await insertMessage(c.env, conversation.id, "assistant", finalMessage);
         }

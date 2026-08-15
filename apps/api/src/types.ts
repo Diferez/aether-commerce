@@ -27,10 +27,21 @@ export type Env = {
   ADMIN_CHAT_MUTATIONS_ENABLED?: string;
   ADMIN_CHAT_MAX_INPUT_CHARACTERS?: string;
   ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES?: string;
+  LOG_LEVEL?: string;
+  LOG_INFO_SAMPLE_RATE?: string;
+  PERFORMANCE_SAMPLE_RATE?: string;
+  SENTRY_ENABLED?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+  HEALTH_METRICS_RETENTION_DAYS?: string;
+  AUDIT_LOG_ENABLED?: string;
 };
 
 export type Variables = {
   requestId: string;
+  /** cf-ray, when Cloudflare sends one - a secondary correlation id for cross-referencing Cloudflare's own edge logs, distinct from the app-level requestId. */
+  traceId?: string;
   actor: Actor;
 };
 

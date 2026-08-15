@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
+import { SentryProvider } from "../components/SentryProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,9 +40,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <ClerkAuthProvider>
-          <AdminShell>{children}</AdminShell>
-        </ClerkAuthProvider>
+        <SentryProvider>
+          <ClerkAuthProvider>
+            <AdminShell>{children}</AdminShell>
+          </ClerkAuthProvider>
+        </SentryProvider>
       </body>
     </html>
   );

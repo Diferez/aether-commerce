@@ -155,7 +155,10 @@ describe("auth middleware", () => {
     const context = {
       req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
       env: { CLERK_JWT_ISSUER: "https://clerk.example.com", DB: throwingDb },
-      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+      set: (key: string, value: unknown) => key === "actor" && (captured = value),
+      // Real Hono contexts always have get() - the middleware reads
+      // requestId for the fail-open log line, so this mock needs it too.
+      get: (key: string) => (key === "requestId" ? "req_test" : undefined)
     } as unknown as MiddlewareContext;
     await middleware(context, async () => {});
 

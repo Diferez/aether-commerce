@@ -1,6 +1,9 @@
 import type { Cart } from "@aether/schemas";
+import { ExternalServiceError, OBSERVABILITY_EVENTS, PaymentError } from "@aether/core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
+import { getLogger } from "./observability";
+import { incrementMetric } from "./metrics";
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
@@ -123,34 +126,33 @@ export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?
     });
   } catch (error) {
     if (env.AETHER_ENV !== "production") {
-      console.info("Stripe checkout unavailable in development. Using simulated checkout.", {
-        error: error instanceof Error ? error.name : "unknown"
+      getLogger(env).info(OBSERVABILITY_EVENTS.paymentFailed, {
+        metadata: { provider: "stripe", operation: "create_checkout_session", simulated: true },
+        error
       });
       return simulatedCheckout;
     }
-    console.error("Stripe checkout request failed", {
-      error: error instanceof Error ? error.name : "unknown"
-    });
-    throw new Error("Stripe session could not be created");
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, { metadata: { provider: "stripe", operation: "create_checkout_session" }, error });
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError("Stripe checkout session request failed", { code: "PAYMENT_SESSION_FAILED", cause: error });
   }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
     const stripeError = parseStripeError(errorBody);
     if (env.AETHER_ENV !== "production") {
-      console.info("Stripe checkout unavailable in development. Using simulated checkout.", {
-        status: response.status,
-        statusText: response.statusText,
-        stripeError
+      getLogger(env).info(OBSERVABILITY_EVENTS.paymentFailed, {
+        statusCode: response.status,
+        metadata: { provider: "stripe", operation: "create_checkout_session", simulated: true, stripeError }
       });
       return simulatedCheckout;
     }
-    console.error("Stripe checkout failed", {
-      status: response.status,
-      statusText: response.statusText,
-      stripeError
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, {
+      statusCode: response.status,
+      metadata: { provider: "stripe", operation: "create_checkout_session", stripeError }
     });
-    throw new Error("Stripe session could not be created");
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError("Stripe checkout session request was rejected", { code: "PAYMENT_SESSION_FAILED", metadata: { stripeError } });
   }
 
   const payload: unknown = await response.json();
@@ -174,12 +176,12 @@ export async function retrieveCheckoutSession(env: Env, sessionId: string): Prom
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    console.error("Stripe session retrieval failed", {
-      status: response.status,
-      statusText: response.statusText,
-      stripeError: parseStripeError(errorBody)
+    const stripeError = parseStripeError(errorBody);
+    getLogger(env).error(OBSERVABILITY_EVENTS.externalApiFailed, {
+      statusCode: response.status,
+      metadata: { service: "stripe", operation: "retrieve_checkout_session", stripeError }
     });
-    throw new Error("Stripe session could not be retrieved");
+    throw new ExternalServiceError("Stripe session could not be retrieved", { code: "PAYMENT_SESSION_LOOKUP_FAILED", metadata: { stripeError } });
   }
 
   return response.json();
@@ -219,12 +221,15 @@ export async function createRefund(env: Env, paymentIntentId: string, amountCent
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
     const stripeError = parseStripeError(errorBody);
-    console.error("Stripe refund failed", {
-      status: response.status,
-      statusText: response.statusText,
-      stripeError
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, {
+      statusCode: response.status,
+      metadata: { provider: "stripe", operation: "create_refund", stripeError }
     });
-    throw new Error(stripeError.message ?? "Stripe refund could not be created");
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError(stripeError.message ?? "Stripe refund could not be created", {
+      code: "PAYMENT_REFUND_FAILED",
+      metadata: { stripeError }
+    });
   }
 
   return response.json();

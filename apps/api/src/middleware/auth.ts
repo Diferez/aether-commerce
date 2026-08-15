@@ -1,8 +1,9 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { MiddlewareHandler } from "hono";
 import type { Actor, Permission, Role } from "@aether/schemas";
-import { permissionsForRoles } from "@aether/core";
+import { OBSERVABILITY_EVENTS, permissionsForRoles } from "@aether/core";
 import type { AppBindings } from "../types";
+import { getLogger } from "../services/observability";
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -70,8 +71,10 @@ export const auth = (): MiddlewareHandler<AppBindings> => async (c, next) => {
           return;
         }
       } catch (error) {
-        console.warn("Suspension lookup failed; failing open", {
-          error: error instanceof Error ? error.name : "unknown"
+        getLogger(c.env).warn(OBSERVABILITY_EVENTS.databaseQueryFailed, {
+          requestId: c.get("requestId"),
+          metadata: { query: "suspension_lookup", failOpen: true },
+          error
         });
       }
     }

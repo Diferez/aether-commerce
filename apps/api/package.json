@@ -27,6 +27,7 @@
     "@langchain/core": "1.2.5",
     "@langchain/google-genai": "2.2.0",
     "@langchain/langgraph": "1.4.8",
+    "@sentry/cloudflare": "10.70.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.34",
     "jose": "^6.1.0",

@@ -1,8 +1,10 @@
 import type { Cart, CartItem } from "@aether/schemas";
+import { OBSERVABILITY_EVENTS } from "@aether/core";
 import type { Env } from "../types";
 import { readCart } from "./cart";
 import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
+import { getLogger } from "./observability";
 
 type StripeCheckoutSession = {
   id: string;
@@ -121,9 +123,9 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     .map((item) => item.productId)
     .filter((productId) => !skuByProductId.has(productId));
   if (missingProductIds.length > 0) {
-    console.error("Order item references a deleted product; skipping stock decrement for it", {
+    getLogger(env).error(OBSERVABILITY_EVENTS.orderUpdateFailed, {
       orderId: order.id,
-      missingProductIds
+      metadata: { reason: "deleted_product_referenced", missingProductIds }
     });
   }
 

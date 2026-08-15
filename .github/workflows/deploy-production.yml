@@ -45,6 +45,9 @@ jobs:
       NEXT_PUBLIC_AETHER_AI_URL: ${{ vars.NEXT_PUBLIC_AETHER_AI_URL }}
       NEXT_PUBLIC_PORTFOLIO_URL: ${{ vars.NEXT_PUBLIC_PORTFOLIO_URL }}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+      NEXT_PUBLIC_SENTRY_ENABLED: ${{ vars.NEXT_PUBLIC_SENTRY_ENABLED }}
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -107,10 +110,13 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_ENABLED: ${{ secrets.SENTRY_ENABLED }}
+          SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
         run: |
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN','SENTRY_ENABLED','SENTRY_ENVIRONMENT']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
           pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.production.json
       - name: Deploy AI assistant Worker
         env:

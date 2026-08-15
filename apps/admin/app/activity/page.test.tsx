@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ActivityPage from "./page";
 
@@ -11,32 +11,67 @@ vi.mock("@clerk/react", () => ({
 
 const fetchMock = vi.fn();
 
+type Pagination = { page: number; pageSize: number; total: number; pageCount: number };
+
 const sampleEntries = [
-  { id: "log_1", actor_id: "usr_admin", action: "product.created", target_type: "product", target_id: "prd_1", payload_json: "{}", created_at: "2026-01-02T00:00:00.000Z" },
-  { id: "log_2", actor_id: "usr_admin", action: "settings.updated", target_type: "settings", target_id: "shipping", payload_json: "{}", created_at: "2026-01-01T00:00:00.000Z" }
+  {
+    id: "log_1",
+    actor_id: "usr_admin",
+    actor_role: "admin",
+    action: "product.updated",
+    target_type: "product",
+    target_id: "prd_1",
+    payload_json: "{}",
+    previous_data: JSON.stringify({ priceCents: 1000 }),
+    new_data: JSON.stringify({ priceCents: 1200 }),
+    request_id: "req_abc123",
+    created_at: "2026-01-02 00:00:00"
+  },
+  {
+    id: "log_2",
+    actor_id: "usr_admin",
+    actor_role: "admin",
+    action: "settings.updated",
+    target_type: "settings",
+    target_id: "shipping",
+    payload_json: "{}",
+    previous_data: null,
+    new_data: null,
+    request_id: "req_def456",
+    created_at: "2026-01-01 00:00:00"
+  }
 ];
 
-function listResponse(data: unknown[] = sampleEntries) {
-  return { json: () => Promise.resolve({ success: true, data }) } as Response;
+function listResponse(
+  data: unknown[] = sampleEntries,
+  pagination: Pagination = { page: 1, pageSize: 25, total: data.length, pageCount: 1 }
+) {
+  return { json: () => Promise.resolve({ success: true, data, pagination }) } as Response;
+}
+
+function lastFetchUrl(): string {
+  const call = fetchMock.mock.calls.at(-1) as [string] | undefined;
+  return call?.[0] ?? "";
 }
 
 describe("ActivityPage", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState(null, "", "/activity");
   });
 
   it("shows an empty state when there is no activity", async () => {
-    fetchMock.mockResolvedValueOnce(listResponse([]));
+    fetchMock.mockResolvedValueOnce(listResponse([], { page: 1, pageSize: 25, total: 0, pageCount: 1 }));
     render(<ActivityPage />);
     expect(await screen.findByText(/no activity recorded yet/i)).toBeInTheDocument();
   });
 
-  it("renders audit log rows once loaded", async () => {
+  it("renders audit log rows with humanized action names once loaded", async () => {
     fetchMock.mockResolvedValueOnce(listResponse());
     render(<ActivityPage />);
-    expect(await screen.findByText("product.created")).toBeInTheDocument();
-    expect(screen.getByText("settings.updated")).toBeInTheDocument();
+    expect(await screen.findByText("Product updated")).toBeInTheDocument();
+    expect(screen.getByText("Settings updated")).toBeInTheDocument();
   });
 
   it("shows an error state when the request fails", async () => {
@@ -45,29 +80,56 @@ describe("ActivityPage", () => {
     expect(await screen.findByText(/could not load activity/i)).toBeInTheDocument();
   });
 
-  it("filters rows client-side by search term without an extra network call", async () => {
+  it("searches by request ID via a real server round-trip, not client-side filtering", async () => {
     fetchMock.mockResolvedValueOnce(listResponse());
+    fetchMock.mockResolvedValueOnce(listResponse([sampleEntries[0]!], { page: 1, pageSize: 25, total: 1, pageCount: 1 }));
     const user = userEvent.setup();
     render(<ActivityPage />);
-    await screen.findByText("product.created");
+    await screen.findByText("Product updated");
 
-    await user.type(screen.getByLabelText(/search activity by action, actor or target id/i), "settings");
+    await user.type(screen.getByLabelText(/search activity by request id/i), "req_abc123");
     await user.keyboard("{Enter}");
 
-    expect(screen.queryByText("product.created")).not.toBeInTheDocument();
-    expect(screen.getByText("settings.updated")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(lastFetchUrl()).toContain("requestId=req_abc123");
   });
 
-  it("filters rows by target type", async () => {
+  it("filters by admin ID, action, and entity type through query params on the real request", async () => {
+    fetchMock.mockResolvedValueOnce(listResponse());
+    fetchMock.mockResolvedValueOnce(listResponse());
+    render(<ActivityPage />);
+    await screen.findByText("Product updated");
+
+    fireEvent.change(screen.getByLabelText(/filter by admin id/i), { target: { value: "usr_admin" } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(lastFetchUrl()).toContain("actorId=usr_admin");
+  });
+
+  it("opens a detail view with the before/after diff when an action is clicked", async () => {
     fetchMock.mockResolvedValueOnce(listResponse());
     const user = userEvent.setup();
     render(<ActivityPage />);
-    await screen.findByText("product.created");
+    await screen.findByText("Product updated");
 
-    await user.selectOptions(screen.getByLabelText(/filter by target type/i), "settings");
+    await user.click(screen.getByText("Product updated"));
 
-    await waitFor(() => expect(screen.queryByText("product.created")).not.toBeInTheDocument());
-    expect(screen.getByText("settings.updated")).toBeInTheDocument();
+    expect(await screen.findByText("What changed")).toBeInTheDocument();
+    expect(screen.getByText("priceCents")).toBeInTheDocument();
+    expect(screen.getByText("1000")).toBeInTheDocument();
+    expect(screen.getByText("1200")).toBeInTheDocument();
+  });
+
+  it("requests the next page from the server instead of paginating client-side", async () => {
+    fetchMock.mockResolvedValueOnce(listResponse(sampleEntries, { page: 1, pageSize: 25, total: 60, pageCount: 3 }));
+    fetchMock.mockResolvedValueOnce(listResponse(sampleEntries, { page: 2, pageSize: 25, total: 60, pageCount: 3 }));
+    const user = userEvent.setup();
+    render(<ActivityPage />);
+    await screen.findByText("Product updated");
+
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(lastFetchUrl()).toContain("page=2");
   });
 });

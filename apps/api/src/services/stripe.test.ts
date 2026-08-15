@@ -107,8 +107,10 @@ describe("createRefund", () => {
         Promise.resolve(new Response(JSON.stringify({ error: { message: "No such payment_intent" } }), { status: 400 }))
       )
     );
+    // The failure path also increments the payments_failed metric (a D1 write).
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn(() => ({ run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } })) })) })) };
 
-    await expect(createRefund({ STRIPE_SECRET_KEY: "sk_test_123" } as Env, "pi_missing")).rejects.toThrow(
+    await expect(createRefund({ STRIPE_SECRET_KEY: "sk_test_123", DB: db } as unknown as Env, "pi_missing")).rejects.toThrow(
       "No such payment_intent"
     );
   });

@@ -1,6 +1,8 @@
 import type { Actor, Role } from "@aether/schemas";
+import { OBSERVABILITY_EVENTS } from "@aether/core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
+import { getLogger } from "./observability";
 
 export type ClerkEmailAddress = {
   id?: string;
@@ -45,16 +47,14 @@ export async function resolveActorEmail(env: Env, actor: Actor) {
     });
 
     if (!response.ok) {
-      console.warn("Clerk user email lookup failed", { status: response.status });
+      getLogger(env).warn(OBSERVABILITY_EVENTS.externalApiFailed, { metadata: { service: "clerk", operation: "get_user", statusCode: response.status } });
       return undefined;
     }
 
     const user: ClerkUser = await response.json();
     return primaryEmailFromUser(user);
   } catch (error) {
-    console.warn("Clerk user email lookup failed", {
-      error: error instanceof Error ? error.name : "unknown"
-    });
+    getLogger(env).warn(OBSERVABILITY_EVENTS.externalApiFailed, { metadata: { service: "clerk", operation: "get_user" }, error });
     return undefined;
   }
 }
@@ -135,13 +135,15 @@ export async function updateUserRole(
     });
 
     if (!response.ok) {
-      console.warn("Clerk role update failed", { status: response.status });
+      getLogger(env).warn(OBSERVABILITY_EVENTS.externalApiFailed, {
+        metadata: { service: "clerk", operation: "update_role", statusCode: response.status }
+      });
       return { ok: false, status: response.status };
     }
 
     return { ok: true };
   } catch (error) {
-    console.warn("Clerk role update failed", { error: error instanceof Error ? error.name : "unknown" });
+    getLogger(env).warn(OBSERVABILITY_EVENTS.externalApiFailed, { metadata: { service: "clerk", operation: "update_role" }, error });
     return { ok: false };
   }
 }

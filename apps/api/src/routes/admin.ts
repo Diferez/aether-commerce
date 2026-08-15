@@ -6,12 +6,14 @@ import {
   canTransitionFulfillment,
   canTransitionOrder,
   canTransitionPayment,
+  DEFAULT_HEALTH_THRESHOLDS,
+  evaluateSystemHealth,
   isValidHexColor,
   isValidWhatsappNumber
 } from "@aether/core";
 import { orderStateSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
-import { fail, ok } from "../http";
+import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
 import { createUploadSignature } from "../services/cloudinary";
@@ -20,6 +22,7 @@ import { createRefund } from "../services/stripe";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import { writeAuditLog } from "../services/audit";
+import { averageLatencyMs, getTaskRun, sumMetric } from "../services/metrics";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -868,7 +871,149 @@ adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (
 });
 
 adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, { simulated: true, provider: "stripe_sandbox" }, 201));
-adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, (await c.env.DB.prepare("select * from audit_logs order by created_at desc limit 100").all()).results));
+
+const auditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  actorId: z.string().max(120).optional(),
+  action: z.string().max(120).optional(),
+  targetType: z.string().max(60).optional(),
+  targetId: z.string().max(120).optional(),
+  requestId: z.string().max(80).optional(),
+  // Date-only (YYYY-MM-DD) - created_at is filtered via SQLite's date()
+  // normalizer against a whole day, not a precise timestamp range.
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+});
+
+// GET /admin/audit is intentionally read-only in every direction: there is
+// no PATCH/DELETE for this table anywhere in the API, matching audit_logs'
+// append-only contract at the application layer.
+adminRoutes.get("/audit", requirePermission("audit.read"), zValidator("query", auditQuerySchema), async (c) => {
+  const query = c.req.valid("query");
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (query.actorId) {
+    where.push("actor_id = ?");
+    params.push(query.actorId);
+  }
+  if (query.action) {
+    where.push("action = ?");
+    params.push(query.action);
+  }
+  if (query.targetType) {
+    where.push("target_type = ?");
+    params.push(query.targetType);
+  }
+  if (query.targetId) {
+    where.push("target_id = ?");
+    params.push(query.targetId);
+  }
+  if (query.requestId) {
+    where.push("request_id = ?");
+    params.push(query.requestId);
+  }
+  if (query.from) {
+    where.push("date(created_at) >= date(?)");
+    params.push(query.from);
+  }
+  if (query.to) {
+    where.push("date(created_at) <= date(?)");
+    params.push(query.to);
+  }
+
+  const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
+  const total = await c.env.DB.prepare(`select count(*) as count from audit_logs ${whereClause}`)
+    .bind(...params)
+    .first<{ count: number }>();
+  const offset = (query.page - 1) * query.pageSize;
+  const rows = await c.env.DB.prepare(
+    `select id, actor_id, actor_role, action, target_type, target_id, payload_json, previous_data, new_data, request_id, created_at
+     from audit_logs ${whereClause} order by created_at desc limit ? offset ?`
+  )
+    .bind(...params, query.pageSize, offset)
+    .all<Record<string, unknown>>();
+
+  const totalCount = total?.count ?? 0;
+  return collection(c, rows.results, {
+    page: query.page,
+    pageSize: query.pageSize,
+    total: totalCount,
+    pageCount: Math.max(1, Math.ceil(totalCount / query.pageSize))
+  });
+});
+
+function minutesSince(isoOrSqliteTimestamp: string): number {
+  const normalized = isoOrSqliteTimestamp.includes("T") ? isoOrSqliteTimestamp : `${isoOrSqliteTimestamp.replace(" ", "T")}Z`;
+  return Math.max(0, Math.round((Date.now() - new Date(normalized).getTime()) / 60_000));
+}
+
+// Reuses audit.read rather than introducing a new permission - both are
+// "an operator needs real visibility into what's happening", and adding a
+// dedicated permission would mean touching packages/schemas' enum and
+// every role's grant list for a single read-only admin page.
+adminRoutes.get("/system-health", requirePermission("audit.read"), async (c) => {
+  const [recentWebhooks, blockedOrder, blockedOrderCount, negativeInventory, avgLatencyMs, criticalTask, errors24h, webhooksFailed24h, paymentsFailed24h, adminFailedAttempts1h] =
+    await Promise.all([
+      c.env.DB.prepare("select status from webhook_events order by created_at desc limit 10").all<{ status: string }>(),
+      c.env.DB.prepare("select created_at from orders where payment_status = 'paid' and fulfillment_status = 'unfulfilled' order by created_at asc limit 1").first<{
+        created_at: string;
+      }>(),
+      c.env.DB.prepare("select count(*) as count from orders where payment_status = 'paid' and fulfillment_status = 'unfulfilled'").first<{ count: number }>(),
+      c.env.DB.prepare("select count(*) as count from products where stock < 0").first<{ count: number }>(),
+      averageLatencyMs(c.env, "admin", 1),
+      getTaskRun(c.env, "inventory_reservation_expiry"),
+      sumMetric(c.env, "application_errors", 24),
+      sumMetric(c.env, "webhooks_failed", 24),
+      sumMetric(c.env, "payments_failed", 24),
+      sumMetric(c.env, "admin_failed_attempts", 1)
+    ]);
+
+  let consecutiveWebhookFailures = 0;
+  for (const row of recentWebhooks.results) {
+    if (row.status !== "failed") break;
+    consecutiveWebhookFailures += 1;
+  }
+
+  const result = evaluateSystemHealth(
+    {
+      // No request-volume baseline is tracked, so a true error *rate*
+      // (errors / total requests) can't be computed - see stats.errors24h
+      // below for the honest absolute-count alternative instead of
+      // faking a percentage.
+      errorRatePct: null,
+      latencyP95Ms: avgLatencyMs, // approximate mean, not a true p95 - see services/metrics.ts
+      consecutiveWebhookFailures,
+      // Would require reconciling against Stripe's own event log (a real
+      // API call), not just local data - not implemented this pass.
+      paymentSucceededWithoutLocalOrder: false,
+      negativeInventoryCount: negativeInventory?.count ?? 0,
+      oldestPaidOrderBlockedMinutes: blockedOrder ? minutesSince(blockedOrder.created_at) : null,
+      recentAdminFailedAttempts: adminFailedAttempts1h,
+      criticalTaskStaleMinutes: criticalTask ? minutesSince(criticalTask.last_run_at) : null
+    },
+    DEFAULT_HEALTH_THRESHOLDS
+  );
+
+  return ok(c, {
+    status: result.level,
+    components: result.components,
+    stats: {
+      errors24h,
+      webhooksFailed24h,
+      paymentsFailed24h,
+      adminFailedAttempts1h,
+      negativeInventoryCount: negativeInventory?.count ?? 0,
+      blockedOrdersCount: blockedOrderCount?.count ?? 0,
+      avgLatencyMs,
+      lastCriticalTask: criticalTask
+        ? { name: "inventory_reservation_expiry", lastRunAt: criticalTask.last_run_at, status: criticalTask.status }
+        : null
+    },
+    timestamp: new Date().toISOString()
+  });
+});
 adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
 
 async function saveApplicationSetting(c: Context<AppBindings>, key: string, value: unknown) {

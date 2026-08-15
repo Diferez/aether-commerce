@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, ClipboardList, History, Settings, UsersRound, Warehouse } from "lucide-react";
+import { Activity, BarChart3, Boxes, ClipboardList, History, Settings, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type NavItem = {
@@ -34,7 +34,8 @@ export const navGroups: NavGroup[] = [
     label: "System",
     items: [
       { href: "/settings/", label: "Settings", icon: Settings },
-      { href: "/activity/", label: "Activity", icon: History }
+      { href: "/activity/", label: "Activity", icon: History },
+      { href: "/system-health/", label: "System health", icon: Activity }
     ]
   }
 ];

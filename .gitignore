@@ -12,6 +12,8 @@ dist
 .env.*
 !.env.example
 !.env.development.example
+.dev.vars
+.dev.vars.*
 coverage
 playwright-report
 test-results
