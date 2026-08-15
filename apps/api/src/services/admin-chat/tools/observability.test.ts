@@ -48,6 +48,7 @@ describe("getSystemHealthTool", () => {
     expect(result.artifact).toMatchObject({
       type: "dashboard_summary",
       summary: { status: "critical", blockedOrdersCount: 1 },
+      issues: [{ name: "orders", level: "critical" }],
       relatedOrders: [{ id: "ord_blocked_1", number: "AETH-A1IMHHNRFA" }]
     });
     expect(result.message).toContain("orders (critical)");

@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowRight, HelpCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
 import { StatusBadge } from "../StatusBadge";
-import { money, visibilityTone, fulfillmentTone, customerStatusTone } from "./format";
+import { money, visibilityTone, fulfillmentTone, customerStatusTone, healthLevelTone, statFieldLabel, formatStatValue } from "./format";
 import type {
   ActivityItemArtifact,
   ChatArtifact,
@@ -56,6 +56,27 @@ function CustomerRow({ customer }: { customer: CustomerSummaryArtifact }) {
         <StatusBadge tone={customerStatusTone[customer.status]}>{customer.status}</StatusBadge>
       </span>
     </a>
+  );
+}
+
+const healthStatusIcon = { operational: CheckCircle2, degraded: AlertTriangle, critical: XCircle, unknown: HelpCircle };
+
+function HealthStatusBadge({ status }: { status: string }) {
+  const Icon = healthStatusIcon[status as keyof typeof healthStatusIcon] ?? HelpCircle;
+  return (
+    <StatusBadge tone={healthLevelTone[status] ?? "neutral"} icon={Icon}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </StatusBadge>
+  );
+}
+
+function IssueRow({ issue }: { issue: { name: string; level: "critical" | "degraded"; reason: string } }) {
+  const critical = issue.level === "critical";
+  return (
+    <div className={`rounded-md border px-3 py-2 text-sm [overflow-wrap:anywhere] ${critical ? "border-danger/40 bg-danger-soft" : "border-warning/40 bg-warning-soft"}`}>
+      <p className={`font-medium capitalize ${critical ? "text-danger" : "text-warning"}`}>{issue.name}</p>
+      <p className="text-xs text-ink-muted">{issue.reason}</p>
+    </div>
   );
 }
 
@@ -120,17 +141,31 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
         <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} />)}</div>
       );
 
-    case "dashboard_summary":
+    case "dashboard_summary": {
+      // "status" (only ever set by get_system_health) renders as a badge,
+      // not a grid cell - every other stat falls through to the generic grid.
+      const { status, ...stats } = artifact.summary;
+      const statEntries = Object.entries(stats);
       return (
         <div className="grid gap-2">
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {Object.entries(artifact.summary).map(([key, value]) => (
-              <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
-                <dt className="text-xs text-ink-subtle">{key}</dt>
-                <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{value}</dd>
-              </div>
-            ))}
-          </dl>
+          {typeof status === "string" ? <HealthStatusBadge status={status} /> : null}
+          {artifact.issues && artifact.issues.length > 0 ? (
+            <div className="grid gap-1.5">
+              {artifact.issues.map((issue) => (
+                <IssueRow key={issue.name} issue={issue} />
+              ))}
+            </div>
+          ) : null}
+          {statEntries.length > 0 ? (
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {statEntries.map(([key, value]) => (
+                <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
+                  <dt className="text-xs text-ink-subtle">{statFieldLabel(key)}</dt>
+                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(key, value)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {artifact.relatedOrders && artifact.relatedOrders.length > 0 ? (
             <div className="grid gap-1.5">
               {artifact.relatedOrders.map((order) => (
@@ -140,6 +175,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
           ) : null}
         </div>
       );
+    }
 
     case "activity_list":
       return artifact.items.length === 0 ? (

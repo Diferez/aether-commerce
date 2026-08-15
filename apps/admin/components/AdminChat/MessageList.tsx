@@ -62,9 +62,15 @@ export function MessageList({
         if (message.artifact.type === "receipt") {
           return <ReceiptCard key={message.id} status={message.artifact.status} summary={message.artifact.summary} result={message.artifact.result} />;
         }
+        // dashboard_summary's card (status badge, issues, stat grid, related
+        // orders) already fully represents its tool message - showing the
+        // raw text too would just repeat the same data less legibly, ids
+        // and all.
         return (
           <div key={message.id} className="min-w-0 max-w-[95%]">
-            <p className="mb-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{message.content}</p>
+            {message.artifact.type !== "dashboard_summary" ? (
+              <p className="mb-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{message.content}</p>
+            ) : null}
             <ToolResultCard artifact={message.artifact} />
           </div>
         );

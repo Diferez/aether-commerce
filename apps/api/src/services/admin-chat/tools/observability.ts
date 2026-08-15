@@ -20,9 +20,9 @@ export const getSystemHealthTool = defineAdminChatTool({
   requires: { permission: "audit.read" },
   run: async (_args, ctx) => {
     const snapshot = await computeSystemHealth(ctx.env);
-    const issues = Object.entries(snapshot.components)
-      .filter(([, component]) => component.level === "critical" || component.level === "degraded")
-      .map(([name, component]) => `${name} (${component.level}): ${component.reason ?? "no detail"}`);
+    const issues: { name: string; level: "critical" | "degraded"; reason: string }[] = Object.entries(snapshot.components)
+      .filter((entry): entry is [string, { level: "critical" | "degraded"; reason?: string }] => entry[1].level === "critical" || entry[1].level === "degraded")
+      .map(([name, component]) => ({ name, level: component.level, reason: component.reason ?? "no detail" }));
 
     const relatedOrders: OrderSummaryArtifact[] = snapshot.stats.blockedOrders.map((order) => ({
       id: order.id,
@@ -50,7 +50,7 @@ export const getSystemHealthTool = defineAdminChatTool({
     const message =
       issues.length === 0
         ? `System status: ${snapshot.status}. No components are flagged.`
-        : `System status: ${snapshot.status}. ${issues.length} component(s) need attention:\n${issues.map((issue) => `- ${issue}`).join("\n")}` +
+        : `System status: ${snapshot.status}. ${issues.length} component(s) need attention:\n${issues.map((issue) => `- ${issue.name} (${issue.level}): ${issue.reason}`).join("\n")}` +
           (snapshot.stats.blockedOrders.length > 0 ? `\n\nBlocked order(s):\n${blockedOrderDetail}` : "");
 
     return {
@@ -72,6 +72,7 @@ export const getSystemHealthTool = defineAdminChatTool({
               )} ago)`
             : "never run"
         },
+        ...(issues.length > 0 ? { issues } : {}),
         ...(relatedOrders.length > 0 ? { relatedOrders } : {})
       }
     };
