@@ -40,6 +40,16 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: Provider
     let stepText = "";
     const toolCalls: ProviderToolCall[] = [];
     let sawError = false;
+    let sawDone = false;
+
+    console.log(
+      JSON.stringify({
+        message: "admin_chat.loop.step_start",
+        requestId: ctx.requestId,
+        step,
+        messageCount: messages.length
+      })
+    );
 
     for await (const event of provider.converse({ systemPrompt: ADMIN_CHAT_SYSTEM_PROMPT.text, messages, tools })) {
       if (event.type === "text_delta") {
@@ -49,9 +59,24 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: Provider
         toolCalls.push(event.toolCall);
       } else if (event.type === "error") {
         sawError = true;
+        console.error(JSON.stringify({ message: "admin_chat.loop.provider_error", requestId: ctx.requestId, step, error: event.message }));
         yield { type: "error", message: event.message };
+      } else if (event.type === "done") {
+        sawDone = true;
       }
     }
+
+    console.log(
+      JSON.stringify({
+        message: "admin_chat.loop.step_end",
+        requestId: ctx.requestId,
+        step,
+        sawDone,
+        sawError,
+        toolCallCount: toolCalls.length,
+        textLength: stepText.length
+      })
+    );
 
     if (sawError) return;
 

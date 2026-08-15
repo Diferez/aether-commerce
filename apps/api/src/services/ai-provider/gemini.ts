@@ -146,6 +146,8 @@ export class GeminiProvider implements GenerativeProvider {
       generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
     };
 
+    console.log(JSON.stringify({ message: "gemini.request", model: this.model, messageCount: input.messages.length, toolCount: input.tools.length }));
+
     let response: Response;
     try {
       response = await fetchWithTimeout(url, {
@@ -154,9 +156,12 @@ export class GeminiProvider implements GenerativeProvider {
         body: JSON.stringify(body)
       });
     } catch (error) {
+      console.error(JSON.stringify({ message: "gemini.fetch_failed", error: error instanceof Error ? error.message : String(error) }));
       yield { type: "error", message: error instanceof Error ? error.message : "Gemini request failed." };
       return;
     }
+
+    console.log(JSON.stringify({ message: "gemini.response", status: response.status, hasBody: Boolean(response.body) }));
 
     if (!response.ok || !response.body) {
       // Surface Gemini's actual error body (never the request, which
@@ -168,6 +173,7 @@ export class GeminiProvider implements GenerativeProvider {
         .text()
         .then((text) => text.slice(0, 500))
         .catch(() => "");
+      console.error(JSON.stringify({ message: "gemini.error_response", status: response.status, detail }));
       yield { type: "error", message: `Gemini responded with status ${response.status}.${detail ? ` ${detail}` : ""}` };
       return;
     }
@@ -176,11 +182,13 @@ export class GeminiProvider implements GenerativeProvider {
     let buffer = "";
     let calledTool = false;
     let finishReason: string | undefined;
+    let chunkCount = 0;
 
     try {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        chunkCount += 1;
         buffer += decoder.decode(value, { stream: true });
         const { payloads, remainder } = parseGeminiSseBuffer(buffer);
         buffer = remainder;
@@ -197,9 +205,12 @@ export class GeminiProvider implements GenerativeProvider {
         }
       }
     } catch (error) {
+      console.error(JSON.stringify({ message: "gemini.stream_failed", chunkCount, error: error instanceof Error ? error.message : String(error) }));
       yield { type: "error", message: error instanceof Error ? error.message : "Gemini stream failed." };
       return;
     }
+
+    console.log(JSON.stringify({ message: "gemini.stream_done", chunkCount, calledTool, finishReason: finishReason ?? null }));
 
     if (calledTool) {
       yield { type: "done", finishReason: "tool_calls" };

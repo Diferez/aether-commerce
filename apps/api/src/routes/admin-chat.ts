@@ -101,6 +101,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(sse("chat.conversation", { conversationId: conversation.id }));
+      console.log(JSON.stringify({ message: "admin_chat.stream_start", requestId: ctx.requestId, conversationId: conversation.id }));
       let finalMessage = "";
       try {
         for await (const event of runAdminChatLoop(ctx, [...history, { role: "user", content: body.message }])) {
@@ -119,8 +120,12 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
           }
         }
       } catch (error) {
+        console.error(
+          JSON.stringify({ message: "admin_chat.stream_exception", requestId: ctx.requestId, error: error instanceof Error ? error.message : String(error) })
+        );
         controller.enqueue(sse("chat.error", { message: error instanceof Error ? error.message : "Aether Chat hit an unexpected error." }));
       } finally {
+        console.log(JSON.stringify({ message: "admin_chat.stream_end", requestId: ctx.requestId, hasFinalMessage: Boolean(finalMessage) }));
         if (finalMessage) {
           await insertMessage(c.env, conversation.id, "assistant", finalMessage);
         }
