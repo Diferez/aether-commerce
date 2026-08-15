@@ -135,4 +135,73 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByText(/could not save/i)).toBeInTheDocument();
   });
+
+  it("uploads a logo file to Cloudinary via a signed upload and previews it", async () => {
+    fetchMock.mockResolvedValueOnce(settingsResponse());
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByDisplayValue("Aether Test");
+
+    expect(screen.getByRole("button", { name: /upload logo/i })).toBeInTheDocument();
+
+    fetchMock.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: { cloudName: "demo-cloud", apiKey: "key123", timestamp: 1700000000, folder: "aether/products", signature: "sig123" }
+        })
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ secure_url: "https://res.cloudinary.com/demo-cloud/image/upload/logo.png" })
+    } as Response);
+
+    const file = new File(["logo-bytes"], "logo.png", { type: "image/png" });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(fileInput, file);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/admin/uploads/signature"), expect.objectContaining({ method: "POST" }))
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("https://api.cloudinary.com/v1_1/demo-cloud/image/upload", expect.objectContaining({ method: "POST" }))
+    );
+
+    expect(await screen.findByRole("button", { name: /replace logo/i })).toBeInTheDocument();
+    const preview = document.querySelector('img[alt=""]') as HTMLImageElement;
+    expect(preview.src).toBe("https://res.cloudinary.com/demo-cloud/image/upload/logo.png");
+  });
+
+  it("shows an error when the upload signature endpoint is not configured", async () => {
+    fetchMock.mockResolvedValueOnce(settingsResponse());
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByDisplayValue("Aether Test");
+
+    fetchMock.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: false, error: { message: "Image uploads are not configured." } })
+    } as Response);
+
+    const file = new File(["logo-bytes"], "logo.png", { type: "image/png" });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(fileInput, file);
+
+    expect(await screen.findByText("Image uploads are not configured.")).toBeInTheDocument();
+  });
+
+  it("removes an uploaded logo", async () => {
+    fetchMock.mockResolvedValueOnce(
+      settingsResponse([
+        { key: "brand", value_json: JSON.stringify({ name: "Aether Test", tagline: { en: "a", es: "b" }, logoUrl: "https://res.cloudinary.com/demo/logo.png", primaryColor: "#111111", portfolioUrl: "", features: { reviews: true } }) },
+        ...settingsRows.slice(1)
+      ])
+    );
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByRole("button", { name: /replace logo/i });
+
+    await user.click(screen.getByRole("button", { name: /remove logo/i }));
+
+    expect(screen.getByRole("button", { name: /^upload logo$/i })).toBeInTheDocument();
+  });
 });

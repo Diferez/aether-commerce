@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { MessageCircle, Timer, Truck } from "lucide-react";
+import { ImagePlus, Loader2, MessageCircle, Timer, Truck, X } from "lucide-react";
 import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
 import { PageHeader } from "../../components/PageHeader";
@@ -64,11 +64,60 @@ export default function SettingsPage() {
   const [shippingSaveStatus, setShippingSaveStatus] = useState<SaveStatus>("idle");
   const [reservationsForm, setReservationsForm] = useState<ReservationSettings>(defaultReservations);
   const [reservationsSaveStatus, setReservationsSaveStatus] = useState<SaveStatus>("idle");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   const authHeader = useCallback(async () => {
     const token = await getToken().catch(() => null);
     return token ? { authorization: `Bearer ${token}` } : {};
   }, [getToken]);
+
+  // Same signed-upload flow as ProductForm's image upload (POST /uploads/signature
+  // for a Cloudinary signature, then upload straight to Cloudinary from the
+  // browser - the API secret never leaves the server). Only sets local form
+  // state here; the logo isn't persisted until the Branding section's own
+  // Save button is clicked, same as every other field in this form.
+  async function handleLogoFileSelected(file: File) {
+    setLogoUploading(true);
+    setLogoUploadError(null);
+    try {
+      const sigResponse = await fetch(`${apiBaseUrl}/api/v1/admin/uploads/signature`, {
+        method: "POST",
+        headers: await authHeader()
+      });
+      const sigPayload = (await sigResponse.json()) as {
+        success: boolean;
+        data?: { cloudName: string; apiKey: string; timestamp: number; folder: string; signature: string };
+        error?: { message: string };
+      };
+      if (!sigPayload.success || !sigPayload.data) {
+        setLogoUploadError(sigPayload.error?.message ?? "Image uploads are not configured.");
+        return;
+      }
+      const { cloudName, apiKey, timestamp, folder, signature } = sigPayload.data;
+      const form = new FormData();
+      form.set("file", file);
+      form.set("api_key", apiKey);
+      form.set("timestamp", String(timestamp));
+      form.set("folder", folder);
+      form.set("signature", signature);
+      const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: "POST",
+        body: form
+      });
+      const uploadPayload = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
+      if (!uploadResponse.ok || !uploadPayload.secure_url) {
+        setLogoUploadError(uploadPayload.error?.message ?? "The image upload failed.");
+        return;
+      }
+      setBrandForm((current) => ({ ...current, logoUrl: uploadPayload.secure_url as string }));
+    } catch {
+      setLogoUploadError("Network error - the logo was not uploaded.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -152,15 +201,52 @@ export default function SettingsPage() {
                   />
                 </div>
               </label>
-              <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Logo URL</span>
-                <input
-                  value={brandForm.logoUrl}
-                  onChange={(event) => setBrandForm((current) => ({ ...current, logoUrl: event.target.value }))}
-                  placeholder="https://.../logo.png"
-                  className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
-                />
-              </label>
+              <div className="grid gap-1 text-sm">
+                <span className="font-medium text-ink-muted">Logo</span>
+                <div className="flex items-center gap-3">
+                  {brandForm.logoUrl ? (
+                    <div className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-surface-hover">
+                      {/* Plain <img>, not next/image - arbitrary Cloudinary URL */}
+                      <img src={brandForm.logoUrl} alt="" className="h-full w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setBrandForm((current) => ({ ...current, logoUrl: "" }))}
+                        aria-label="Remove logo"
+                        className="focus-ring absolute right-0.5 top-0.5 rounded bg-ink/70 p-0.5 text-surface opacity-0 group-hover:opacity-100"
+                      >
+                        <X size={12} aria-hidden />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-dashed border-border-strong text-ink-subtle">
+                      <ImagePlus size={18} aria-hidden />
+                    </span>
+                  )}
+                  <div className="grid gap-1">
+                    <button
+                      type="button"
+                      disabled={logoUploading}
+                      onClick={() => logoFileInputRef.current?.click()}
+                      className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {logoUploading ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <ImagePlus size={14} aria-hidden />}
+                      {logoUploading ? "Uploading..." : brandForm.logoUrl ? "Replace logo" : "Upload logo"}
+                    </button>
+                    {logoUploadError ? <p className="text-xs text-danger">{logoUploadError}</p> : null}
+                  </div>
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleLogoFileSelected(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </div>
+              </div>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input
                   type="checkbox"
