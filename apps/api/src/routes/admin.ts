@@ -6,8 +6,6 @@ import {
   canTransitionFulfillment,
   canTransitionOrder,
   canTransitionPayment,
-  DEFAULT_HEALTH_THRESHOLDS,
-  evaluateSystemHealth,
   isValidHexColor,
   isValidWhatsappNumber
 } from "@aether/core";
@@ -22,7 +20,7 @@ import { createRefund } from "../services/stripe";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import { writeAuditLog } from "../services/audit";
-import { averageLatencyMs, getTaskRun, sumMetric } from "../services/metrics";
+import { computeSystemHealth } from "../services/system-health";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -944,76 +942,11 @@ adminRoutes.get("/audit", requirePermission("audit.read"), zValidator("query", a
   });
 });
 
-function minutesSince(isoOrSqliteTimestamp: string): number {
-  const normalized = isoOrSqliteTimestamp.includes("T") ? isoOrSqliteTimestamp : `${isoOrSqliteTimestamp.replace(" ", "T")}Z`;
-  return Math.max(0, Math.round((Date.now() - new Date(normalized).getTime()) / 60_000));
-}
-
 // Reuses audit.read rather than introducing a new permission - both are
 // "an operator needs real visibility into what's happening", and adding a
 // dedicated permission would mean touching packages/schemas' enum and
 // every role's grant list for a single read-only admin page.
-adminRoutes.get("/system-health", requirePermission("audit.read"), async (c) => {
-  const [recentWebhooks, blockedOrder, blockedOrderCount, negativeInventory, avgLatencyMs, criticalTask, errors24h, webhooksFailed24h, paymentsFailed24h, adminFailedAttempts1h] =
-    await Promise.all([
-      c.env.DB.prepare("select status from webhook_events order by created_at desc limit 10").all<{ status: string }>(),
-      c.env.DB.prepare("select created_at from orders where payment_status = 'paid' and fulfillment_status = 'unfulfilled' order by created_at asc limit 1").first<{
-        created_at: string;
-      }>(),
-      c.env.DB.prepare("select count(*) as count from orders where payment_status = 'paid' and fulfillment_status = 'unfulfilled'").first<{ count: number }>(),
-      c.env.DB.prepare("select count(*) as count from products where stock < 0").first<{ count: number }>(),
-      averageLatencyMs(c.env, "admin", 1),
-      getTaskRun(c.env, "inventory_reservation_expiry"),
-      sumMetric(c.env, "application_errors", 24),
-      sumMetric(c.env, "webhooks_failed", 24),
-      sumMetric(c.env, "payments_failed", 24),
-      sumMetric(c.env, "admin_failed_attempts", 1)
-    ]);
-
-  let consecutiveWebhookFailures = 0;
-  for (const row of recentWebhooks.results) {
-    if (row.status !== "failed") break;
-    consecutiveWebhookFailures += 1;
-  }
-
-  const result = evaluateSystemHealth(
-    {
-      // No request-volume baseline is tracked, so a true error *rate*
-      // (errors / total requests) can't be computed - see stats.errors24h
-      // below for the honest absolute-count alternative instead of
-      // faking a percentage.
-      errorRatePct: null,
-      latencyP95Ms: avgLatencyMs, // approximate mean, not a true p95 - see services/metrics.ts
-      consecutiveWebhookFailures,
-      // Would require reconciling against Stripe's own event log (a real
-      // API call), not just local data - not implemented this pass.
-      paymentSucceededWithoutLocalOrder: false,
-      negativeInventoryCount: negativeInventory?.count ?? 0,
-      oldestPaidOrderBlockedMinutes: blockedOrder ? minutesSince(blockedOrder.created_at) : null,
-      recentAdminFailedAttempts: adminFailedAttempts1h,
-      criticalTaskStaleMinutes: criticalTask ? minutesSince(criticalTask.last_run_at) : null
-    },
-    DEFAULT_HEALTH_THRESHOLDS
-  );
-
-  return ok(c, {
-    status: result.level,
-    components: result.components,
-    stats: {
-      errors24h,
-      webhooksFailed24h,
-      paymentsFailed24h,
-      adminFailedAttempts1h,
-      negativeInventoryCount: negativeInventory?.count ?? 0,
-      blockedOrdersCount: blockedOrderCount?.count ?? 0,
-      avgLatencyMs,
-      lastCriticalTask: criticalTask
-        ? { name: "inventory_reservation_expiry", lastRunAt: criticalTask.last_run_at, status: criticalTask.status }
-        : null
-    },
-    timestamp: new Date().toISOString()
-  });
-});
+adminRoutes.get("/system-health", requirePermission("audit.read"), async (c) => ok(c, await computeSystemHealth(c.env)));
 adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
 
 async function saveApplicationSetting(c: Context<AppBindings>, key: string, value: unknown) {

@@ -11,23 +11,42 @@ export type HealthThresholds = {
   errorRateCriticalPct: number;
   latencyP95DegradedMs: number;
   consecutiveWebhookFailuresCritical: number;
+  paidOrderBlockedMinutesDegraded: number;
   paidOrderBlockedMinutesCritical: number;
   adminFailedAttemptsDegraded: number;
   staleCriticalTaskMinutesDegraded: number;
 };
 
-// Matches Fase 15's suggested starting values - centralized here (not
-// scattered across route handlers) so they can be tuned in one place as
-// real traffic volume gives a better sense of normal noise.
+// Matches Fase 15's suggested starting values, with one deliberate
+// deviation: paidOrderBlockedMinutesCritical. The spec's own suggested
+// value (10 minutes) assumes an automated fulfillment pipeline that packs
+// and ships within minutes of payment. Tested against this store's real
+// production data, it flagged a month-old Stripe test-mode order as
+// critical on day one - correct in the literal sense (it genuinely is a
+// paid, unfulfilled order) but useless as a signal, since EVERY order in a
+// manually-fulfilled store sits well past 10 minutes as a matter of
+// course. Raised to a two-tier signal (6h degraded, 48h critical) that
+// still catches a genuinely stuck order without paging on normal
+// operating latency - see docs/observability.md for the incident this
+// came from.
 export const DEFAULT_HEALTH_THRESHOLDS: HealthThresholds = {
   errorRateDegradedPct: 5,
   errorRateCriticalPct: 15,
   latencyP95DegradedMs: 1500,
   consecutiveWebhookFailuresCritical: 3,
-  paidOrderBlockedMinutesCritical: 10,
+  paidOrderBlockedMinutesDegraded: 360,
+  paidOrderBlockedMinutesCritical: 2880,
   adminFailedAttemptsDegraded: 5,
   staleCriticalTaskMinutesDegraded: 120
 };
+
+// "45416 minute(s)" means nothing to a human at a glance - render the
+// largest sensible unit instead.
+export function formatDurationMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} minute(s)`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} hour(s)`;
+  return `${(minutes / 1440).toFixed(1)} day(s)`;
+}
 
 export type HealthSignals = {
   errorRatePct: number | null;
@@ -97,8 +116,10 @@ export function evaluateSystemHealth(signals: HealthSignals, thresholds: HealthT
   const orders: ComponentStatus = signals.paymentSucceededWithoutLocalOrder
     ? { level: "critical", reason: "A successful payment has no matching local order" }
     : signals.oldestPaidOrderBlockedMinutes !== null && signals.oldestPaidOrderBlockedMinutes > thresholds.paidOrderBlockedMinutesCritical
-      ? { level: "critical", reason: `A paid order has been blocked for ${signals.oldestPaidOrderBlockedMinutes} minute(s)` }
-      : { level: "operational" };
+      ? { level: "critical", reason: `A paid order has been unfulfilled for ${formatDurationMinutes(signals.oldestPaidOrderBlockedMinutes)}` }
+      : signals.oldestPaidOrderBlockedMinutes !== null && signals.oldestPaidOrderBlockedMinutes > thresholds.paidOrderBlockedMinutesDegraded
+        ? { level: "degraded", reason: `A paid order has been unfulfilled for ${formatDurationMinutes(signals.oldestPaidOrderBlockedMinutes)}` }
+        : { level: "operational" };
 
   const inventory: ComponentStatus =
     signals.negativeInventoryCount > 0

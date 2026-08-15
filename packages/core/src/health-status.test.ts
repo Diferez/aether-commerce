@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_HEALTH_THRESHOLDS, evaluateSystemHealth, type HealthSignals } from "./health-status";
+import { DEFAULT_HEALTH_THRESHOLDS, evaluateSystemHealth, formatDurationMinutes, type HealthSignals } from "./health-status";
 
 const HEALTHY_SIGNALS: HealthSignals = {
   errorRatePct: 0,
@@ -64,12 +64,29 @@ describe("evaluateSystemHealth", () => {
     expect(result.level).toBe("critical");
   });
 
-  it("goes critical when a paid order has been blocked past the threshold", () => {
+  it("goes critical when a paid order has been blocked past the critical threshold", () => {
     const result = evaluateSystemHealth({
       ...HEALTHY_SIGNALS,
       oldestPaidOrderBlockedMinutes: DEFAULT_HEALTH_THRESHOLDS.paidOrderBlockedMinutesCritical + 1
     });
     expect(result.components.orders.level).toBe("critical");
+  });
+
+  it("only degrades (not critical) for a blocked order between the two thresholds", () => {
+    const result = evaluateSystemHealth({
+      ...HEALTHY_SIGNALS,
+      oldestPaidOrderBlockedMinutes: DEFAULT_HEALTH_THRESHOLDS.paidOrderBlockedMinutesDegraded + 1
+    });
+    expect(result.components.orders.level).toBe("degraded");
+  });
+
+  it("stays operational for an order still well within normal manual-fulfillment latency (regression guard for the 10-minute-default incident)", () => {
+    // A 2-hour-old paid order in a manually-fulfilled store is normal, not
+    // an incident - this is the class of false positive the original
+    // 10-minute default produced (it would have already flagged this as
+    // critical).
+    const result = evaluateSystemHealth({ ...HEALTHY_SIGNALS, oldestPaidOrderBlockedMinutes: 120 });
+    expect(result.components.orders.level).toBe("operational");
   });
 
   it("goes critical on any negative inventory count", () => {
@@ -99,5 +116,25 @@ describe("evaluateSystemHealth", () => {
     const strict = { ...DEFAULT_HEALTH_THRESHOLDS, errorRateDegradedPct: 1 };
     const result = evaluateSystemHealth({ ...HEALTHY_SIGNALS, errorRatePct: 2 }, strict);
     expect(result.components.errors.level).toBe("degraded");
+  });
+
+  it("renders the blocked-order reason in a human-readable duration, not raw minutes", () => {
+    const result = evaluateSystemHealth({ ...HEALTHY_SIGNALS, oldestPaidOrderBlockedMinutes: 45416 });
+    expect(result.components.orders.reason).toContain("day(s)");
+    expect(result.components.orders.reason).not.toContain("45416 minute");
+  });
+});
+
+describe("formatDurationMinutes", () => {
+  it("renders minutes under an hour as minutes", () => {
+    expect(formatDurationMinutes(45)).toBe("45 minute(s)");
+  });
+
+  it("renders under a day as hours", () => {
+    expect(formatDurationMinutes(180)).toBe("3 hour(s)");
+  });
+
+  it("renders a day or more as days", () => {
+    expect(formatDurationMinutes(45416)).toBe("31.5 day(s)");
   });
 });

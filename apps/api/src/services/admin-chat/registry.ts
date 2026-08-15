@@ -27,6 +27,7 @@ import {
 } from "./tools/orders";
 import { prepareOrderStatusChangeTool, executeOrderStatusChange } from "./tools/orders-mutations";
 import { searchCustomersTool, getCustomerDetailsTool, getCustomerOrderHistoryTool } from "./tools/customers";
+import { getSystemHealthTool, getWebhookActivityTool } from "./tools/observability";
 
 export const ADMIN_CHAT_TOOLS: AdminChatTool[] = [
   navigateToTool,
@@ -56,7 +57,9 @@ export const ADMIN_CHAT_TOOLS: AdminChatTool[] = [
   prepareOrderStatusChangeTool,
   searchCustomersTool,
   getCustomerDetailsTool,
-  getCustomerOrderHistoryTool
+  getCustomerOrderHistoryTool,
+  getSystemHealthTool,
+  getWebhookActivityTool
 ];
 
 export const ADMIN_CHAT_TOOLS_BY_NAME: Record<string, AdminChatTool> = Object.fromEntries(

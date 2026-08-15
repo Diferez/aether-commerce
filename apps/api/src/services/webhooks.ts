@@ -58,3 +58,43 @@ export async function markWebhookFailed(env: Env, provider: string, eventId: str
     .bind(error.code ?? null, error.message.slice(0, 300), provider, eventId)
     .run();
 }
+
+export type WebhookEventRow = {
+  provider: string;
+  provider_event_id: string;
+  status: string;
+  attempts: number;
+  error_code: string | null;
+  error_message: string | null;
+  request_id: string | null;
+  received_at: string;
+  processed_at: string | null;
+};
+
+// Backs both a future GET /admin/webhooks list view and the admin-chat
+// get_webhook_activity tool - deliberately never selects payload_json
+// (only ever a minimized summary to begin with, but still not something
+// either surface needs to show).
+export async function listRecentWebhookEvents(
+  env: Env,
+  filters: { status?: string | undefined; provider?: string | undefined; limit: number }
+): Promise<WebhookEventRow[]> {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (filters.status) {
+    where.push("status = ?");
+    params.push(filters.status);
+  }
+  if (filters.provider) {
+    where.push("provider = ?");
+    params.push(filters.provider);
+  }
+  const whereClause = where.length > 0 ? `where ${where.join(" and ")}` : "";
+  const rows = await env.DB.prepare(
+    `select provider, provider_event_id, status, attempts, error_code, error_message, request_id, received_at, processed_at
+     from webhook_events ${whereClause} order by created_at desc limit ?`
+  )
+    .bind(...params, filters.limit)
+    .all<WebhookEventRow>();
+  return rows.results ?? [];
+}
