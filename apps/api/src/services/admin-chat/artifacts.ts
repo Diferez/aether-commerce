@@ -81,7 +81,10 @@ export type ChatArtifact =
   | { type: "customer_card"; customer: CustomerSummaryArtifact }
   | { type: "customer_list"; customers: CustomerSummaryArtifact[] }
   | { type: "customer_order_history"; customerId: string; orders: OrderSummaryArtifact[] }
-  | { type: "dashboard_summary"; summary: Record<string, number | string | null> }
+  // relatedOrders is optional and only ever populated by get_system_health
+  // (the specific orders behind a "blocked orders" count) - every other
+  // dashboard_summary caller omits it and the card just shows the numbers.
+  | { type: "dashboard_summary"; summary: Record<string, number | string | null>; relatedOrders?: OrderSummaryArtifact[] }
   | { type: "activity_list"; items: ActivityItemArtifact[] }
   | { type: "allowed_transitions"; current: string; allowed: string[] }
   | { type: "disambiguation"; message: string; options: DisambiguationOption[] }

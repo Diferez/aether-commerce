@@ -122,14 +122,23 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
 
     case "dashboard_summary":
       return (
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {Object.entries(artifact.summary).map(([key, value]) => (
-            <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
-              <dt className="text-xs text-ink-subtle">{key}</dt>
-              <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{value}</dd>
+        <div className="grid gap-2">
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {Object.entries(artifact.summary).map(([key, value]) => (
+              <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
+                <dt className="text-xs text-ink-subtle">{key}</dt>
+                <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {artifact.relatedOrders && artifact.relatedOrders.length > 0 ? (
+            <div className="grid gap-1.5">
+              {artifact.relatedOrders.map((order) => (
+                <OrderRow key={order.id} order={order} />
+              ))}
             </div>
-          ))}
-        </dl>
+          ) : null}
+        </div>
       );
 
     case "activity_list":

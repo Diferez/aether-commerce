@@ -3,7 +3,7 @@ import { formatDurationMinutes } from "@aether/core";
 import { defineAdminChatTool } from "../define-tool";
 import { computeSystemHealth } from "../../system-health";
 import { listRecentWebhookEvents } from "../../webhooks";
-import type { ActivityItemArtifact } from "../artifacts";
+import type { ActivityItemArtifact, OrderSummaryArtifact } from "../artifacts";
 
 // Read-only visibility into the observability layer itself (System health,
 // webhook processing) - lets the operator ask "why is this order flagged"
@@ -24,10 +24,34 @@ export const getSystemHealthTool = defineAdminChatTool({
       .filter(([, component]) => component.level === "critical" || component.level === "degraded")
       .map(([name, component]) => `${name} (${component.level}): ${component.reason ?? "no detail"}`);
 
+    const relatedOrders: OrderSummaryArtifact[] = snapshot.stats.blockedOrders.map((order) => ({
+      id: order.id,
+      number: order.number,
+      email: order.email,
+      state: order.state,
+      paymentStatus: order.paymentStatus,
+      fulfillmentStatus: order.fulfillmentStatus,
+      totalCents: order.totalCents,
+      currency: order.currency,
+      createdAt: order.createdAt,
+      href: order.href
+    }));
+
+    // Named explicitly (not just "N orders are blocked") so the model can
+    // answer "which order?" verbatim instead of falling back to a generic
+    // explanation of what the alert type usually means.
+    const blockedOrderDetail = snapshot.stats.blockedOrders
+      .map(
+        (order) =>
+          `- ${order.number}: ${(order.totalCents / 100).toFixed(2)} ${order.currency}, ${order.email}, unfulfilled for ${formatDurationMinutes(order.blockedMinutes)} (id ${order.id})`
+      )
+      .join("\n");
+
     const message =
       issues.length === 0
         ? `System status: ${snapshot.status}. No components are flagged.`
-        : `System status: ${snapshot.status}. ${issues.length} component(s) need attention:\n${issues.map((issue) => `- ${issue}`).join("\n")}`;
+        : `System status: ${snapshot.status}. ${issues.length} component(s) need attention:\n${issues.map((issue) => `- ${issue}`).join("\n")}` +
+          (snapshot.stats.blockedOrders.length > 0 ? `\n\nBlocked order(s):\n${blockedOrderDetail}` : "");
 
     return {
       message,
@@ -47,7 +71,8 @@ export const getSystemHealthTool = defineAdminChatTool({
                 Math.round((Date.now() - new Date(snapshot.stats.lastCriticalTask.lastRunAt.replace(" ", "T") + "Z").getTime()) / 60_000)
               )} ago)`
             : "never run"
-        }
+        },
+        ...(relatedOrders.length > 0 ? { relatedOrders } : {})
       }
     };
   }

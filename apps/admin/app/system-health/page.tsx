@@ -8,9 +8,26 @@ import { RequireAdminAuth } from "../../components/RequireAdminAuth";
 import { apiBaseUrl } from "../../components/config";
 import { PageHeader } from "../../components/PageHeader";
 import { ErrorState } from "../../components/ErrorState";
+import { money, fulfillmentTone } from "../../components/AdminChat/format";
+import { StatusBadge } from "../../components/StatusBadge";
+import { formatDurationMinutes } from "@aether/core";
 
 type HealthLevel = "operational" | "degraded" | "critical" | "unknown";
 type ComponentStatus = { level: HealthLevel; reason?: string };
+
+type BlockedOrderSummary = {
+  id: string;
+  number: string;
+  email: string;
+  state: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  totalCents: number;
+  currency: string;
+  createdAt: string;
+  blockedMinutes: number;
+  href: string;
+};
 
 type SystemHealthData = {
   status: HealthLevel;
@@ -30,6 +47,7 @@ type SystemHealthData = {
     adminFailedAttempts1h: number;
     negativeInventoryCount: number;
     blockedOrdersCount: number;
+    blockedOrders: BlockedOrderSummary[];
     avgLatencyMs: number | null;
     lastCriticalTask: { name: string; lastRunAt: string; status: "ok" | "failed" } | null;
   };
@@ -234,6 +252,34 @@ export default function SystemHealthPage() {
                 )}
               </div>
             </div>
+
+            {data.stats.blockedOrders.length > 0 ? (
+              <div className="mt-4 rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">
+                  Blocked order{data.stats.blockedOrders.length === 1 ? "" : "s"} - oldest first
+                </p>
+                <div className="mt-2 grid gap-1.5">
+                  {data.stats.blockedOrders.map((order) => (
+                    <a
+                      key={order.id}
+                      href={order.href}
+                      className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-ink">{order.number}</span>
+                        <span className="block text-xs text-ink-subtle">
+                          {order.email} - unfulfilled for {formatDurationMinutes(order.blockedMinutes)}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency)}</span>
+                        <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{order.fulfillmentStatus}</StatusBadge>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
 

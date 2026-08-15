@@ -298,7 +298,7 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const { env } = fakeEnv([
       { first: null }, // suspension check
       { all: [] }, // recent webhook statuses
-      { first: null }, // oldest blocked paid order
+      { all: [] }, // blocked paid order rows
       { first: { count: 0 } }, // blocked order count
       { first: { count: 3 } } // negative inventory count
     ]);
