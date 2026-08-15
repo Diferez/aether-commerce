@@ -14,6 +14,8 @@ import { migrateLegacyAetherStorage } from "./legacy-storage";
 import { StorefrontLink } from "./StorefrontLink";
 import { ThemeToggle } from "./ThemeToggle";
 
+const brandCacheKey = "aether.brand.v1";
+
 function useQueryParam(name: string) {
   const [value, setValue] = useState("");
   useEffect(() => {
@@ -44,23 +46,41 @@ export function SiteHeader() {
   // those Tailwind utilities are generated from --color-accent* in
   // globals.css. color-mix() derives the hover/soft shades from whatever
   // color the client picks instead of needing a JS color-math dependency.
+  function applyBrand(data: BrandSettings) {
+    setBrand(data);
+    const root = document.documentElement.style;
+    root.setProperty("--color-accent", data.primaryColor);
+    root.setProperty("--color-accent-hover", `color-mix(in srgb, ${data.primaryColor} 85%, black)`);
+    root.setProperty("--color-accent-soft", `color-mix(in srgb, ${data.primaryColor} 12%, transparent)`);
+  }
+
+  // The real brand (logo, name, color) only arrives once this fetch
+  // resolves, so every reload briefly showed the generic Sparkles glyph
+  // first. Restoring last-known values from localStorage before the first
+  // paint (useLayoutEffect, not useEffect) removes that flash on repeat
+  // visits - same technique already used for the cart badge below - while
+  // the fetch still runs underneath to pick up any real change.
+  useLayoutEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(brandCacheKey);
+      if (cached) applyBrand(JSON.parse(cached) as BrandSettings);
+    } catch {
+      // Ignore malformed/inaccessible cache - the fetch below still runs.
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void fetch(`${apiBaseUrl}/api/v1/brand`)
       .then((response) => response.json())
       .then((payload: { success: boolean; data?: BrandSettings }) => {
         if (cancelled || !payload.success || !payload.data) return;
-        setBrand(payload.data);
-        const root = document.documentElement.style;
-        root.setProperty("--color-accent", payload.data.primaryColor);
-        root.setProperty(
-          "--color-accent-hover",
-          `color-mix(in srgb, ${payload.data.primaryColor} 85%, black)`
-        );
-        root.setProperty(
-          "--color-accent-soft",
-          `color-mix(in srgb, ${payload.data.primaryColor} 12%, transparent)`
-        );
+        applyBrand(payload.data);
+        try {
+          window.localStorage.setItem(brandCacheKey, JSON.stringify(payload.data));
+        } catch {
+          // Storage may be unavailable (private browsing, quota) - non-fatal.
+        }
       })
       .catch(() => {
         // Default Aether name/theme stays in place if this read fails.

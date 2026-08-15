@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu, Search, Sparkles } from "lucide-react";
+import { useBrand } from "./useBrand";
 
 export function AdminTopBar({
   onOpenMobileNav,
@@ -9,6 +10,7 @@ export function AdminTopBar({
   onOpenMobileNav: () => void;
   onOpenCommandMenu: () => void;
 }) {
+  const brand = useBrand();
   return (
     <header className="sticky top-0 z-10 flex h-[var(--header-h)] items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur-sm lg:px-6">
       <button
@@ -20,9 +22,13 @@ export function AdminTopBar({
         <Menu size={20} aria-hidden />
       </button>
       <span className="flex items-center gap-2 lg:hidden">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-white">
-          <Sparkles size={14} aria-hidden />
-        </span>
+        {brand?.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.name} className="h-7 w-7 shrink-0 rounded-md object-contain" />
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-white">
+            <Sparkles size={14} aria-hidden />
+          </span>
+        )}
         <span className="text-sm font-semibold text-ink">Aether Admin</span>
       </span>
 

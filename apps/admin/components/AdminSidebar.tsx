@@ -6,6 +6,7 @@ import { ChevronsLeft, ChevronsRight, ExternalLink, Sparkles } from "lucide-reac
 import { navGroups } from "./nav-items";
 import { ThemeToggle } from "./ThemeToggle";
 import { apiBaseUrl, storefrontUrl } from "./config";
+import { useBrand } from "./useBrand";
 
 function useCurrentPath() {
   // Every nav link is a real <a href> (static export, full page navigation,
@@ -77,6 +78,7 @@ function useModuleCounts() {
 export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
   const pathname = useCurrentPath();
   const counts = useModuleCounts();
+  const brand = useBrand();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
   const isDemo = pathname.startsWith("/demo");
@@ -88,9 +90,13 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
       style={{ width: collapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)" }}
     >
       <div className="flex h-[var(--header-h)] items-center gap-2.5 border-b border-border px-4">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-white">
-          <Sparkles size={16} aria-hidden />
-        </span>
+        {brand?.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.name} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+        ) : (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-white">
+            <Sparkles size={16} aria-hidden />
+          </span>
+        )}
         {!collapsed ? (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight text-ink">Aether</p>

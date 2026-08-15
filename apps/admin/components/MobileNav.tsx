@@ -7,6 +7,7 @@ import { ExternalLink, Sparkles } from "lucide-react";
 import { navGroups } from "./nav-items";
 import { ThemeToggle } from "./ThemeToggle";
 import { storefrontUrl } from "./config";
+import { useBrand } from "./useBrand";
 
 // Clerk's <UserButton/> only renders the avatar as the real clickable
 // trigger (.cl-userButtonTrigger) - the name/role text next to it is our
@@ -23,6 +24,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
   const { isSignedIn } = useAuth();
   const { user } = useUser();
+  const brand = useBrand();
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
 
   useEffect(() => {
@@ -35,9 +37,13 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
     <Sheet open={open} onClose={onClose} side="left" title="Navigation">
       <div className="flex min-h-full flex-col">
         <div className="flex items-center gap-2.5 border-b border-border pb-4">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-white">
-            <Sparkles size={16} aria-hidden />
-          </span>
+          {brand?.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.name} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-white">
+              <Sparkles size={16} aria-hidden />
+            </span>
+          )}
           <div>
             <p className="text-sm font-semibold text-ink">Aether</p>
             <p className="text-xs text-ink-subtle">Admin console</p>
