@@ -21,14 +21,18 @@ export const navigateToTool = defineAdminChatTool({
     "Builds a link to an admin panel module, optionally with filters already applied (e.g. products filtered to out-of-stock). Use this instead of explaining where to click.",
   schema: z.object({
     module: z.enum(["home", "orders", "products", "inventory", "customers", "settings", "activity"]),
-    filters: z.record(z.string(), z.string()).optional()
+    // An array of pairs, not z.record() - Gemini's function-calling schema
+    // (via LangChain's bindTools) rejects the "propertyNames" keyword zod's
+    // JSON Schema output emits for record types, confirmed live (400
+    // "Unknown name \"propertyNames\"... Cannot find field").
+    filters: z.array(z.object({ key: z.string(), value: z.string() })).optional()
   }),
   run: (args) => {
     const base = KNOWN_MODULES[args.module];
-    const query = args.filters ? new URLSearchParams(args.filters).toString() : "";
+    const query = args.filters && args.filters.length > 0 ? new URLSearchParams(args.filters.map((f) => [f.key, f.value])).toString() : "";
     const href = query ? `${base}?${query}` : base;
     return Promise.resolve({
-      message: `Here's ${args.module}${args.filters ? " with those filters applied" : ""}.`,
+      message: `Here's ${args.module}${query ? " with those filters applied" : ""}.`,
       artifact: { type: "navigate" as const, href, label: args.module }
     });
   }
