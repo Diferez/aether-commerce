@@ -33,6 +33,7 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: Provider
   const tools = buildToolDeclarations();
   const messages: ProviderMessage[] = [...history];
   let finalText = "";
+  let hadToolResult = false;
 
   for (let step = 0; step < MAX_STEPS; step += 1) {
     yield { type: "status", phase: step === 0 ? "analyzing" : "consulting" };
@@ -96,6 +97,7 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: Provider
 
       yield { type: "status", phase: tool.requires?.mutation ? "preparing" : "consulting" };
       const result = await tool.run(call.args, ctx);
+      hadToolResult = true;
       yield { type: "tool_result", toolName: call.name, message: result.message, artifact: result.artifact };
 
       // The model only ever gets the compact text summary back, never the
@@ -109,6 +111,14 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: Provider
     if (step === MAX_STEPS - 1) {
       finalText = "I've gathered what I can for this turn - let me know if you'd like me to continue or narrow the request.";
     }
+  }
+
+  // A turn that produced neither closing text nor any tool result (a
+  // genuinely empty model response, as opposed to "the tool result already
+  // said everything that needed saying") must not complete silently - the
+  // client has nothing to show for a request that visibly took time.
+  if (!finalText && !hadToolResult) {
+    finalText = "I didn't get a usable response that time - try asking again.";
   }
 
   yield { type: "completed", finalMessage: finalText };

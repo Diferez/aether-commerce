@@ -92,6 +92,39 @@ describe("runAdminChatLoop", () => {
     expect(events.some((event) => event.type === "completed")).toBe(false);
   });
 
+  it("substitutes a graceful message instead of completing silently when the model returns neither text nor a tool call", async () => {
+    resolveGenerativeProviderMock.mockReturnValue(fakeProvider([[{ type: "done", finishReason: "stop" }]]));
+    const { env } = fakeEnv();
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [])) events.push(event);
+
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toMatchObject({ type: "completed" });
+    if (completed?.type === "completed") {
+      expect(completed.finalMessage.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("leaves finalMessage empty when a tool result already carried the answer, rather than forcing filler text", async () => {
+    resolveGenerativeProviderMock.mockReturnValue(
+      fakeProvider([
+        [{ type: "tool_call", toolCall: { id: "call_1", name: "get_pending_orders", args: { pageSize: 10 } } }],
+        [{ type: "done", finishReason: "stop" }]
+      ])
+    );
+    const { env } = fakeEnv([{ first: { count: 0 } }, { all: [] }]);
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [])) events.push(event);
+
+    expect(events.some((event) => event.type === "tool_result")).toBe(true);
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toEqual({ type: "completed", finalMessage: "" });
+  });
+
   it("reports not-configured instead of calling a provider when none is resolved", async () => {
     resolveGenerativeProviderMock.mockReturnValue(null);
     const { env } = fakeEnv();

@@ -18,6 +18,22 @@ describe("parseGeminiSseBuffer", () => {
   it("returns nothing for an empty buffer", () => {
     expect(parseGeminiSseBuffer("")).toEqual({ payloads: [], remainder: "" });
   });
+
+  it("parses frames separated by CRLF (\\r\\n\\r\\n), which is what Gemini's real API actually sends", () => {
+    const buffer = 'data: {"a":1}\r\n\r\ndata: {"b":2}\r\n\r\n';
+    const { payloads, remainder } = parseGeminiSseBuffer(buffer);
+    expect(payloads).toEqual([{ a: 1 }, { b: 2 }]);
+    expect(remainder).toBe("");
+  });
+
+  it("parses a real functionCall frame exactly as Gemini sends it, CRLF-terminated", () => {
+    const buffer =
+      'data: {"candidates": [{"content": {"parts": [{"functionCall": {"name": "get_pending_orders","args": {"pageSize": 10}}}],"role": "model"},"index": 0}]}\r\n\r\n';
+    const { payloads } = parseGeminiSseBuffer(buffer);
+    expect(payloads).toEqual([
+      { candidates: [{ content: { parts: [{ functionCall: { name: "get_pending_orders", args: { pageSize: 10 } } }], role: "model" }, index: 0 }] }
+    ]);
+  });
 });
 
 function sseChunk(payload: unknown): string {

@@ -88,16 +88,20 @@ function toGeminiTools(tools: ProviderToolDeclaration[]): unknown[] {
   ];
 }
 
-// Parses one or more `data: {...}\n\n` SSE frames out of a decoded text
-// buffer, returning the parsed JSON payloads and whatever partial frame is
-// still incomplete (carried over to the next chunk). Pure and testable
+// Parses one or more `data: {...}` SSE frames out of a decoded text buffer,
+// returning the parsed JSON payloads and whatever partial frame is still
+// incomplete (carried over to the next chunk). Gemini's stream uses CRLF
+// (\r\n\r\n) frame separators, not bare \n\n - splitting on \n\n alone
+// silently matched nothing (the buffer has no two consecutive bare LFs) and
+// every real payload - including a genuine functionCall - was dropped as
+// "still incomplete" forever, never actually parsed. Pure and testable
 // independent of fetch/streaming - see ai-provider/gemini.test.ts.
 export function parseGeminiSseBuffer(buffer: string): { payloads: unknown[]; remainder: string } {
-  const frames = buffer.split("\n\n");
+  const frames = buffer.split(/\r?\n\r?\n/);
   const remainder = frames.pop() ?? "";
   const payloads: unknown[] = [];
   for (const frame of frames) {
-    const line = frame.split("\n").find((candidate) => candidate.startsWith("data:"));
+    const line = frame.split(/\r?\n/).find((candidate) => candidate.startsWith("data:"));
     if (!line) continue;
     const json = line.slice(5).trim();
     if (!json || json === "[DONE]") continue;
@@ -189,20 +193,10 @@ export class GeminiProvider implements GenerativeProvider {
         const { done, value } = await reader.read();
         if (done) break;
         chunkCount += 1;
-        const decoded = decoder.decode(value, { stream: true });
-        buffer += decoded;
+        buffer += decoder.decode(value, { stream: true });
         const { payloads, remainder } = parseGeminiSseBuffer(buffer);
         buffer = remainder;
-        console.log(
-          JSON.stringify({
-            message: "gemini.raw_chunk",
-            chunkIndex: chunkCount,
-            decodedPreview: decoded.slice(0, 800),
-            payloadCount: payloads.length
-          })
-        );
         for (const payload of payloads) {
-          console.log(JSON.stringify({ message: "gemini.parsed_payload", payload }).slice(0, 1200));
           const { textParts, functionCalls, finishReason: chunkFinish } = partsFromChunk(payload);
           if (chunkFinish) finishReason = chunkFinish;
           for (const text of textParts) {
