@@ -16,6 +16,7 @@ import { clearCatalogCache } from "../services/catalog";
 import { createUploadSignature } from "../services/cloudinary";
 import { createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
+import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import {
   adjustProductInventory,
@@ -86,15 +87,18 @@ adminRoutes.get("/demo/summary", (c) =>
   })
 );
 
-adminRoutes.get("/summary", requirePermission("orders.read"), (c) =>
-  ok(c, {
+adminRoutes.get("/summary", requirePermission("orders.read"), async (c) => {
+  const lowStock = await c.env.DB.prepare(
+    "select count(*) as count from products where stock > 0 and stock <= low_stock_threshold"
+  ).first<{ count: number }>();
+  return ok(c, {
     mode: "private",
     revenue: 1842500,
     orders: 128,
     conversionRate: 4.8,
-    lowStock: 7
-  })
-);
+    lowStock: lowStock?.count ?? 0
+  });
+});
 
 adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
   const lowStock = await c.env.DB.prepare("select count(*) as count from inventory where available <= low_stock_threshold").first<{
@@ -250,39 +254,26 @@ adminRoutes.post("/uploads/signature", requirePermission("products.write"), asyn
   return ok(c, signature);
 });
 
-adminRoutes.get("/inventory", requirePermission("inventory.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select * from inventory order by updated_at desc limit 100").all<Record<string, unknown>>();
-  return ok(c, rows.results);
-});
-
-adminRoutes.post(
-  "/inventory/adjustments",
-  requirePermission("inventory.write"),
-  zValidator("json", z.object({ productId: z.string(), sku: z.string(), quantity: z.number().int(), reason: z.string().optional() })),
+// GET /inventory (the raw, SKU-keyed `inventory` table) and
+// POST /inventory/adjustments (which only ever logged a movement row,
+// never actually moved products.stock or validated the product existed)
+// were removed here - products.stock is the single source of truth for
+// stock, and POST /products/:id/inventory-adjustment (adjustProductInventory)
+// is the one real, UI-wired way to adjust it.
+adminRoutes.get(
+  "/inventory/movements",
+  requirePermission("inventory.read"),
+  zValidator("query", z.object({ productId: z.string().optional() })),
   async (c) => {
-    const body = c.req.valid("json");
-    await c.env.DB.prepare(
-      "insert into inventory_movements (id, product_id, sku, type, quantity, reason, actor_id, request_id) values (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        crypto.randomUUID(),
-        body.productId,
-        body.sku,
-        body.quantity >= 0 ? "adjustment_positive" : "adjustment_negative",
-        Math.abs(body.quantity),
-        body.reason ?? null,
-        c.get("actor").userId ?? "system",
-        c.get("requestId")
-      )
-      .run();
-    return ok(c, { adjusted: true }, 201);
+    const productId = c.req.valid("query").productId;
+    const rows = productId
+      ? await c.env.DB.prepare("select * from inventory_movements where product_id = ? order by created_at desc limit 100")
+          .bind(productId)
+          .all<Record<string, unknown>>()
+      : await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
+    return ok(c, rows.results);
   }
 );
-
-adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
-  return ok(c, rows.results);
-});
 
 const orderListQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
@@ -406,12 +397,13 @@ adminRoutes.post(
       requestId: c.get("requestId")
     });
     if ("error" in result) {
-      return fail(
-        c,
-        422,
-        result.error === "empty_items" ? "EMPTY_ORDER" : "PRODUCT_NOT_FOUND",
-        result.error === "empty_items" ? "An order needs at least one item." : "One of the products was not found."
-      );
+      const errorMap = {
+        empty_items: ["EMPTY_ORDER", "An order needs at least one item."],
+        product_not_found: ["PRODUCT_NOT_FOUND", "One of the products was not found."],
+        insufficient_stock: ["INSUFFICIENT_STOCK", "Not enough stock for one of the items."]
+      } as const;
+      const [code, message] = errorMap[result.error];
+      return fail(c, 422, code, message);
     }
     return ok(c, result.order, 201);
   }
@@ -424,14 +416,38 @@ adminRoutes.patch(
   async (c) => {
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
-    const current = await c.env.DB.prepare("select fulfillment_status from orders where id = ?")
+    const current = await c.env.DB.prepare("select fulfillment_status, stock_restored_at from orders where id = ?")
       .bind(orderId)
-      .first<{ fulfillment_status: string }>();
+      .first<{ fulfillment_status: string; stock_restored_at: string | null }>();
     if (!current) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 
     const from = current.fulfillment_status as Parameters<typeof canTransitionFulfillment>[0];
     if (!canTransitionFulfillment(from, body.fulfillmentStatus)) {
       return fail(c, 409, "FULFILLMENT_TRANSITION_INVALID", `Cannot transition ${from} to ${body.fulfillmentStatus}.`);
+    }
+
+    // Cancelling before it ships means the units never left - restore stock
+    // the same way a full refund does, guarded by the same stock_restored_at
+    // marker so an order that's both cancelled and later fully refunded
+    // doesn't get double-restocked.
+    const shouldRestock = body.fulfillmentStatus === "cancelled" && current.stock_restored_at === null;
+    if (shouldRestock) {
+      const restockStatements = await buildRestockStatements(c.env, orderId, {
+        actorId: c.get("actor").userId ?? "admin",
+        requestId: c.get("requestId"),
+        reason: "fulfillment_cancelled"
+      });
+      const results = await c.env.DB.batch([
+        c.env.DB.prepare(
+          "update orders set fulfillment_status = ?, updated_at = ?, stock_restored_at = CURRENT_TIMESTAMP where id = ? and fulfillment_status = ?"
+        ).bind(body.fulfillmentStatus, new Date().toISOString(), orderId, from),
+        ...restockStatements
+      ]);
+      if ((results[0]?.meta.changes ?? 0) !== 1) {
+        return fail(c, 409, "FULFILLMENT_CONFLICT", "The order changed while this update was being applied.");
+      }
+      await clearCatalogCache(c.env);
+      return ok(c, { orderId, previousFulfillmentStatus: from, fulfillmentStatus: body.fulfillmentStatus });
     }
 
     const result = await c.env.DB.prepare(
@@ -516,9 +532,11 @@ adminRoutes.patch(
 adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zValidator("json", z.object({ amountCents: z.number().int().min(1).optional(), reason: z.string().max(300).optional() })), async (c) => {
   const orderId = c.req.param("id");
   const body = c.req.valid("json");
-  const order = await c.env.DB.prepare("select channel, payment_status, payload_json, total from orders where id = ?")
+  const order = await c.env.DB.prepare(
+    "select channel, payment_status, payload_json, total, stock_restored_at from orders where id = ?"
+  )
     .bind(orderId)
-    .first<{ channel: string; payment_status: string; payload_json: string; total: number }>();
+    .first<{ channel: string; payment_status: string; payload_json: string; total: number; stock_restored_at: string | null }>();
   if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
   if (order.channel !== "stripe") {
     return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe orders can be refunded through Stripe.");
@@ -536,12 +554,25 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
   try {
     const refund = await createRefund(c.env, paymentIntentId, body.amountCents);
     const nextStatus = body.amountCents && body.amountCents < order.total ? "partially_refunded" : "refunded";
+    // Only a FULL refund restores stock - a partial refund is ambiguous
+    // (could be a shipping/discount adjustment rather than returned goods),
+    // and stock_restored_at guards against restocking twice if this order
+    // was already restocked via a fulfillment cancellation.
+    const shouldRestock = nextStatus === "refunded" && order.stock_restored_at === null;
+    const restockStatements = shouldRestock
+      ? await buildRestockStatements(c.env, orderId, {
+          actorId: c.get("actor").userId ?? "admin",
+          requestId: c.get("requestId"),
+          reason: body.reason ?? `stripe_refund:${refund.id}`
+        })
+      : [];
+
     await c.env.DB.batch([
-      c.env.DB.prepare("update orders set payment_status = ?, updated_at = ? where id = ?").bind(
-        nextStatus,
-        new Date().toISOString(),
-        orderId
-      ),
+      c.env.DB.prepare(
+        shouldRestock
+          ? "update orders set payment_status = ?, updated_at = ?, stock_restored_at = CURRENT_TIMESTAMP where id = ?"
+          : "update orders set payment_status = ?, updated_at = ? where id = ?"
+      ).bind(nextStatus, new Date().toISOString(), orderId),
       c.env.DB.prepare(
         "update payments set status = ?, updated_at = CURRENT_TIMESTAMP where order_id = ?"
       ).bind(nextStatus === "refunded" ? "refunded" : "paid", orderId),
@@ -560,8 +591,12 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
         c.get("actor").userId ?? "admin",
         body.reason ?? `stripe_refund:${refund.id}`,
         c.get("requestId")
-      )
+      ),
+      ...restockStatements
     ]);
+    if (shouldRestock) {
+      await clearCatalogCache(c.env);
+    }
     return ok(c, { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id }, 201);
   } catch (error) {
     return fail(c, 500, "STRIPE_REFUND_FAILED", error instanceof Error ? error.message : "Stripe refund failed.");

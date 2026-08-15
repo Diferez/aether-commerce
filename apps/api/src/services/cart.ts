@@ -2,6 +2,7 @@ import { calculateCartTotals } from "@aether/core";
 import type { Cart, CartItem, CartItemInput, Coupon } from "@aether/schemas";
 import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
+import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
 
 const defaultCoupon: Coupon = {
   code: "AETHER10",
@@ -86,21 +87,30 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
   const existing = cart.items.find(
     (candidate) => candidate.productId === item.productId && candidate.variantId === item.variantId
   );
+  const newQuantity = Math.min(25, (existing?.quantity ?? 0) + item.quantity);
+
+  // Missing availability data (product row deleted out from under a cached
+  // catalog entry) fails open rather than blocking the whole cart flow -
+  // the real backstop against overselling is the atomic decrement at order
+  // creation time, this check is a UX improvement on top of that, not the
+  // only guard.
+  const availability = await getAvailableStock(env, product.id, cartId);
+  if (availability && newQuantity > availability.available) {
+    throw new InsufficientStockError(availability.available);
+  }
 
   const items = existing
     ? cart.items.map((candidate) =>
         candidate.productId === item.productId && candidate.variantId === item.variantId
-          ? {
-              ...candidate,
-              quantity: Math.min(25, candidate.quantity + item.quantity),
-              lineTotal: candidate.finalUnitPrice * Math.min(25, candidate.quantity + item.quantity)
-            }
+          ? { ...candidate, quantity: newQuantity, lineTotal: candidate.finalUnitPrice * newQuantity }
           : candidate
       )
     : [...cart.items, item];
 
   const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  const updatedCart = await writeCart(env, { ...cart, items, totals });
+  await upsertActiveReservation(env, { cartId, productId: product.id, sku: product.sku, quantity: newQuantity });
+  return updatedCart;
 }
 
 export async function applyCoupon(env: Env, cartId: string, code: string): Promise<Cart> {
@@ -112,20 +122,46 @@ export async function applyCoupon(env: Env, cartId: string, code: string): Promi
 
 export async function removeItem(env: Env, cartId: string, itemId: string): Promise<Cart> {
   const cart = await readCart(env, cartId);
+  const removed = cart.items.find(
+    (item) => item.productId === itemId || item.variantId === itemId || item.slug === itemId
+  );
   const items = cart.items.filter(
     (item) => item.productId !== itemId && item.variantId !== itemId && item.slug !== itemId
   );
   const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  const updatedCart = await writeCart(env, { ...cart, items, totals });
+  if (removed) {
+    await releaseReservation(env, cartId, removed.productId);
+  }
+  return updatedCart;
 }
 
 export async function updateItemQuantity(env: Env, cartId: string, itemId: string, quantity: number): Promise<Cart> {
   const cart = await readCart(env, cartId);
+  const target = cart.items.find(
+    (item) => item.productId === itemId || item.variantId === itemId || item.slug === itemId
+  );
+
+  if (target) {
+    const availability = await getAvailableStock(env, target.productId, cartId);
+    if (availability && quantity > availability.available) {
+      throw new InsufficientStockError(availability.available);
+    }
+  }
+
   const items = cart.items.map((item) =>
     item.productId === itemId || item.variantId === itemId || item.slug === itemId
       ? { ...item, quantity, lineTotal: item.finalUnitPrice * quantity }
       : item
   );
   const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  const updatedCart = await writeCart(env, { ...cart, items, totals });
+
+  if (target) {
+    const product = await findProduct(env, target.productId);
+    if (product) {
+      await upsertActiveReservation(env, { cartId, productId: target.productId, sku: product.sku, quantity });
+    }
+  }
+  return updatedCart;
 }

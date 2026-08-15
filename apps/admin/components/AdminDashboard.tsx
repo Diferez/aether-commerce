@@ -111,6 +111,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const [brandSaveStatus, setBrandSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [recentProducts, setRecentProducts] = useState<ProductSummary[]>([]);
   const [productsTotal, setProductsTotal] = useState<number | null>(null);
+  const [lowStockProducts, setLowStockProducts] = useState<ProductSummary[]>([]);
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -139,6 +140,12 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           setRecentProducts(payload.data.data);
           setProductsTotal(payload.data.pagination.total);
         }
+      })
+      .catch(() => {});
+    void fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=4`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: { data: ProductSummary[] } }) => {
+        if (payload.success && payload.data) setLowStockProducts(payload.data.data);
       })
       .catch(() => {});
   }, []);
@@ -392,6 +399,41 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         )}
       </section>
 
+      <section id="inventory" className="mt-6 rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+          <div>
+            <h2 className="text-lg font-semibold">Inventory</h2>
+            <p className="text-sm text-zinc-500">
+              {summary.lowStock} product{summary.lowStock === 1 ? "" : "s"} at or below its low-stock threshold.
+            </p>
+          </div>
+          <a href="/inventory/" className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold leading-10">
+            View all
+          </a>
+        </div>
+        {lowStockProducts.length === 0 ? (
+          <p className="p-4 text-sm text-zinc-500">Nothing running low right now.</p>
+        ) : (
+          lowStockProducts.map((product) => (
+            <div key={product.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
+              <div>
+                <h3 className="font-semibold">{product.name}</h3>
+                <p className="text-sm text-zinc-500">SKU {product.sku}</p>
+              </div>
+              <span className={product.stock <= 0 ? "text-sm font-semibold text-rose-700" : "text-sm font-semibold text-amber-700"}>
+                {product.stock} left (threshold {product.lowStockThreshold})
+              </span>
+              <a
+                href="/inventory/"
+                className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+              >
+                Adjust stock
+              </a>
+            </div>
+          ))
+        )}
+      </section>
+
       <section id="orders" className="mt-6 rounded-lg border border-zinc-200 bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
           <div>
@@ -527,7 +569,6 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {([
-          ["Inventory", "Reservations, movements, returns and low-stock alerts.", ["AET-ARC-STD: 12 available", "AET-PULSE-STD: low stock", "Expired reservations: 0"]],
           ["Coupons", "Case-insensitive coupons with usage and subtotal rules.", ["AETHER10: 10% off", "FREESHIP: simulated", "Usage logged in D1"]],
           ["Reviews", "Moderation queue for verified or seeded demo reviews.", ["2 approved", "1 pending", "Helpful votes tracked"]],
           ["Audit", "Every privileged action records actor, entity and request ID.", ["products.write", "orders.write", "settings.manage"]]

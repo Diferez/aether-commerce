@@ -8,6 +8,7 @@ import { resolveActorEmail } from "../services/clerk";
 import { createCheckoutSession, retrieveCheckoutSession } from "../services/stripe";
 import { createOrderFromStripeSession } from "../services/orders";
 import { verifyCartToken } from "../services/cart-token";
+import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations } from "../services/inventory";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -36,6 +37,7 @@ checkoutRoutes.post(
 
     try {
       const checkoutCart = await writeCart(c.env, { ...cart, userId: actor.userId });
+      await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const customerEmail = await resolveActorEmail(c.env, actor);
       return ok(c, await createCheckoutSession(c.env, checkoutCart, customerEmail), 201);
     } catch {

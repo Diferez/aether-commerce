@@ -46,6 +46,9 @@ const config = {
     APP_ORIGIN_ADMIN: process.env.APP_ORIGIN_ADMIN || "",
     APP_STORE_BASE_PATH: process.env.APP_STORE_BASE_PATH || "",
   },
+  triggers: {
+    crons: ["*/5 * * * *"],
+  },
   d1_databases: [
     {
       binding: "DB",

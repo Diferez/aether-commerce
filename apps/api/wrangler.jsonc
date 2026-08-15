@@ -50,6 +50,9 @@
     "APP_ORIGIN_ADMIN": "http://localhost:3001",
     "APP_STORE_BASE_PATH": ""
   },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",

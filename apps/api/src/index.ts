@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
-import type { AppBindings } from "./types";
+import type { AppBindings, Env } from "./types";
 import { auth } from "./middleware/auth";
 import { aetherCors } from "./middleware/cors";
 import { errorBoundary } from "./middleware/errors";
@@ -80,4 +80,16 @@ api.route("/webhooks", webhookRoutes);
 
 app.route("/", api);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // Reservations are only ever a hold, not the real stock number - an
+  // active row past its expires_at just means the shopper never checked
+  // out, so it stops counting against "available to sell" for everyone else.
+  async scheduled(_controller: ScheduledController, env: Env) {
+    await env.DB.prepare(
+      "update inventory_reservations set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at < ?"
+    )
+      .bind(new Date().toISOString())
+      .run();
+  }
+} satisfies ExportedHandler<Env>;

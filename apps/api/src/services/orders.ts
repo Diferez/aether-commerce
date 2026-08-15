@@ -1,7 +1,8 @@
 import type { Cart, CartItem } from "@aether/schemas";
 import type { Env } from "../types";
 import { readCart } from "./cart";
-import { getProductById } from "./catalog";
+import { clearCatalogCache, getProductById } from "./catalog";
+import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
 
 type StripeCheckoutSession = {
   id: string;
@@ -97,6 +98,35 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     updatedAt: now
   };
 
+  // Resolve each cart item's real products.sku for the stock decrement below
+  // (order_items.sku, bound further down, is historically the variant/product
+  // id, not the real SKU - that convention predates this and stays as-is).
+  // A product referenced by the cart can be missing here if it was deleted
+  // between being added to the cart and this webhook firing (a product with
+  // no order_items yet is still hard-deletable) - the Stripe payment has
+  // already succeeded at this point, so a missing product only skips that
+  // one line's stock/movement bookkeeping rather than failing order creation.
+  const productIds = [...new Set(cart.items.map((item) => item.productId))];
+  const skuRows = await env.DB.prepare(
+    `select id, sku from products where id in (${productIds.map(() => "?").join(",")})`
+  )
+    .bind(...productIds)
+    .all<{ id: string; sku: string }>();
+  const skuByProductId = new Map(skuRows.results.map((row) => [row.id, row.sku]));
+
+  const stockItems = cart.items
+    .filter((item) => skuByProductId.has(item.productId))
+    .map((item) => ({ productId: item.productId, sku: skuByProductId.get(item.productId)!, quantity: item.quantity }));
+  const missingProductIds = cart.items
+    .map((item) => item.productId)
+    .filter((productId) => !skuByProductId.has(productId));
+  if (missingProductIds.length > 0) {
+    console.error("Order item references a deleted product; skipping stock decrement for it", {
+      orderId: order.id,
+      missingProductIds
+    });
+  }
+
   // channel/payment_status/fulfillment_status are additive columns
   // (migration 0015) - every other column and the idempotent
   // on-conflict-do-nothing insert are unchanged from before that migration.
@@ -119,10 +149,13 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
         `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)
          values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
-    )
+    ),
+    ...buildStockDecrementStatements(env, stockItems, { actorId: "stripe", requestId: session.id, reason: `order:${order.id}` }),
+    convertCartReservations(env, cartId)
   ]);
 
   await markCartPaid(env, cart);
+  await clearCatalogCache(env);
 
   return { order, created: true };
 }
@@ -135,7 +168,7 @@ export type ManualOrderInput = {
   requestId: string;
 };
 
-export type ManualOrderError = "empty_items" | "product_not_found";
+export type ManualOrderError = "empty_items" | "product_not_found" | "insufficient_stock";
 
 // WhatsApp orders have no automatic trigger - checkout.ts only opens a
 // wa.me link with a message, nothing ever creates an order record for it.
@@ -153,12 +186,22 @@ export async function createManualOrder(
   }
 
   const items: CartItem[] = [];
+  const stockItems: Array<{ productId: string; sku: string; quantity: number }> = [];
   for (const line of input.items) {
     const product = await getProductById(env, line.productId);
     if (!product) {
       return { error: "product_not_found" };
     }
     const quantity = Math.max(1, Math.round(line.quantity));
+
+    // No cart involved for a WhatsApp order, so check against stock net of
+    // every active reservation across all carts - otherwise this could
+    // double-book the same last unit an online shopper is mid-checkout on.
+    const availability = await getAvailableStock(env, product.id);
+    if (availability && quantity > availability.available) {
+      return { error: "insufficient_stock" };
+    }
+
     items.push({
       productId: product.id,
       quantity,
@@ -170,6 +213,7 @@ export async function createManualOrder(
       lineTotal: product.finalPrice * quantity,
       currency: "USD"
     });
+    stockItems.push({ productId: product.id, sku: product.sku, quantity });
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -208,8 +252,11 @@ export async function createManualOrder(
         `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)
          values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       ).bind(crypto.randomUUID(), id, item.productId, item.productId, JSON.stringify(item))
-    )
+    ),
+    ...buildStockDecrementStatements(env, stockItems, { actorId: input.actorId, requestId: input.requestId, reason: `order:${id}` })
   ]);
+
+  await clearCatalogCache(env);
 
   return { order };
 }
