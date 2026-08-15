@@ -8,10 +8,10 @@ import type { ActionDiff } from "./types";
 function DiffRow({ field, before, after }: { field: string; before: unknown; after: unknown }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
-      <span className="truncate text-ink-subtle">{field}</span>
-      <span className="text-xs text-ink-subtle">-&gt;</span>
-      <span className="truncate text-right font-medium text-ink">{String(after)}</span>
-      <span className="col-span-3 text-xs text-ink-subtle">was: {String(before)}</span>
+      <span className="min-w-0 truncate text-ink-subtle">{field}</span>
+      <span className="shrink-0 text-xs text-ink-subtle">-&gt;</span>
+      <span className="min-w-0 text-right font-medium text-ink [overflow-wrap:anywhere]">{String(after)}</span>
+      <span className="col-span-3 text-xs text-ink-subtle [overflow-wrap:anywhere]">was: {String(before)}</span>
     </div>
   );
 }
@@ -52,7 +52,7 @@ export function PendingActionCard({
 
   return (
     <div className="grid gap-3 rounded-md border border-accent/40 bg-accent-soft/60 p-3">
-      <p className="text-sm font-semibold text-ink">{diff.summary}</p>
+      <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{diff.summary}</p>
       <div className="grid gap-1.5 rounded-md border border-border bg-surface p-2.5">
         {diff.fields.map((field) => (
           <DiffRow key={field.field} field={field.field} before={field.before} after={field.after} />
@@ -63,7 +63,7 @@ export function PendingActionCard({
         {diff.sampleAffected && diff.sampleAffected.length > 0 ? (
           <ul className="grid gap-0.5 text-xs text-ink-subtle">
             {diff.sampleAffected.map((sample) => (
-              <li key={sample}>{sample}</li>
+              <li key={sample} className="[overflow-wrap:anywhere]">{sample}</li>
             ))}
           </ul>
         ) : null}
@@ -71,7 +71,7 @@ export function PendingActionCard({
       {diff.consequences && diff.consequences.length > 0 ? (
         <ul className="grid gap-1 text-xs text-warning">
           {diff.consequences.map((consequence) => (
-            <li key={consequence} className="flex items-start gap-1.5">
+            <li key={consequence} className="flex items-start gap-1.5 [overflow-wrap:anywhere]">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden />
               {consequence}
             </li>

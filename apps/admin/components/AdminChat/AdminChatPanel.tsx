@@ -65,7 +65,7 @@ export function AdminChatPanel() {
           </button>
         </div>
 
-        <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4">
+        <div ref={listRef} className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4">
           <MessageList messages={messages} resolvedOperationIds={resolvedOperationIds} onConfirmAction={(operationId) => void confirmPendingAction(operationId)} />
         </div>
 

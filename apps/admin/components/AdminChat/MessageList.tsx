@@ -2,6 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { ToolResultCard } from "./ToolResultCard";
 import { PendingActionCard } from "./PendingActionCard";
 import { ReceiptCard } from "./ReceiptCard";
+import { InlineMarkdown } from "./InlineMarkdown";
 import type { ChatMessage } from "./types";
 
 export function MessageList({
@@ -26,22 +27,22 @@ export function MessageList({
       {messages.map((message) => {
         if (message.role === "user") {
           return (
-            <div key={message.id} className="ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-accent px-3 py-2 text-sm text-white">
+            <div key={message.id} className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg rounded-tr-sm bg-accent px-3 py-2 text-sm text-white [overflow-wrap:anywhere]">
               {message.content}
             </div>
           );
         }
         if (message.role === "assistant") {
           return (
-            <div key={message.id} className="max-w-[90%] rounded-lg rounded-tl-sm bg-surface-hover px-3 py-2 text-sm text-ink">
-              {message.content}
+            <div key={message.id} className="max-w-[90%] whitespace-pre-wrap rounded-lg rounded-tl-sm bg-surface-hover px-3 py-2 text-sm text-ink [overflow-wrap:anywhere]">
+              <InlineMarkdown text={message.content} />
             </div>
           );
         }
         if (message.role === "system-error") {
           return (
-            <p key={message.id} className="flex items-center gap-1.5 text-sm text-danger">
-              <AlertTriangle size={14} aria-hidden /> {message.content}
+            <p key={message.id} className="flex items-start gap-1.5 text-sm text-danger [overflow-wrap:anywhere]">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden /> {message.content}
             </p>
           );
         }
@@ -62,8 +63,8 @@ export function MessageList({
           return <ReceiptCard key={message.id} status={message.artifact.status} summary={message.artifact.summary} result={message.artifact.result} />;
         }
         return (
-          <div key={message.id} className="max-w-[95%]">
-            <p className="mb-1.5 text-sm text-ink-muted">{message.content}</p>
+          <div key={message.id} className="min-w-0 max-w-[95%]">
+            <p className="mb-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{message.content}</p>
             <ToolResultCard artifact={message.artifact} />
           </div>
         );

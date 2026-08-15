@@ -61,9 +61,9 @@ function CustomerRow({ customer }: { customer: CustomerSummaryArtifact }) {
 
 function ActivityRow({ item }: { item: ActivityItemArtifact }) {
   return (
-    <div className="rounded-md border border-border px-3 py-2 text-sm">
-      <p className="font-medium text-ink">{item.action}</p>
-      <p className="text-xs text-ink-subtle">
+    <div className="min-w-0 rounded-md border border-border px-3 py-2 text-sm">
+      <p className="font-medium text-ink [overflow-wrap:anywhere]">{item.action}</p>
+      <p className="text-xs text-ink-subtle [overflow-wrap:anywhere]">
         {item.targetType}
         {item.targetId ? ` - ${item.targetId}` : ""} - {item.actorId} - {new Date(item.createdAt).toLocaleString()}
       </p>
@@ -124,9 +124,9 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       return (
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {Object.entries(artifact.summary).map(([key, value]) => (
-            <div key={key} className="rounded-md border border-border px-3 py-2">
+            <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
               <dt className="text-xs text-ink-subtle">{key}</dt>
-              <dd className="tabular-nums text-sm font-semibold text-ink">{value}</dd>
+              <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{value}</dd>
             </div>
           ))}
         </dl>
@@ -141,7 +141,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
 
     case "allowed_transitions":
       return (
-        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-ink">
+        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-ink [overflow-wrap:anywhere]">
           Currently <strong>{artifact.current}</strong>.{" "}
           {artifact.allowed.length > 0 ? <>Can move to: {artifact.allowed.join(", ")}.</> : "No further transitions are possible."}
         </div>
@@ -150,11 +150,11 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
     case "disambiguation":
       return (
         <div className="grid gap-1.5">
-          <p className="flex items-center gap-1.5 text-sm text-ink-muted">
-            <HelpCircle size={14} aria-hidden /> {artifact.message}
+          <p className="flex items-start gap-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">
+            <HelpCircle size={14} className="mt-0.5 shrink-0" aria-hidden /> {artifact.message}
           </p>
           {artifact.options.map((option) => (
-            <div key={option.id} className="rounded-md border border-border px-3 py-2 text-sm">
+            <div key={option.id} className="min-w-0 rounded-md border border-border px-3 py-2 text-sm [overflow-wrap:anywhere]">
               <p className="font-medium text-ink">{option.label}</p>
               {option.detail ? <p className="text-xs text-ink-subtle">{option.detail}</p> : null}
             </div>
@@ -164,15 +164,15 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
 
     case "missing_info":
       return (
-        <p className="flex items-center gap-1.5 text-sm text-ink-muted">
-          <HelpCircle size={14} aria-hidden /> {artifact.message}
+        <p className="flex items-start gap-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">
+          <HelpCircle size={14} className="mt-0.5 shrink-0" aria-hidden /> {artifact.message}
         </p>
       );
 
     case "error":
       return (
-        <p className="flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
-          <AlertTriangle size={14} aria-hidden /> {artifact.message}
+        <p className="flex items-start gap-1.5 rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger [overflow-wrap:anywhere]">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden /> {artifact.message}
         </p>
       );
 

@@ -23,11 +23,11 @@ export function ReceiptCard({
       </p>
       <p className="text-sm text-ink-muted">{summary}</p>
       {entries.length > 0 ? (
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-ink-subtle">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-ink-subtle">
           {entries.map(([key, value]) => (
             <div key={key} className="contents">
-              <dt>{key}</dt>
-              <dd className="text-right text-ink">{String(value)}</dd>
+              <dt className="shrink-0">{key}</dt>
+              <dd className="min-w-0 break-all text-right text-ink">{String(value)}</dd>
             </div>
           ))}
         </dl>
