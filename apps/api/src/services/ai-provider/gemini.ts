@@ -34,25 +34,45 @@ function toGeminiContents(messages: ProviderMessage[]): GeminiContent[] {
   });
 }
 
-// Gemini's functionDeclarations.parameters accepts an OpenAPI-3.0-flavored
-// JSON Schema - close enough to the plain JSON Schema zod v4 emits that only
-// the fields it doesn't recognize (draft metadata, additionalProperties) need
-// stripping. Our tool schemas are flat objects (no $ref/definitions), so no
-// schema-graph resolution is needed here.
-function cleanSchemaForGemini(schema: Record<string, unknown>): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...schema };
-  delete rest.$schema;
-  delete rest.additionalProperties;
-  if (rest.properties && typeof rest.properties === "object") {
-    const properties = rest.properties as Record<string, unknown>;
-    rest.properties = Object.fromEntries(
-      Object.entries(properties).map(([key, value]) => [
+// Gemini's functionDeclarations.parameters only understands a narrow subset
+// of JSON Schema (roughly: type, description, enum, properties, required,
+// items, nullable) - it rejects a schema carrying full JSON Schema draft-07
+// keywords like $schema, additionalProperties, minLength/maxLength,
+// minimum/maximum, default, or format with a 400. zod v4's toJSONSchema()
+// emits all of those, so this rebuilds a minimal, whitelisted schema rather
+// than trying to strip an unbounded set of "keywords Gemini doesn't like".
+// The dropped bounds aren't a real validation gap: defineAdminChatTool's
+// spec.schema.safeParse(rawArgs) still authoritatively enforces them
+// server-side regardless of what the model was told in the schema.
+function toGeminiSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  const rawType = schema.type;
+  if (Array.isArray(rawType)) {
+    const nonNull = rawType.filter((candidate) => candidate !== "null");
+    if (nonNull[0] !== undefined) out.type = nonNull[0];
+    if (rawType.includes("null")) out.nullable = true;
+  } else if (typeof rawType === "string") {
+    out.type = rawType;
+  }
+
+  if (typeof schema.description === "string") out.description = schema.description;
+  if (Array.isArray(schema.enum)) out.enum = schema.enum;
+  if (Array.isArray(schema.required)) out.required = schema.required;
+
+  if (schema.properties && typeof schema.properties === "object") {
+    out.properties = Object.fromEntries(
+      Object.entries(schema.properties as Record<string, unknown>).map(([key, value]) => [
         key,
-        typeof value === "object" && value !== null ? cleanSchemaForGemini(value as Record<string, unknown>) : value
+        typeof value === "object" && value !== null ? toGeminiSchema(value as Record<string, unknown>) : value
       ])
     );
   }
-  return rest;
+  if (schema.items && typeof schema.items === "object") {
+    out.items = toGeminiSchema(schema.items as Record<string, unknown>);
+  }
+
+  return out;
 }
 
 function toGeminiTools(tools: ProviderToolDeclaration[]): unknown[] {
@@ -62,7 +82,7 @@ function toGeminiTools(tools: ProviderToolDeclaration[]): unknown[] {
       functionDeclarations: tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        parameters: cleanSchemaForGemini(tool.parameters)
+        parameters: toGeminiSchema(tool.parameters)
       }))
     }
   ];
@@ -139,7 +159,16 @@ export class GeminiProvider implements GenerativeProvider {
     }
 
     if (!response.ok || !response.body) {
-      yield { type: "error", message: `Gemini responded with status ${response.status}.` };
+      // Surface Gemini's actual error body (never the request, which
+      // carries the API key in its query string) - a bare status code was
+      // not enough to diagnose a real 400 this exact code produced once
+      // (an invalid tool-parameter schema), and won't be enough next time
+      // either.
+      const detail = await response
+        .text()
+        .then((text) => text.slice(0, 500))
+        .catch(() => "");
+      yield { type: "error", message: `Gemini responded with status ${response.status}.${detail ? ` ${detail}` : ""}` };
       return;
     }
 

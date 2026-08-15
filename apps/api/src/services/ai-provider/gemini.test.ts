@@ -72,4 +72,69 @@ describe("GeminiProvider.converse", () => {
     expect(events).toEqual([{ type: "error", message: "Gemini responded with status 500." }]);
     vi.unstubAllGlobals();
   });
+
+  it("includes Gemini's actual error body in the error event, not just the status code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: "Invalid JSON payload received." } }), { status: 400 }))
+    );
+
+    const provider = new GeminiProvider("test-key", "gemini-test");
+    const events = [];
+    for await (const event of provider.converse({ systemPrompt: "sys", messages: [], tools: [] })) {
+      events.push(event);
+    }
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "error" });
+    if (events[0]?.type === "error") {
+      expect(events[0].message).toContain("Invalid JSON payload received.");
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("sends only Gemini's supported schema keywords for a tool's parameters, stripping the rest of zod's JSON Schema output", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(streamResponse([sseChunk({ candidates: [{ content: { parts: [{ text: "ok" }] } }] })]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new GeminiProvider("test-key", "gemini-test");
+    const richSchema = {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      type: "object",
+      properties: {
+        productId: { type: "string", minLength: 1, description: "The product id" },
+        stock: { type: "integer", minimum: 0, maximum: 9007199254740991, default: 10 },
+        visibility: { type: "string", enum: ["draft", "visible", "hidden"] }
+      },
+      required: ["productId"],
+      additionalProperties: false
+    };
+    const events = [];
+    for await (const event of provider.converse({
+      systemPrompt: "sys",
+      messages: [],
+      tools: [{ name: "test_tool", description: "test", parameters: richSchema }]
+    })) {
+      events.push(event);
+    }
+
+    const sentBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as {
+      tools: Array<{ functionDeclarations: Array<{ parameters: Record<string, unknown> }> }>;
+    };
+    const sentParameters = sentBody.tools[0]?.functionDeclarations[0]?.parameters;
+
+    expect(sentParameters).toEqual({
+      type: "object",
+      required: ["productId"],
+      properties: {
+        productId: { type: "string", description: "The product id" },
+        stock: { type: "integer" },
+        visibility: { type: "string", enum: ["draft", "visible", "hidden"] }
+      }
+    });
+    expect(sentParameters).not.toHaveProperty("$schema");
+    expect(sentParameters).not.toHaveProperty("additionalProperties");
+
+    vi.unstubAllGlobals();
+  });
 });
