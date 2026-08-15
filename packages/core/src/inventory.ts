@@ -23,3 +23,11 @@ export function getInventoryStatus(
 export function canReserve(available: number, quantity: number): boolean {
   return Number.isInteger(quantity) && quantity > 0 && available >= quantity;
 }
+
+export type ReservationSettings = {
+  ttlMinutes: number;
+};
+
+export const defaultReservationSettings: ReservationSettings = {
+  ttlMinutes: 15
+};

@@ -171,7 +171,7 @@ export default function InventoryListPage() {
 
   return (
     <RequireAdminAuth>
-      <main className="admin-shell py-8">
+      <main id="main-content" className="admin-shell py-8">
         <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
           <ArrowLeft size={15} aria-hidden />
           Dashboard
@@ -193,12 +193,14 @@ export default function InventoryListPage() {
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by name or SKU"
+              aria-label="Search inventory by product name or SKU"
               className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
             />
           </form>
           <select
             value={filters.stock}
             onChange={(event) => updateFilter("stock", event.target.value)}
+            aria-label="Filter by stock status"
             className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
           >
             <option value="">All inventory</option>
@@ -273,12 +275,14 @@ export default function InventoryListPage() {
                               value={draft.delta}
                               onChange={(event) => updateDraft(product.id, { delta: event.target.value })}
                               placeholder="+/-"
+                              aria-label={`Stock adjustment amount for ${product.name}`}
                               className="focus-ring min-h-9 w-16 rounded-md border border-zinc-300 px-2 text-sm"
                             />
                             <input
                               value={draft.reason}
                               onChange={(event) => updateDraft(product.id, { reason: event.target.value })}
                               placeholder="Reason"
+                              aria-label={`Reason for stock adjustment for ${product.name}`}
                               className="focus-ring min-h-9 w-28 rounded-md border border-zinc-300 px-2 text-sm"
                             />
                             <button

@@ -129,7 +129,7 @@ export default function CustomerDetailPage() {
   if (!id) {
     return (
       <RequireAdminAuth>
-        <main className="admin-shell py-8">
+        <main id="main-content" className="admin-shell py-8">
           <NotFound />
         </main>
       </RequireAdminAuth>
@@ -138,7 +138,7 @@ export default function CustomerDetailPage() {
 
   return (
     <RequireAdminAuth>
-      <main className="admin-shell py-8">
+      <main id="main-content" className="admin-shell py-8">
         <a href="/customers/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
           <ArrowLeft size={15} aria-hidden />
           Customers

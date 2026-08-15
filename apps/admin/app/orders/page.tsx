@@ -127,7 +127,7 @@ export default function OrdersListPage() {
 
   return (
     <RequireAdminAuth>
-      <main className="admin-shell py-8">
+      <main id="main-content" className="admin-shell py-8">
         <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
           <ArrowLeft size={15} aria-hidden />
           Dashboard
@@ -166,12 +166,14 @@ export default function OrdersListPage() {
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by order number or email"
+              aria-label="Search orders by order number or email"
               className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
             />
           </form>
           <select
             value={filters.channel}
             onChange={(event) => updateFilter("channel", event.target.value)}
+            aria-label="Filter by channel"
             className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
           >
             <option value="">All channels</option>
@@ -181,6 +183,7 @@ export default function OrdersListPage() {
           <select
             value={filters.paymentStatus}
             onChange={(event) => updateFilter("paymentStatus", event.target.value)}
+            aria-label="Filter by payment status"
             className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
           >
             <option value="">All payment statuses</option>
@@ -193,6 +196,7 @@ export default function OrdersListPage() {
           <select
             value={filters.fulfillmentStatus}
             onChange={(event) => updateFilter("fulfillmentStatus", event.target.value)}
+            aria-label="Filter by fulfillment status"
             className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
           >
             <option value="">All fulfillment statuses</option>

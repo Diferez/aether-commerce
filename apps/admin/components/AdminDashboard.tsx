@@ -2,24 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, Boxes, ChevronDown, Download, Mail, MessageCircle, PackageCheck, Shield, UsersRound } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronDown, Download, Mail, PackageCheck, Settings, Shield, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
-
-type CheckoutSettings = {
-  paymentMode: "stripe" | "whatsapp";
-  whatsappNumber: string;
-  whatsappMessageTemplate: string;
-};
-
-type BrandSettings = {
-  name: string;
-  tagline: { en: string; es: string };
-  logoUrl: string;
-  primaryColor: string;
-  portfolioUrl: string;
-  features: { reviews: boolean };
-};
 
 type ProductSummary = {
   id: string;
@@ -94,21 +79,6 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
   const [openMessageId, setOpenMessageId] = useState<string | null>(null);
-  const [checkoutForm, setCheckoutForm] = useState<CheckoutSettings>({
-    paymentMode: "stripe",
-    whatsappNumber: "",
-    whatsappMessageTemplate: ""
-  });
-  const [checkoutSaveStatus, setCheckoutSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [brandForm, setBrandForm] = useState<BrandSettings>({
-    name: "Aether",
-    tagline: { en: "Technology, elevated.", es: "Tecnologia a otro nivel." },
-    logoUrl: "",
-    primaryColor: "#8b5cf6",
-    portfolioUrl: "",
-    features: { reviews: true }
-  });
-  const [brandSaveStatus, setBrandSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [recentProducts, setRecentProducts] = useState<ProductSummary[]>([]);
   const [productsTotal, setProductsTotal] = useState<number | null>(null);
   const [lowStockProducts, setLowStockProducts] = useState<ProductSummary[]>([]);
@@ -121,18 +91,6 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
-    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: CheckoutSettings }) => {
-        if (payload.success && payload.data) setCheckoutForm(payload.data);
-      })
-      .catch(() => {});
-    void fetch(`${apiBaseUrl}/api/v1/brand`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: BrandSettings }) => {
-        if (payload.success && payload.data) setBrandForm(payload.data);
-      })
-      .catch(() => {});
     void fetch(`${apiBaseUrl}/api/v1/admin/products?pageSize=3&sort=updated_at`)
       .then((response) => response.json())
       .then((payload: { success: boolean; data?: { data: ProductSummary[]; pagination: { total: number } } }) => {
@@ -163,44 +121,6 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
     link.download = "orders-export.csv";
     link.click();
     URL.revokeObjectURL(url);
-  }
-
-  async function saveBrandSettings() {
-    setBrandSaveStatus("saving");
-    const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings/brand`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...(token ? { authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(brandForm)
-      });
-      const payload = (await response.json()) as { success: boolean };
-      setBrandSaveStatus(payload.success ? "saved" : "error");
-    } catch {
-      setBrandSaveStatus("error");
-    }
-  }
-
-  async function saveCheckoutSettings() {
-    setCheckoutSaveStatus("saving");
-    const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/settings/checkout`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...(token ? { authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(checkoutForm)
-      });
-      const payload = (await response.json()) as { success: boolean };
-      setCheckoutSaveStatus(payload.success ? "saved" : "error");
-    } catch {
-      setCheckoutSaveStatus("error");
-    }
   }
 
   useEffect(() => {
@@ -320,7 +240,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   ];
 
   return (
-    <main className="admin-shell py-8">
+    <main id="main-content" className="admin-shell py-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase text-teal-700">{status}</p>
@@ -590,166 +510,19 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         ))}
 
         <section className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Settings size={17} aria-hidden />
+            Settings
+          </h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Shipping, countries, reservation TTL, SEO and portfolio link.
+            Branding, checkout method, shipping, and cart reservation hold time.
           </p>
-          <div className="mt-4 grid gap-2">
-            <div className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
-              Free shipping threshold: USD 150
-            </div>
-            <div className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-600">
-              Reservation TTL: 15 minutes
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-zinc-200 pt-4">
-            <h3 className="text-sm font-semibold">Branding</h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Store name, logo and accent color used across the storefront.
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm">
-                <span className="font-medium text-zinc-700">Store name</span>
-                <input
-                  disabled={demo}
-                  value={brandForm.name}
-                  onChange={(event) => setBrandForm((current) => ({ ...current, name: event.target.value }))}
-                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="font-medium text-zinc-700">Accent color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    disabled={demo}
-                    value={brandForm.primaryColor}
-                    onChange={(event) =>
-                      setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))
-                    }
-                    className="h-10 w-12 rounded-md border border-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                  <input
-                    disabled={demo}
-                    value={brandForm.primaryColor}
-                    onChange={(event) =>
-                      setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))
-                    }
-                    placeholder="#8b5cf6"
-                    className="focus-ring min-h-10 flex-1 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
-              </label>
-              <label className="grid gap-1 text-sm sm:col-span-2">
-                <span className="font-medium text-zinc-700">Logo URL</span>
-                <input
-                  disabled={demo}
-                  value={brandForm.logoUrl}
-                  onChange={(event) => setBrandForm((current) => ({ ...current, logoUrl: event.target.value }))}
-                  placeholder="https://.../logo.png"
-                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <span className="text-xs text-zinc-500">Leave empty to keep the default Aether mark.</span>
-              </label>
-              <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  disabled={demo}
-                  checked={brandForm.features.reviews}
-                  onChange={(event) =>
-                    setBrandForm((current) => ({
-                      ...current,
-                      features: { ...current.features, reviews: event.target.checked }
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-zinc-300 disabled:cursor-not-allowed"
-                />
-                <span className="font-medium text-zinc-700">Show product reviews</span>
-              </label>
-              <div className="flex items-center gap-3 sm:col-span-2">
-                <button
-                  type="button"
-                  disabled={demo || brandSaveStatus === "saving"}
-                  onClick={() => void saveBrandSettings()}
-                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {brandSaveStatus === "saving" ? "Saving..." : "Save"}
-                </button>
-                {brandSaveStatus === "saved" ? (
-                  <span className="text-sm text-teal-700">Saved.</span>
-                ) : brandSaveStatus === "error" ? (
-                  <span className="text-sm text-rose-700">
-                    Could not save - check the color format and your permissions.
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-zinc-200 pt-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <MessageCircle size={15} aria-hidden />
-              Checkout method
-            </h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales
-              number instead - no payment gateway required.
-            </p>
-            <div className="mt-3 grid gap-3">
-              <label className="grid gap-1 text-sm">
-                <span className="font-medium text-zinc-700">Payment method</span>
-                <select
-                  disabled={demo}
-                  value={checkoutForm.paymentMode}
-                  onChange={(event) =>
-                    setCheckoutForm((current) => ({
-                      ...current,
-                      paymentMode: event.target.value as "stripe" | "whatsapp"
-                    }))
-                  }
-                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="stripe">Stripe</option>
-                  <option value="whatsapp">WhatsApp</option>
-                </select>
-              </label>
-              {checkoutForm.paymentMode === "whatsapp" ? (
-                <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-zinc-700">Sales WhatsApp number</span>
-                  <input
-                    disabled={demo}
-                    value={checkoutForm.whatsappNumber}
-                    onChange={(event) =>
-                      setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))
-                    }
-                    placeholder="573001234567"
-                    className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                  <span className="text-xs text-zinc-500">
-                    Country code + number, digits only - no +, spaces or dashes.
-                  </span>
-                </label>
-              ) : null}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  disabled={demo || checkoutSaveStatus === "saving"}
-                  onClick={() => void saveCheckoutSettings()}
-                  className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {checkoutSaveStatus === "saving" ? "Saving..." : "Save"}
-                </button>
-                {checkoutSaveStatus === "saved" ? (
-                  <span className="text-sm text-teal-700">Saved.</span>
-                ) : checkoutSaveStatus === "error" ? (
-                  <span className="text-sm text-rose-700">
-                    Could not save - check the number format and your permissions.
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
+          <a
+            href="/settings/"
+            className="focus-ring mt-4 inline-flex min-h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-semibold"
+          >
+            Open settings
+          </a>
         </section>
       </section>
     </main>

@@ -5,6 +5,7 @@ import {
   buildStockDecrementStatements,
   convertCartReservations,
   getAvailableStock,
+  getReservationTtlMinutes,
   releaseReservation,
   upsertActiveReservation
 } from "./inventory";
@@ -18,7 +19,19 @@ function fakeEnv(responses: QueuedResponse[] = []) {
     prepare: vi.fn((sql: string) => {
       const response = responses[callIndex] ?? {};
       callIndex += 1;
+      // Real D1 (and some existing code in this repo, e.g. admin.ts's
+      // GET /coupons) allows calling .first()/.all()/.run() straight off
+      // .prepare() when there's nothing to bind - not every statement goes
+      // through .bind() first, so both paths need to work here too.
+      const bound = {
+        sql,
+        args: [] as unknown[],
+        first: vi.fn(() => Promise.resolve(response.first ?? null)),
+        all: vi.fn(() => Promise.resolve({ results: response.all ?? [] })),
+        run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
+      };
       return {
+        ...bound,
         bind: vi.fn((...args: unknown[]) => {
           statements.push({ sql, args });
           return {
@@ -61,19 +74,42 @@ describe("getAvailableStock", () => {
   });
 });
 
+describe("getReservationTtlMinutes", () => {
+  it("falls back to the default when no override has been saved", async () => {
+    const { env } = fakeEnv([{ first: null }]);
+    expect(await getReservationTtlMinutes(env)).toBe(15);
+  });
+
+  it("returns the admin-configured override when present", async () => {
+    const { env } = fakeEnv([{ first: { value_json: JSON.stringify({ ttlMinutes: 30 }) } }]);
+    expect(await getReservationTtlMinutes(env)).toBe(30);
+  });
+
+  it("falls back to the default when the stored value is malformed", async () => {
+    const { env } = fakeEnv([{ first: { value_json: "not json" } }]);
+    expect(await getReservationTtlMinutes(env)).toBe(15);
+  });
+
+  it("falls back to the default when ttlMinutes is not a positive number", async () => {
+    const { env } = fakeEnv([{ first: { value_json: JSON.stringify({ ttlMinutes: 0 }) } }]);
+    expect(await getReservationTtlMinutes(env)).toBe(15);
+  });
+});
+
 describe("upsertActiveReservation", () => {
   it("inserts a new reservation when none exists for this cart+product", async () => {
-    const { env, db } = fakeEnv([{ first: null }]);
+    // response[0] is the reservations TTL setting lookup (no row -> default), response[1] is the existing-reservation check
+    const { env, db } = fakeEnv([{ first: null }, { first: null }]);
     await upsertActiveReservation(env, { cartId: "cart_a", productId: "prd_1", sku: "SKU-1", quantity: 2 });
-    expect(db.prepare).toHaveBeenCalledTimes(2);
-    const insertCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[1]![0] as string;
+    expect(db.prepare).toHaveBeenCalledTimes(3);
+    const insertCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[2]![0] as string;
     expect(insertCall).toContain("insert into inventory_reservations");
   });
 
   it("updates the existing active reservation instead of inserting a duplicate", async () => {
-    const { env, db } = fakeEnv([{ first: { id: "res_1" } }]);
+    const { env, db } = fakeEnv([{ first: null }, { first: { id: "res_1" } }]);
     await upsertActiveReservation(env, { cartId: "cart_a", productId: "prd_1", sku: "SKU-1", quantity: 4 });
-    const updateCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[1]![0] as string;
+    const updateCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls[2]![0] as string;
     expect(updateCall).toContain("update inventory_reservations set quantity");
   });
 });

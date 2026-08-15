@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import {
@@ -18,6 +19,7 @@ import { createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
+import { writeAuditLog } from "../services/audit";
 import {
   adjustProductInventory,
   bulkSetVisibility,
@@ -173,6 +175,13 @@ adminRoutes.post(
   zValidator("json", productWriteSchemaValidated),
   async (c) => {
     const row = await createProduct(c.env, c.req.valid("json"));
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "product.created",
+      targetType: "product",
+      targetId: row.id,
+      payload: { name: row.name, sku: row.sku }
+    });
     return ok(c, row, 201);
   }
 );
@@ -184,6 +193,13 @@ adminRoutes.patch(
   async (c) => {
     const row = await updateProduct(c.env, c.req.param("id"), c.req.valid("json"));
     if (!row) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "product.updated",
+      targetType: "product",
+      targetId: row.id,
+      payload: c.req.valid("json")
+    });
     return ok(c, row);
   }
 );
@@ -191,12 +207,26 @@ adminRoutes.patch(
 adminRoutes.post("/products/:id/publish", requirePermission("products.write"), async (c) => {
   const changed = await setProductVisibility(c.env, c.req.param("id"), "visible");
   if (!changed) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "product.visibility_changed",
+    targetType: "product",
+    targetId: c.req.param("id"),
+    payload: { visibility: "visible" }
+  });
   return ok(c, { id: c.req.param("id"), visibility: "visible" });
 });
 
 adminRoutes.post("/products/:id/archive", requirePermission("products.write"), async (c) => {
   const changed = await setProductVisibility(c.env, c.req.param("id"), "hidden");
   if (!changed) return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "product.visibility_changed",
+    targetType: "product",
+    targetId: c.req.param("id"),
+    payload: { visibility: "hidden" }
+  });
   return ok(c, { id: c.req.param("id"), visibility: "hidden" });
 });
 
@@ -217,12 +247,26 @@ adminRoutes.post(
       | "hidden"
       | "draft";
     const changed = await bulkSetVisibility(c.env, body.ids, visibility);
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "product.bulk_visibility_changed",
+      targetType: "product",
+      targetId: null,
+      payload: { ids: body.ids, visibility }
+    });
     return ok(c, { changed, visibility });
   }
 );
 
 adminRoutes.delete("/products/:id", requirePermission("products.write"), async (c) => {
   const result = await deleteProduct(c.env, c.req.param("id"));
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "product.deleted",
+    targetType: "product",
+    targetId: c.req.param("id"),
+    payload: result
+  });
   return ok(c, result);
 });
 
@@ -597,6 +641,13 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
     if (shouldRestock) {
       await clearCatalogCache(c.env);
     }
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "order.refunded",
+      targetType: "order",
+      targetId: orderId,
+      payload: { paymentStatus: nextStatus, amountCents: body.amountCents ?? order.total, stripeRefundId: refund.id }
+    });
     return ok(c, { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id }, 201);
   } catch (error) {
     return fail(c, 500, "STRIPE_REFUND_FAILED", error instanceof Error ? error.message : "Stripe refund failed.");
@@ -736,10 +787,18 @@ adminRoutes.patch(
 adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from coupons").all()).results));
 adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {
   const body = c.req.valid("json");
+  const code = body.code.toUpperCase();
   await c.env.DB.prepare("insert or replace into coupons (code, type, value, active, minimum_subtotal) values (?, ?, ?, 1, 0)")
-    .bind(body.code.toUpperCase(), body.type, body.value)
+    .bind(code, body.type, body.value)
     .run();
-  return ok(c, { code: body.code.toUpperCase() }, 201);
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "coupon.created",
+    targetType: "coupon",
+    targetId: code,
+    payload: { type: body.type, value: body.value }
+  });
+  return ok(c, { code }, 201);
 });
 adminRoutes.patch(
   "/coupons/:id",
@@ -771,12 +830,26 @@ adminRoutes.patch(
         code
       )
       .run();
+    await writeAuditLog(c.env, {
+      actorId: c.get("actor").userId ?? "admin",
+      action: "coupon.updated",
+      targetType: "coupon",
+      targetId: code,
+      payload: body
+    });
     return ok(c, { code, updated: true });
   }
 );
 adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c) => {
-  await c.env.DB.prepare("update coupons set active = 0 where code = ?").bind(c.req.param("id").toUpperCase()).run();
-  return ok(c, { code: c.req.param("id"), active: false });
+  const code = c.req.param("id").toUpperCase();
+  await c.env.DB.prepare("update coupons set active = 0 where code = ?").bind(code).run();
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "coupon.deactivated",
+    targetType: "coupon",
+    targetId: code
+  });
+  return ok(c, { code, active: false });
 });
 
 adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, (await c.env.DB.prepare("select * from reviews order by created_at desc limit 100").all()).results));
@@ -797,7 +870,23 @@ adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (
 adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, { simulated: true, provider: "stripe_sandbox" }, 201));
 adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, (await c.env.DB.prepare("select * from audit_logs order by created_at desc limit 100").all()).results));
 adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
-adminRoutes.patch("/settings", requirePermission("settings.manage"), (c) => ok(c, { updated: true }));
+
+async function saveApplicationSetting(c: Context<AppBindings>, key: string, value: unknown) {
+  await c.env.DB.prepare(
+    `insert into application_settings (key, value_json, updated_at)
+     values (?, ?, CURRENT_TIMESTAMP)
+     on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
+  )
+    .bind(key, JSON.stringify(value))
+    .run();
+  await writeAuditLog(c.env, {
+    actorId: c.get("actor").userId ?? "admin",
+    action: "settings.updated",
+    targetType: "settings",
+    targetId: key,
+    payload: value
+  });
+}
 
 const checkoutSettingsSchema = z
   .object({
@@ -820,13 +909,7 @@ adminRoutes.patch(
   zValidator("json", checkoutSettingsSchema),
   async (c) => {
     const value = c.req.valid("json");
-    await c.env.DB.prepare(
-      `insert into application_settings (key, value_json, updated_at)
-       values ('checkout', ?, CURRENT_TIMESTAMP)
-       on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
-    )
-      .bind(JSON.stringify(value))
-      .run();
+    await saveApplicationSetting(c, "checkout", value);
     return ok(c, value);
   }
 );
@@ -846,13 +929,48 @@ adminRoutes.patch(
   zValidator("json", brandSettingsSchema),
   async (c) => {
     const value = c.req.valid("json");
-    await c.env.DB.prepare(
-      `insert into application_settings (key, value_json, updated_at)
-       values ('brand', ?, CURRENT_TIMESTAMP)
-       on conflict(key) do update set value_json = excluded.value_json, updated_at = CURRENT_TIMESTAMP`
-    )
-      .bind(JSON.stringify(value))
-      .run();
+    await saveApplicationSetting(c, "brand", value);
+    return ok(c, value);
+  }
+);
+
+const shippingOptionSchema = z.object({
+  id: z.enum(["standard", "express", "priority"]),
+  label: z.string().min(1).max(60),
+  amount: z.number().int().min(0),
+  currency: z.literal("USD"),
+  estimatedDays: z.string().min(1).max(20)
+});
+
+// The admin UI only exposes freeShippingThreshold for editing, but the full
+// object round-trips through this schema (countries/options come back from
+// GET /shipping/options unchanged) so a save never silently drops them.
+const shippingSettingsSchema = z.object({
+  freeShippingThreshold: z.number().int().min(0),
+  countries: z.array(z.string().length(2)).min(1),
+  options: z.array(shippingOptionSchema).min(1)
+});
+
+adminRoutes.patch(
+  "/settings/shipping",
+  requirePermission("settings.manage"),
+  zValidator("json", shippingSettingsSchema),
+  async (c) => {
+    const value = c.req.valid("json");
+    await saveApplicationSetting(c, "shipping", value);
+    return ok(c, value);
+  }
+);
+
+const reservationSettingsSchema = z.object({ ttlMinutes: z.number().int().min(1).max(1440) });
+
+adminRoutes.patch(
+  "/settings/reservations",
+  requirePermission("settings.manage"),
+  zValidator("json", reservationSettingsSchema),
+  async (c) => {
+    const value = c.req.valid("json");
+    await saveApplicationSetting(c, "reservations", value);
     return ok(c, value);
   }
 );

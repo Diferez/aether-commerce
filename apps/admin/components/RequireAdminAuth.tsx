@@ -18,7 +18,7 @@ export function RequireAdminAuth({ children }: { children: ReactNode }) {
 
   if (!isSignedIn) {
     return (
-      <div className="admin-shell flex justify-center py-16">
+      <div id="main-content" className="admin-shell flex justify-center py-16">
         <SignIn routing="hash" />
       </div>
     );

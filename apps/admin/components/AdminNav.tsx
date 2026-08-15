@@ -12,7 +12,7 @@ const nav = [
   { href: "/orders/", label: "Orders", icon: ClipboardList },
   { href: "/customers/", label: "Customers", icon: UsersRound },
   { href: "#messages", label: "Messages", icon: Mail },
-  { href: "#settings", label: "Settings", icon: Settings }
+  { href: "/settings/", label: "Settings", icon: Settings }
 ];
 
 export function AdminNav() {

@@ -384,6 +384,15 @@ export async function adjustProductInventory(
       input.reason ?? null,
       input.actorId,
       input.requestId
+    ),
+    env.DB.prepare(
+      `insert into audit_logs (id, actor_id, action, target_type, target_id, payload_json)
+       values (?, ?, 'inventory.adjusted', 'product', ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      input.actorId,
+      id,
+      JSON.stringify({ delta: actualDelta, reason: input.reason ?? null, nextStock })
     )
   ]);
 

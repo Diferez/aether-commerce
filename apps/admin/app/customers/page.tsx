@@ -95,7 +95,7 @@ export default function CustomersListPage() {
 
   return (
     <RequireAdminAuth>
-      <main className="admin-shell py-8">
+      <main id="main-content" className="admin-shell py-8">
         <a href="/" className="focus-ring mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950">
           <ArrowLeft size={15} aria-hidden />
           Dashboard
@@ -117,12 +117,14 @@ export default function CustomersListPage() {
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by name or email"
+              aria-label="Search customers by name or email"
               className="min-h-11 w-full border-0 bg-transparent text-sm outline-none"
             />
           </form>
           <select
             value={filters.status}
             onChange={(event) => updateFilter("status", event.target.value)}
+            aria-label="Filter by status"
             className="focus-ring min-h-11 rounded-md border border-zinc-300 px-3 text-sm"
           >
             <option value="">All statuses</option>

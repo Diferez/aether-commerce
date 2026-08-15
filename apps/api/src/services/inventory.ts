@@ -1,6 +1,6 @@
+import { defaultReservationSettings } from "@aether/core";
 import type { Env } from "../types";
 
-export const RESERVATION_TTL_MINUTES = 15;
 export const CHECKOUT_EXTENSION_MINUTES = 30;
 
 export class InsufficientStockError extends Error {
@@ -39,6 +39,26 @@ export async function getAvailableStock(env: Env, productId: string, excludeCart
   return { stock: product.stock, reservedByOthers, available: Math.max(0, product.stock - reservedByOthers) };
 }
 
+// Reads the admin-configurable TTL (Settings page, apps/admin/app/settings/)
+// with a fallback to defaultReservationSettings for the common case where
+// nobody has ever saved an override - most deployments never touch this.
+export async function getReservationTtlMinutes(env: Env): Promise<number> {
+  const row = await env.DB.prepare("select value_json from application_settings where key = 'reservations'").first<{
+    value_json: string;
+  }>();
+  if (!row) {
+    return defaultReservationSettings.ttlMinutes;
+  }
+  try {
+    const parsed = JSON.parse(row.value_json) as { ttlMinutes?: number };
+    return typeof parsed.ttlMinutes === "number" && parsed.ttlMinutes > 0
+      ? parsed.ttlMinutes
+      : defaultReservationSettings.ttlMinutes;
+  } catch {
+    return defaultReservationSettings.ttlMinutes;
+  }
+}
+
 // One active reservation row per (cart_id, product_id) - update in place
 // when it already exists rather than inserting a second row, enforced for
 // real by the partial unique index added in migration 0018.
@@ -46,7 +66,8 @@ export async function upsertActiveReservation(
   env: Env,
   input: { cartId: string; productId: string; sku: string; quantity: number }
 ): Promise<void> {
-  const expiresAt = isoIn(RESERVATION_TTL_MINUTES);
+  const ttlMinutes = await getReservationTtlMinutes(env);
+  const expiresAt = isoIn(ttlMinutes);
   const existing = await env.DB.prepare(
     "select id from inventory_reservations where cart_id = ? and product_id = ? and status = 'active'"
   )
