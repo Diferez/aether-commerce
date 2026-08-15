@@ -21,6 +21,12 @@ export type Env = {
   CLOUDINARY_API_SECRET?: string;
   AETHER_CART_TOKEN_SECRET?: string;
   AETHER_ENV?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
+  AI_PROVIDER?: string;
+  ADMIN_CHAT_MUTATIONS_ENABLED?: string;
+  ADMIN_CHAT_MAX_INPUT_CHARACTERS?: string;
+  ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES?: string;
 };
 
 export type Variables = {

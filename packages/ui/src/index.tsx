@@ -142,12 +142,18 @@ export function Sheet({
   onClose,
   side = "right",
   title,
+  width,
+  padded = true,
   children
 }: {
   open: boolean;
   onClose: () => void;
   side?: "left" | "right" | "bottom";
   title?: string;
+  /** Overrides the default min(360px,90vw) width for left/right sheets - e.g. a wider panel for chat. */
+  width?: string;
+  /** Set false to drop the default p-5 padding when the caller needs full control of internal layout/scrolling (e.g. a sticky composer). */
+  padded?: boolean;
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -173,12 +179,13 @@ export function Sheet({
     return null;
   }
 
+  const sheetWidth = width ?? "min(360px,90vw)";
   const positionClass =
     side === "bottom"
       ? "inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl"
       : side === "left"
-        ? "inset-y-0 left-0 h-full w-[min(360px,90vw)]"
-        : "inset-y-0 right-0 h-full w-[min(360px,90vw)]";
+        ? "inset-y-0 left-0 h-full"
+        : "inset-y-0 right-0 h-full";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60" role="presentation" onClick={onClose}>
@@ -188,7 +195,12 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={clsx("focus:outline-none fixed overflow-y-auto border border-border bg-surface p-5 shadow-xl", positionClass)}
+        className={clsx(
+          "focus:outline-none fixed overflow-y-auto border border-border bg-surface shadow-xl",
+          padded && "p-5",
+          positionClass
+        )}
+        style={side === "bottom" ? undefined : { width: sheetWidth }}
         onClick={(event) => event.stopPropagation()}
       >
         {title ? <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2> : null}

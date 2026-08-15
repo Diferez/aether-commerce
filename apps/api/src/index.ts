@@ -9,6 +9,7 @@ import { requestId } from "./middleware/request-id";
 import { fail, ok } from "./http";
 import { accountRoutes } from "./routes/account";
 import { adminRoutes } from "./routes/admin";
+import { adminChatRoutes } from "./routes/admin-chat";
 import { cartRoutes } from "./routes/cart";
 import { catalogRoutes } from "./routes/catalog";
 import { checkoutRoutes } from "./routes/checkout";
@@ -75,6 +76,7 @@ api.route("/cart", cartRoutes);
 api.route("/checkout", checkoutRoutes);
 api.route("/contact", contactRoutes);
 api.route("/admin", adminRoutes);
+api.route("/admin/chat", adminChatRoutes);
 api.route("/account", accountRoutes);
 api.route("/webhooks", webhookRoutes);
 

@@ -5,6 +5,9 @@ import { AdminSidebar } from "./AdminSidebar";
 import { MobileNav } from "./MobileNav";
 import { AdminTopBar } from "./AdminTopBar";
 import { CommandMenu } from "./CommandMenu";
+import { AdminChatProvider } from "./AdminChat/AdminChatProvider";
+import { AdminChatTrigger } from "./AdminChat/AdminChatTrigger";
+import { AdminChatPanel } from "./AdminChat/AdminChatPanel";
 
 const sidebarStorageKey = "aether.admin.sidebar.v1";
 
@@ -37,15 +40,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-bg">
-      <AdminSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-      <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-      <CommandMenu open={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />
+    <AdminChatProvider>
+      <div className="min-h-screen bg-bg">
+        <AdminSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+        <CommandMenu open={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />
+        <AdminChatTrigger />
+        <AdminChatPanel />
 
-      <div className={`flex min-h-screen flex-col transition-[margin] duration-150 ${collapsed ? "lg:ml-[var(--sidebar-w-collapsed)]" : "lg:ml-[var(--sidebar-w)]"}`}>
-        <AdminTopBar onOpenMobileNav={() => setMobileNavOpen(true)} onOpenCommandMenu={() => setCommandMenuOpen(true)} />
-        {children}
+        <div className={`flex min-h-screen flex-col transition-[margin] duration-150 ${collapsed ? "lg:ml-[var(--sidebar-w-collapsed)]" : "lg:ml-[var(--sidebar-w)]"}`}>
+          <AdminTopBar onOpenMobileNav={() => setMobileNavOpen(true)} onOpenCommandMenu={() => setCommandMenuOpen(true)} />
+          {children}
+        </div>
       </div>
-    </div>
+    </AdminChatProvider>
   );
 }

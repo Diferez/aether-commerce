@@ -1,0 +1,73 @@
+import { AlertTriangle } from "lucide-react";
+import { ToolResultCard } from "./ToolResultCard";
+import { PendingActionCard } from "./PendingActionCard";
+import { ReceiptCard } from "./ReceiptCard";
+import type { ChatMessage } from "./types";
+
+export function MessageList({
+  messages,
+  resolvedOperationIds,
+  onConfirmAction
+}: {
+  messages: ChatMessage[];
+  resolvedOperationIds: Set<string>;
+  onConfirmAction: (operationId: string) => void;
+}) {
+  if (messages.length === 0) {
+    return (
+      <p className="px-1 py-6 text-center text-sm text-ink-subtle">
+        Ask about orders, products, inventory, or customers - e.g. &ldquo;show me today&apos;s pending orders&rdquo;.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {messages.map((message) => {
+        if (message.role === "user") {
+          return (
+            <div key={message.id} className="ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-accent px-3 py-2 text-sm text-white">
+              {message.content}
+            </div>
+          );
+        }
+        if (message.role === "assistant") {
+          return (
+            <div key={message.id} className="max-w-[90%] rounded-lg rounded-tl-sm bg-surface-hover px-3 py-2 text-sm text-ink">
+              {message.content}
+            </div>
+          );
+        }
+        if (message.role === "system-error") {
+          return (
+            <p key={message.id} className="flex items-center gap-1.5 text-sm text-danger">
+              <AlertTriangle size={14} aria-hidden /> {message.content}
+            </p>
+          );
+        }
+        // role === "tool"
+        if (message.artifact.type === "pending_action") {
+          return (
+            <PendingActionCard
+              key={message.id}
+              operationId={message.artifact.operationId}
+              diff={message.artifact.diff}
+              expiresAt={message.artifact.expiresAt}
+              resolved={resolvedOperationIds.has(message.artifact.operationId)}
+              onConfirm={onConfirmAction}
+            />
+          );
+        }
+        if (message.artifact.type === "receipt") {
+          return <ReceiptCard key={message.id} status={message.artifact.status} summary={message.artifact.summary} result={message.artifact.result} />;
+        }
+        return (
+          <div key={message.id} className="max-w-[95%]">
+            <p className="mb-1.5 text-sm text-ink-muted">{message.content}</p>
+            <ToolResultCard artifact={message.artifact} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}

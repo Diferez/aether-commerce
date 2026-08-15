@@ -332,6 +332,52 @@ export async function bulkSetVisibility(
   return result.meta.changes ?? 0;
 }
 
+export type BulkPriceAdjustment = { category: string; percent: number };
+
+export type BulkPriceAdjustmentPreviewRow = { id: string; name: string; sku: string; priceCents: number; nextPriceCents: number };
+
+// Read-only preview for the chat's prepare_bulk_product_update tool - same
+// selection/rounding rule bulkAdjustPriceByCategory uses to execute, so the
+// diff shown for confirmation always matches what actually runs.
+export async function previewBulkPriceAdjustment(
+  env: Env,
+  input: BulkPriceAdjustment
+): Promise<BulkPriceAdjustmentPreviewRow[]> {
+  const rows = await env.DB.prepare(
+    "select id, name, sku, final_price_cents from products where category = ?"
+  )
+    .bind(input.category)
+    .all<{ id: string; name: string; sku: string; final_price_cents: number }>();
+
+  return (rows.results || []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    priceCents: row.final_price_cents,
+    nextPriceCents: Math.max(0, Math.round(row.final_price_cents * (1 + input.percent / 100)))
+  }));
+}
+
+// Every other price field (price_cents, compare_at_price_cents) scales by
+// the same factor as final_price_cents so a struck-through "was" price
+// keeps showing a coherent discount afterward, rather than drifting apart
+// from the price it's compared against.
+export async function bulkAdjustPriceByCategory(env: Env, input: BulkPriceAdjustment): Promise<number> {
+  const factor = 1 + input.percent / 100;
+  const result = await env.DB.prepare(
+    `update products set
+       price_cents = max(0, round(price_cents * ?)),
+       compare_at_price_cents = case when compare_at_price_cents is null then null else max(0, round(compare_at_price_cents * ?)) end,
+       final_price_cents = max(0, round(final_price_cents * ?)),
+       updated_at = ?
+     where category = ?`
+  )
+    .bind(factor, factor, factor, new Date().toISOString(), input.category)
+    .run();
+  await clearCatalogCache(env);
+  return result.meta.changes ?? 0;
+}
+
 // Never physically deletes a product that appears in order history - order
 // detail pages read order_items.payload_json, which snapshots product data
 // at purchase time, but the product listing/lookup by id would otherwise
