@@ -104,10 +104,12 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         run: |
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
           pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.development.json
       - name: Deploy development AI assistant Worker
         env:
