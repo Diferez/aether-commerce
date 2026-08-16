@@ -50,7 +50,31 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
   return { env, db, statements };
 }
 
-const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
+// A real Workers ExecutionContext keeps the worker alive until every
+// waitUntil()-registered promise settles, but never blocks the response on
+// them. A bare `waitUntil: () => {}` drops those promises instead of
+// tracking them - fine for the response itself, but a real bug for
+// assertions like "no D1 call happened": several middlewares fire a
+// genuinely fire-and-forget metrics write via waitUntil on every request
+// (see middleware/latency-sampling.ts, middleware/admin.ts's
+// admin_failed_attempts), and an untracked promise can still resolve at an
+// unpredictable point relative to the test's own assertions - confirmed
+// live as a real, intermittent CI failure (not reproducible locally): the
+// dropped write occasionally lands before "db.prepare was never called" is
+// checked. fakeCtx() tracks every waitUntil promise so a test can await
+// them all deterministically before asserting, the same way real Workers
+// guarantees they run to completion, just synchronously instead of after
+// the response is already gone.
+function fakeCtx() {
+  const pending: Promise<unknown>[] = [];
+  const ctx = {
+    waitUntil: (promise: Promise<unknown>) => {
+      pending.push(promise);
+    },
+    passThroughOnException: () => {}
+  } as unknown as ExecutionContext;
+  return { ctx, flush: () => Promise.allSettled(pending) };
+}
 
 function chatRequest(path: string, init: RequestInit & { token?: string } = {}) {
   const { token, headers, ...rest } = init;
@@ -97,6 +121,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
 
   it("rejects anonymous callers before creating a conversation or invoking the model", async () => {
     const { env, db } = fakeEnv();
+    const { ctx, flush } = fakeCtx();
     const response = await worker.fetch(
       chatRequest("/messages", {
         method: "POST",
@@ -106,6 +131,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       env,
       ctx
     );
+    await flush();
 
     expect(response.status).toBe(401);
     expect(db.prepare).not.toHaveBeenCalled();
@@ -115,6 +141,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
   it("rejects an authenticated customer without an administrative role", async () => {
     await mockVerifiedActor(["customer"]);
     const { env } = fakeEnv([{ first: null }]);
+    const { ctx, flush } = fakeCtx();
     const response = await worker.fetch(
       chatRequest("/messages", {
         method: "POST",
@@ -125,6 +152,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       env,
       ctx
     );
+    await flush();
 
     expect(response.status).toBe(403);
   });
@@ -135,8 +163,10 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       { first: null }, // suspension check
       { first: null } // claimPendingAction: no such row
     ]);
+    const { ctx, flush } = fakeCtx();
 
     const response = await worker.fetch(chatRequest("/actions/pact_missing/confirm", { method: "POST", token: "tok" }), env, ctx);
+    await flush();
 
     expect(response.status).toBe(404);
     const body = await response.json<{ error?: { code: string } }>();
@@ -160,8 +190,10 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
         }
       }
     ]);
+    const { ctx, flush } = fakeCtx();
 
     const response = await worker.fetch(chatRequest("/actions/pact_1/confirm", { method: "POST", token: "tok" }), env, ctx);
+    await flush();
 
     expect(response.status).toBe(200);
     const body = await response.json<{ data: { replay: boolean; orderId: string } }>();
@@ -191,12 +223,14 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       { run: { changes: 1 } }, // atomic claim
       { run: { changes: 1 } } // resolve as forbidden
     ]);
+    const { ctx, flush } = fakeCtx();
 
     const response = await worker.fetch(
       chatRequest("/actions/pact_revoked/confirm", { method: "POST", token: "tok" }),
       env,
       ctx
     );
+    await flush();
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: { code: "FORBIDDEN" } });
   });
@@ -222,6 +256,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       {}, // insert tool-result message (permission-denied artifact) - the tool itself never touches D1
       {} // insert final assistant message
     ]);
+    const { ctx, flush } = fakeCtx();
 
     const response = await worker.fetch(
       chatRequest("/messages", {
@@ -233,6 +268,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
       env,
       ctx
     );
+    await flush();
 
     expect(response.status).toBe(200);
     const body = await response.json<{ data: { toolResults: Array<{ artifact: { type: string; code?: string } }> } }>();
