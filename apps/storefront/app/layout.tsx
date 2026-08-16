@@ -5,6 +5,7 @@ import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
+import { WhatsappBubble } from "../components/WhatsappBubble";
 import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
 import { SentryProvider } from "../components/SentryProvider";
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SiteFooter />
               <CookieNotice />
               <AssistantWidget />
+              <WhatsappBubble />
               <FloatingCart />
             </LanguageProvider>
           </ClerkAuthProvider>

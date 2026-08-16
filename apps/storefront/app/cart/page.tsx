@@ -19,6 +19,7 @@ import {
   getCartCredentials
 } from "../../components/cart-client";
 import { buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildWhatsappUrl } from "../../components/whatsapp-checkout";
+import { useCheckoutOptions } from "../../components/checkout-options";
 import { useAetherAuth } from "../../components/ClerkAuthProvider";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
@@ -40,26 +41,7 @@ export default function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
-  const [checkoutOptions, setCheckoutOptions] = useState<{
-    paymentMode: "stripe" | "whatsapp";
-    whatsappNumber: string;
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: { paymentMode: "stripe" | "whatsapp"; whatsappNumber: string } }) => {
-        if (!cancelled && payload.success && payload.data) setCheckoutOptions(payload.data);
-      })
-      .catch(() => {
-        // Stripe stays the safe default if this read fails - never silently
-        // switch a shopper into a mode with no working checkout.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const checkoutOptions = useCheckoutOptions();
 
   async function refresh() {
     const id = getCartId();

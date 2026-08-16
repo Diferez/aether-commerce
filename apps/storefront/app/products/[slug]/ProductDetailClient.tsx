@@ -18,6 +18,7 @@ import { ProductGrid } from "../../../components/ProductGrid";
 import { getLocalizedProduct } from "../../../components/product-localization";
 import { StorefrontLink } from "../../../components/StorefrontLink";
 import { buildProductWhatsappMessage, buildWhatsappUrl } from "../../../components/whatsapp-checkout";
+import { useCheckoutOptions } from "../../../components/checkout-options";
 
 export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
@@ -30,10 +31,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [checkoutOptions, setCheckoutOptions] = useState<{
-    paymentMode: "stripe" | "whatsapp";
-    whatsappNumber: string;
-  } | null>(null);
+  const checkoutOptions = useCheckoutOptions();
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const localized = product ? getLocalizedProduct(product, locale) : null;
 
@@ -46,22 +44,6 @@ export function ProductDetailClient({ slug }: { slug: string }) {
       })
       .catch(() => {
         // Reviews stay visible (the default) if this read fails.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(`${apiBaseUrl}/api/v1/checkout/options`)
-      .then((response) => response.json())
-      .then((payload: { success: boolean; data?: { paymentMode: "stripe" | "whatsapp"; whatsappNumber: string } }) => {
-        if (!cancelled && payload.success && payload.data) setCheckoutOptions(payload.data);
-      })
-      .catch(() => {
-        // "Comprar ahora" simply stays hidden if this read fails - the normal
-        // add-to-cart flow is unaffected either way.
       });
     return () => {
       cancelled = true;
