@@ -30,8 +30,8 @@ function initSentry(): void {
     sendDefaultPii: false,
     tracesSampleRate: process.env.NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE ? Number(process.env.NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE) : 0.05,
     replaysSessionSampleRate: 0,
-    replaysOnErrorSampleRate: 0.2,
-    integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+    replaysOnErrorSampleRate: 0,
+    integrations: [Sentry.browserTracingIntegration()],
     // Known-noisy/expected errors that don't indicate a real bug - a
     // cancelled fetch from a fast navigation, or a benign ResizeObserver
     // warning some browsers emit.

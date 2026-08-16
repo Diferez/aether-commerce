@@ -122,7 +122,10 @@ describe("POST /webhooks/stripe", () => {
     const { createOrderFromStripeSession } = await import("../services/orders");
     const body = JSON.stringify({ id: "evt_dup", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
-    const { env } = fakeEnv([{ run: { changes: 0 } }]); // recordWebhookReceived: already exists
+    const { env } = fakeEnv([
+      { run: { changes: 0 } }, // recordWebhookReceived: already exists
+      { run: { changes: 0 } } // not failed/stale, so it cannot be reclaimed
+    ]);
 
     const response = await worker.fetch(stripeRequest(body, signature), env, ctx);
     const responseBody = await response.json<{ success: boolean; data: { duplicate: boolean } }>();
@@ -130,6 +133,22 @@ describe("POST /webhooks/stripe", () => {
     expect(response.status).toBe(200);
     expect(responseBody.data.duplicate).toBe(true);
     expect(createOrderFromStripeSession).not.toHaveBeenCalled();
+  });
+
+  it("reclaims a previously failed event so Stripe can retry it", async () => {
+    const { createOrderFromStripeSession } = await import("../services/orders");
+    const body = JSON.stringify({ id: "evt_retry", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
+    const signature = await signStripe("whsec_test_secret", body);
+    const { env } = fakeEnv([
+      { run: { changes: 0 } }, // duplicate insert
+      { run: { changes: 1 } }, // failed row atomically reclaimed
+      { run: { changes: 1 } }, // processing
+      { run: { changes: 1 } } // processed
+    ]);
+
+    const response = await worker.fetch(stripeRequest(body, signature), env, ctx);
+    expect(response.status).toBe(200);
+    expect(createOrderFromStripeSession).toHaveBeenCalledTimes(1);
   });
 
   it("marks the event failed, reports to Sentry, and returns a non-2xx so Stripe retries", async () => {
@@ -161,6 +180,29 @@ describe("POST /webhooks/clerk", () => {
       ctx
     );
     expect(response.status).toBe(401);
+  });
+
+  it("rejects a correctly signed Clerk webhook with a stale timestamp", async () => {
+    const secret = "testsecret";
+    const svixId = "msg_stale";
+    const svixTimestamp = String(Math.floor(Date.now() / 1000) - 10 * 60);
+    const body = JSON.stringify({ type: "user.updated", data: { id: "user_1" } });
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${svixId}.${svixTimestamp}.${body}`));
+    const signature = `v1,${btoa(String.fromCharCode(...new Uint8Array(digest)))}`;
+    const { env, db } = fakeEnv();
+
+    const response = await worker.fetch(
+      new Request("https://api.example.com/api/v1/webhooks/clerk", {
+        method: "POST",
+        headers: { "svix-id": svixId, "svix-timestamp": svixTimestamp, "svix-signature": signature },
+        body
+      }),
+      env,
+      ctx
+    );
+    expect(response.status).toBe(401);
+    expect(db.prepare).not.toHaveBeenCalled();
   });
 
   it("processes a new user.updated event and marks it processed", async () => {

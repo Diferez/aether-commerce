@@ -29,6 +29,7 @@ jobs:
       url: ${{ vars.APP_ORIGIN_STORE }}
     env:
       AETHER_DEPLOY_ENV: production
+      ALLOW_CLERK_DEVELOPMENT_KEYS: ${{ vars.ALLOW_CLERK_DEVELOPMENT_KEYS }}
       CLOUDFLARE_DEPLOY_ENABLED: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED }}
       AI_TOOL_CALLING_ENABLED: ${{ vars.AI_TOOL_CALLING_ENABLED }}
       AI_MUTATIONS_ENABLED: ${{ vars.AI_MUTATIONS_ENABLED }}
@@ -49,20 +50,17 @@ jobs:
       NEXT_PUBLIC_SENTRY_ENABLED: ${{ vars.NEXT_PUBLIC_SENTRY_ENABLED }}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 8.15.9
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify deployment settings
@@ -128,12 +126,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
         run: |
           umask 077
           trap 'rm -f .ai-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AETHER_CART_TOKEN_SECRET','AI_OPERATIONS_TOKEN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
+          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
           pnpm exec wrangler secret bulk .ai-secrets.json --config apps/ai-assistant/wrangler.production.json
       - name: Deploy storefront Worker
         env:

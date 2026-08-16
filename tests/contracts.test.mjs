@@ -254,8 +254,9 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.match(middleware, /localLimit/);
   assert.match(middleware, /profile === "account" && !actor\.userId/);
   assert.match(middleware, /user:\$\{await digest\(actor\.userId\)\}/);
-  assert.match(middleware, /digest\(authorization\)/);
-  assert.match(middleware, /digest\(cartToken\)/);
+  assert.doesNotMatch(middleware, /digest\(authorization\)/);
+  assert.doesNotMatch(middleware, /digest\(cartToken\)/);
+  assert.match(middleware, /Only verified identities receive their own bucket/);
   assert.ok(index.indexOf('app.use("*", auth())') < index.indexOf('app.use("*", rateLimit())'));
 });
 
@@ -318,4 +319,33 @@ test("Cloudinary upload signing never sends the api_secret to the browser", () =
   assert.doesNotMatch(form, /CLOUDINARY_API_SECRET/);
   assert.match(form, /api\.cloudinary\.com\/v1_1\//);
   assert.match(form, /signature/);
+});
+
+test("security headers prevent framing and unsafe content sniffing on both static applications", () => {
+  for (const path of ["apps/storefront/public/_headers", "apps/admin/public/_headers"]) {
+    const headers = read(path);
+    assert.match(headers, /Strict-Transport-Security:/);
+    assert.match(headers, /X-Content-Type-Options: nosniff/);
+    assert.match(headers, /X-Frame-Options: DENY/);
+    assert.match(headers, /Content-Security-Policy:/);
+    assert.match(headers, /frame-ancestors 'none'/);
+  }
+});
+
+test("checkout orders require an immutable server-side snapshot", () => {
+  const migration = read("apps/api/migrations/0021_security_hardening.sql");
+  const checkout = read("apps/api/src/routes/checkout.ts");
+  const orders = read("apps/api/src/services/orders.ts");
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS checkout_snapshots/);
+  assert.match(checkout, /createCheckoutSnapshot/);
+  assert.match(orders, /loadCheckoutSnapshot/);
+  assert.match(orders, /amount does not match the immutable snapshot/);
+  assert.doesNotMatch(orders, /await readCart\(env, cartId\)/);
+});
+
+test("assistant consent and Gemini credential transport are enforced server-side", () => {
+  const worker = read("apps/ai-assistant/worker.ts");
+  assert.match(worker, /CONSENT_REQUIRED/);
+  assert.match(worker, /"x-goog-api-key": env\.GEMINI_API_KEY/);
+  assert.doesNotMatch(worker, /generateContent\?key=/);
 });

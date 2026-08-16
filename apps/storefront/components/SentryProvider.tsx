@@ -28,8 +28,8 @@ function initSentry(): void {
     sendDefaultPii: false,
     tracesSampleRate: process.env.NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE ? Number(process.env.NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE) : 0.05,
     replaysSessionSampleRate: 0,
-    replaysOnErrorSampleRate: 0.2,
-    integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+    replaysOnErrorSampleRate: 0,
+    integrations: [Sentry.browserTracingIntegration()],
     ignoreErrors: ["AbortError", "ResizeObserver loop limit exceeded", "Load failed"],
     beforeSend(event) {
       if (event.request) {

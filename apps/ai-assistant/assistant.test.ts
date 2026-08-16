@@ -1,7 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import worker, { heuristicIntent } from "./worker";
 
 type TestEnv = Parameters<typeof worker.fetch>[1];
+
+beforeAll(() => {
+  if (typeof crypto.subtle.timingSafeEqual !== "function") {
+    crypto.subtle.timingSafeEqual = (a: BufferSource, b: BufferSource) => {
+      const left = a instanceof ArrayBuffer ? new Uint8Array(a) : new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+      const right = b instanceof ArrayBuffer ? new Uint8Array(b) : new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+      if (left.length !== right.length) return false;
+      let difference = 0;
+      for (let index = 0; index < left.length; index += 1) difference |= left[index]! ^ right[index]!;
+      return difference === 0;
+    };
+  }
+});
 
 const order = {
   id: "ord_interview_5001",
@@ -83,6 +96,28 @@ describe("LangGraph Worker orchestration", () => {
       env()
     );
     expect(response.headers.get("access-control-allow-headers")).toContain("authorization");
+  });
+
+  it("rejects assistant requests without explicit privacy consent", async () => {
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/v1/assistant/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "Busca celulares", locale: "es-CO", privacy_consent: false })
+      }),
+      env()
+    );
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "CONSENT_REQUIRED" } });
+  });
+
+  it("keeps operational metrics private", async () => {
+    const response = await worker.fetch(
+      new Request("https://assistant.example.test/metrics"),
+      { ...env(), AI_OPERATIONS_TOKEN: "operations-secret" }
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
 });
 

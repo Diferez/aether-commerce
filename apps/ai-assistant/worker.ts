@@ -16,6 +16,12 @@ import type {
 } from "@langchain/langgraph-checkpoint";
 import { z } from "zod";
 
+declare global {
+  interface SubtleCrypto {
+    timingSafeEqual(a: BufferSource, b: BufferSource): boolean;
+  }
+}
+
 type Fetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 };
@@ -68,7 +74,7 @@ type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
   all<T = Record<string, unknown>>(): Promise<{ results?: T[] }>;
-  run(): Promise<unknown>;
+  run(): Promise<{ meta: { changes?: number } }>;
 };
 
 type AssistantProduct = {
@@ -175,19 +181,22 @@ export default {
     }
     if (url.pathname === "/readyz") {
       return json(request, env, {
-        status: env.AI_ASSISTANT_ENABLED === "false" ? "disabled" : "ready",
-        checks: {
-          aetherApi: Boolean(env.AETHER_API_BASE_URL),
-          gemini: Boolean(env.GEMINI_API_KEY)
-        }
+        status: env.AI_ASSISTANT_ENABLED === "false" ? "disabled" : "ready"
       });
     }
     if (url.pathname === "/metrics") {
+      if (!(await hasOperationsAccess(request, env))) {
+        return json(request, env, { error: env.AI_OPERATIONS_TOKEN ? "forbidden" : "not_found" }, env.AI_OPERATIONS_TOKEN ? 403 : 404);
+      }
       return new Response(await renderMetrics(env), {
-        headers: { ...corsHeaders(request, env), "content-type": "text/plain; charset=utf-8" }
+        headers: { ...corsHeaders(request, env), ...securityHeaders(), "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/assistant/messages") {
+      const consentBody = (await request.clone().json().catch(() => ({}))) as AssistantRequest;
+      if (consentBody.privacy_consent !== true) {
+        return json(request, env, { success: false, error: { code: "CONSENT_REQUIRED", message: "Privacy consent is required before using the assistant." } }, 422);
+      }
       const limit = await enforceMessageUsage(request, env);
       if (limit) return json(request, env, limit.payload, limit.status);
       const slot = await acquireConcurrencySlot(request, env);
@@ -230,6 +239,10 @@ export default {
       }
     }
     if (request.method === "POST" && url.pathname === "/v1/assistant/messages/stream") {
+      const consentBody = (await request.clone().json().catch(() => ({}))) as AssistantRequest;
+      if (consentBody.privacy_consent !== true) {
+        return json(request, env, { success: false, error: { code: "CONSENT_REQUIRED", message: "Privacy consent is required before using the assistant." } }, 422);
+      }
       const limit = await enforceMessageUsage(request, env);
       if (limit) return json(request, env, limit.payload, limit.status);
       const slot = await acquireConcurrencySlot(request, env);
@@ -413,7 +426,7 @@ async function deleteConversation(
 async function getAuditEvents(request: Request, env: Env, url: URL): Promise<AssistantHttpResult> {
   if (!env.AI_OPERATIONS_TOKEN)
     return { status: 404, payload: { success: false, error: "not_found" } };
-  if (request.headers.get("x-aether-operations-token") !== env.AI_OPERATIONS_TOKEN) {
+  if (!(await hasOperationsAccess(request, env))) {
     return { status: 403, payload: { success: false, error: "forbidden" } };
   }
   if (!env.DB)
@@ -828,10 +841,7 @@ async function persistConversationMessage(
   await env.DB.prepare(
     `insert into ai_conversations (id, session_hash, locale, status, metadata_json, expires_at, created_at, updated_at)
        values (?, ?, ?, 'active', ?, datetime('now', ?), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       on conflict(id) do update set
-         updated_at = CURRENT_TIMESTAMP,
-         locale = excluded.locale,
-         metadata_json = case when excluded.metadata_json != '{}' then excluded.metadata_json else metadata_json end`
+       on conflict(id) do nothing`
   )
     .bind(
       threadId,
@@ -841,6 +851,24 @@ async function persistConversationMessage(
       retentionModifier
     )
     .run();
+  const ownership = await env.DB.prepare(
+    `update ai_conversations set
+       updated_at = CURRENT_TIMESTAMP,
+       locale = ?,
+       metadata_json = case when ? != '{}' then ? else metadata_json end
+     where id = ? and session_hash = ?`
+  )
+    .bind(
+      locale,
+      JSON.stringify(conversationMetadata).slice(0, 1000),
+      JSON.stringify(conversationMetadata).slice(0, 1000),
+      threadId,
+      sessionHash
+    )
+    .run();
+  if ((ownership.meta.changes ?? 0) !== 1) {
+    throw new Error("conversation_ownership_mismatch");
+  }
   await env.DB.prepare(
     "insert into ai_messages (id, conversation_id, role, content_redacted, payload_json, created_at) values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
   )
@@ -1060,10 +1088,10 @@ async function extractSearchQuery(
     }
     const model = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
     const response = await fetchWithTimeout(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
         body: JSON.stringify({
           systemInstruction: {
             parts: [
@@ -1125,10 +1153,10 @@ async function composeEmptyResultReply(
     }
     const model = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
     const response = await fetchWithTimeout(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
         body: JSON.stringify({
           systemInstruction: {
             parts: [
@@ -2058,8 +2086,29 @@ function sse(event: string, data: unknown): Uint8Array {
 function json(request: Request, env: Env, payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders(request, env), "content-type": "application/json; charset=utf-8" }
+    headers: { ...corsHeaders(request, env), ...securityHeaders(), "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
   });
+}
+
+function securityHeaders(): Record<string, string> {
+  return {
+    "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    "strict-transport-security": "max-age=31536000; includeSubDomains",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()"
+  };
+}
+
+async function hasOperationsAccess(request: Request, env: Env): Promise<boolean> {
+  if (!env.AI_OPERATIONS_TOKEN) return false;
+  const provided = request.headers.get("x-aether-operations-token") || "";
+  const [providedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
+    crypto.subtle.digest("SHA-256", encoder.encode(env.AI_OPERATIONS_TOKEN))
+  ]);
+  return crypto.subtle.timingSafeEqual(providedHash, expectedHash);
 }
 
 function corsHeaders(request: Request, env: Env): Record<string, string> {

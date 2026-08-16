@@ -1,19 +1,35 @@
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { OBSERVABILITY_EVENTS } from "@aether/core";
+import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether/core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { buildClientVisibleContext, type AdminChatContext } from "../services/admin-chat/context";
 import { runAdminChatLoop, type LoopEvent } from "../services/admin-chat/loop";
 import { sse } from "../services/admin-chat/sse";
 import { claimPendingAction, resolvePendingAction } from "../services/admin-chat/pending-actions";
-import { ADMIN_CHAT_EXECUTORS } from "../services/admin-chat/registry";
+import { ADMIN_CHAT_EXECUTORS, ADMIN_CHAT_TOOLS_BY_NAME } from "../services/admin-chat/registry";
 import { ADMIN_CHAT_SYSTEM_PROMPT } from "../prompts/admin-chat-system-prompt";
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { getLogger } from "../services/observability";
 
 export const adminChatRoutes = new Hono<AppBindings>();
+
+const ADMIN_CHAT_ROLES = new Set(["support", "catalog_manager", "order_manager", "admin", "super_admin", "demo_viewer"]);
+
+const requireAdminChatAccess: MiddlewareHandler<AppBindings> = async (c, next) => {
+  const actor = c.get("actor");
+  if (!actor.userId) {
+    return fail(c, 401, "AUTH_REQUIRED", "Sign in before using Aether Admin Chat.");
+  }
+  if (!actor.roles.some((role) => ADMIN_CHAT_ROLES.has(role))) {
+    return fail(c, 403, "FORBIDDEN", "An administrative role is required for Aether Admin Chat.");
+  }
+  await next();
+};
+
+adminChatRoutes.use("*", requireAdminChatAccess);
 
 const chatMessageSchema = z.object({
   conversationId: z.string().min(1).optional(),
@@ -87,7 +103,7 @@ function inputTooLong(env: AppBindings["Bindings"], message: string): boolean {
 adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), async (c) => {
   const body = c.req.valid("json");
   const actor = c.get("actor");
-  const actorId = actor.userId ?? "admin";
+  const actorId = actor.userId!;
 
   if (inputTooLong(c.env, body.message)) {
     return fail(c, 422, "MESSAGE_TOO_LONG", "That message is too long.");
@@ -146,7 +162,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
 adminChatRoutes.post("/messages", zValidator("json", chatMessageSchema), async (c) => {
   const body = c.req.valid("json");
   const actor = c.get("actor");
-  const actorId = actor.userId ?? "admin";
+  const actorId = actor.userId!;
 
   if (inputTooLong(c.env, body.message)) {
     return fail(c, 422, "MESSAGE_TOO_LONG", "That message is too long.");
@@ -196,7 +212,7 @@ adminChatRoutes.get("/conversations/:id", async (c) => {
   const conversation = await c.env.DB.prepare("select id, actor_id, status, system_prompt_version, created_at from admin_chat_conversations where id = ?")
     .bind(c.req.param("id"))
     .first<ConversationRow & { created_at: string }>();
-  if (!conversation || conversation.actor_id !== (actor.userId ?? "admin")) {
+  if (!conversation || conversation.actor_id !== actor.userId) {
     return fail(c, 404, "CONVERSATION_NOT_FOUND", "Conversation not found.");
   }
   const messages = await c.env.DB.prepare(
@@ -222,19 +238,22 @@ adminChatRoutes.delete("/conversations/:id", async (c) => {
   const conversation = await c.env.DB.prepare("select actor_id from admin_chat_conversations where id = ?")
     .bind(c.req.param("id"))
     .first<{ actor_id: string }>();
-  if (!conversation || conversation.actor_id !== (actor.userId ?? "admin")) {
+  if (!conversation || conversation.actor_id !== actor.userId) {
     return fail(c, 404, "CONVERSATION_NOT_FOUND", "Conversation not found.");
   }
-  await c.env.DB.prepare("update admin_chat_conversations set status = 'archived', updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(c.req.param("id"))
-    .run();
-  return ok(c, { id: c.req.param("id"), status: "archived" });
+  const conversationId = c.req.param("id");
+  await c.env.DB.batch([
+    c.env.DB.prepare("delete from admin_chat_pending_actions where conversation_id = ?").bind(conversationId),
+    c.env.DB.prepare("delete from admin_chat_messages where conversation_id = ?").bind(conversationId),
+    c.env.DB.prepare("delete from admin_chat_conversations where id = ?").bind(conversationId)
+  ]);
+  return ok(c, { id: conversationId, status: "deleted" });
 });
 
 adminChatRoutes.post("/actions/:operationId/confirm", async (c) => {
   const operationId = c.req.param("operationId");
   const actor = c.get("actor");
-  const actorId = actor.userId ?? "admin";
+  const actorId = actor.userId!;
 
   const claim = await claimPendingAction(c.env, operationId, actorId);
 
@@ -248,6 +267,19 @@ adminChatRoutes.post("/actions/:operationId/confirm", async (c) => {
   }
 
   const { row } = claim;
+  const preparedTool = ADMIN_CHAT_TOOLS_BY_NAME[row.tool_name];
+  if (!preparedTool) {
+    await resolvePendingAction(c.env, operationId, { status: "failed", result: { code: "NO_TOOL", message: "This action has no tool definition." } });
+    return fail(c, 500, "NO_TOOL", "This action has no tool definition.");
+  }
+  if (preparedTool.requires?.permission && !hasPermission(actor, preparedTool.requires.permission)) {
+    await resolvePendingAction(c.env, operationId, { status: "failed", result: { code: "FORBIDDEN", message: "Your permission for this action is no longer valid." } });
+    return fail(c, 403, "FORBIDDEN", "Your permission for this action is no longer valid.");
+  }
+  if (preparedTool.requires?.mutation && (c.env.ADMIN_CHAT_MUTATIONS_ENABLED === "false" || isDemoMutationBlocked(actor, "POST"))) {
+    await resolvePendingAction(c.env, operationId, { status: "failed", result: { code: "MUTATIONS_DISABLED", message: "Mutations are disabled for this session." } });
+    return fail(c, 403, "MUTATIONS_DISABLED", "Mutations are disabled for this session.");
+  }
   const executor = ADMIN_CHAT_EXECUTORS[row.tool_name];
   if (!executor) {
     await resolvePendingAction(c.env, operationId, { status: "failed", result: { code: "NO_EXECUTOR", message: "This action has no executor." } });

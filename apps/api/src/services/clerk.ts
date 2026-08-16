@@ -4,6 +4,8 @@ import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 import { getLogger } from "./observability";
 
+const SVIX_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+
 export type ClerkEmailAddress = {
   id?: string;
   email_address?: string;
@@ -86,6 +88,12 @@ export async function verifyClerkSignature(
   body: string,
   headers: { svixId: string; svixTimestamp: string; svixSignature: string }
 ): Promise<boolean> {
+  const timestamp = Number(headers.svixTimestamp);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(timestamp) || Math.abs(now - timestamp) > SVIX_SIGNATURE_TOLERANCE_SECONDS) {
+    return false;
+  }
+
   const secretValue = secret.startsWith("whsec_") ? secret.slice(6) : secret;
   const secretBytes = base64Decode(secretValue);
   const signedContent = `${headers.svixId}.${headers.svixTimestamp}.${body}`;

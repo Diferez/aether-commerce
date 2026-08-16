@@ -33,7 +33,7 @@ async function sign(secret: string, svixId: string, svixTimestamp: string, body:
 describe("verifyClerkSignature", () => {
   const secret = `whsec_${btoa("a-test-signing-key-32-bytes-long")}`;
   const svixId = "msg_test123";
-  const svixTimestamp = "1700000000";
+  const svixTimestamp = String(Math.floor(Date.now() / 1000));
   const body = JSON.stringify({ type: "user.created", data: { id: "user_1" } });
 
   it("accepts a signature computed with the same secret", async () => {
