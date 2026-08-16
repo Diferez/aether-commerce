@@ -69,7 +69,9 @@ async function mockVerifiedActor(roles: string[], sub = "usr_1") {
 }
 
 // Same fake shape as services/admin-chat/loop.test.ts's fakeModel - one
-// array of AIMessageChunks per agent-node pass through the graph.
+// array of AIMessageChunks per agent-node pass through the graph. None of
+// these turns are complex enough (>1 tool call) to reach verifyNode's LLM
+// critic, so withStructuredOutput only needs to exist, never do anything.
 function fakeModel(turns: AIMessageChunk[][]) {
   let call = 0;
   return {
@@ -83,7 +85,8 @@ function fakeModel(turns: AIMessageChunk[][]) {
           for (const chunk of chunks) yield chunk;
         })();
       }
-    })
+    }),
+    withStructuredOutput: () => ({ invoke: () => Promise.resolve({ ok: true, feedback: "" }) })
   };
 }
 

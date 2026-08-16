@@ -31,12 +31,45 @@ function fakeBoundModel(turns: AIMessageChunk[][], onStream?: (messages: BaseMes
   };
 }
 
+// verifyNode's LLM critic reads this via model.withStructuredOutput(...) -
+// one queued verdict per critic invocation, defaulting to "ok" so tests
+// that don't care about the critic (single tool-call turns, where it never
+// even runs) don't need to supply anything.
+function fakeCriticModel(verdicts: { ok: boolean; feedback: string }[] = []) {
+  let call = 0;
+  return {
+    async invoke() {
+      await Promise.resolve();
+      const verdict = verdicts[call] ?? { ok: true, feedback: "" };
+      call += 1;
+      return verdict;
+    }
+  };
+}
+
 function fakeModel(
   turns: AIMessageChunk[][],
-  onStream?: (messages: BaseMessage[]) => void
+  onStream?: (messages: BaseMessage[]) => void,
+  criticVerdicts?: { ok: boolean; feedback: string }[]
 ): ReturnType<typeof AiProviderModule.resolveChatModel> {
-  return { bindTools: () => fakeBoundModel(turns, onStream) } as unknown as ReturnType<typeof AiProviderModule.resolveChatModel>;
+  return {
+    bindTools: () => fakeBoundModel(turns, onStream),
+    withStructuredOutput: () => fakeCriticModel(criticVerdicts)
+  } as unknown as ReturnType<typeof AiProviderModule.resolveChatModel>;
 }
+
+const productRow = (id: string) => ({
+  id,
+  name: `Product ${id}`,
+  sku: `SKU-${id}`,
+  category: "misc",
+  final_price_cents: 1000,
+  compare_at_price_cents: null,
+  stock: 5,
+  low_stock_threshold: 2,
+  visibility: "visible",
+  brand: null
+});
 
 describe("runAdminChatLoop", () => {
   it("treats a malicious instruction embedded in a tool result as plain data, not as a new instruction", async () => {
@@ -102,7 +135,8 @@ describe("runAdminChatLoop", () => {
         stream: () => {
           throw new Error("upstream failure");
         }
-      })
+      }),
+      withStructuredOutput: () => fakeCriticModel()
     } as unknown as ReturnType<typeof AiProviderModule.resolveChatModel>);
     const { env } = fakeEnv();
     const ctx = fakeContext(env);
@@ -129,6 +163,11 @@ describe("runAdminChatLoop", () => {
     }
   });
 
+  // This is the exact boundary verifyNode must respect: exactly one tool
+  // call happened, so the turn is not "complex" and the verifier must not
+  // intervene, even though the final text is empty - see the "retries
+  // once instead of completing in silence..." test below for the >1
+  // tool-call case where the same empty text IS treated as a failure.
   it("leaves finalMessage empty when a tool result already carried the answer, rather than forcing filler text", async () => {
     resolveChatModelMock.mockReturnValue(
       fakeModel([
@@ -145,6 +184,115 @@ describe("runAdminChatLoop", () => {
     expect(events.some((event) => event.type === "tool_result")).toBe(true);
     const completed = events.find((event) => event.type === "completed");
     expect(completed).toEqual({ type: "completed", finalMessage: "" });
+  });
+
+  it("retries once instead of completing in silence when a complex (multi tool-call) turn ends with no text", async () => {
+    // Reproduces a real production turn: several tool calls resolved fine,
+    // then the model's next pass had neither text nor a tool call and the
+    // turn ended in total silence - the operator's request was just
+    // dropped. verifyNode must catch this and give the model one more try.
+    const streamedMessages: BaseMessage[][] = [];
+    resolveChatModelMock.mockReturnValue(
+      fakeModel(
+        [
+          [
+            new AIMessageChunk({
+              content: "",
+              tool_calls: [
+                { name: "get_product_details", args: { productId: "prd_1" }, id: "call_1" },
+                { name: "get_product_details", args: { productId: "prd_2" }, id: "call_2" }
+              ]
+            })
+          ],
+          [new AIMessageChunk({ content: "" })],
+          [new AIMessageChunk({ content: "Done - handled both." })]
+        ],
+        (messages) => streamedMessages.push(messages)
+      )
+    );
+    const { env } = fakeEnv([{ first: productRow("prd_1") }, { first: productRow("prd_2") }]);
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [new HumanMessage("do both things")])) events.push(event);
+
+    expect(events.filter((event) => event.type === "tool_result")).toHaveLength(2);
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toMatchObject({ type: "completed", finalMessage: "Done - handled both." });
+
+    // The reviewer's nudge is a synthetic human turn fed back to the model,
+    // never surfaced to the operator as its own event.
+    const finalStream = streamedMessages.at(-1);
+    expect(finalStream?.some((message) => message instanceof HumanMessage && typeof message.content === "string" && message.content.startsWith("[reviewer]"))).toBe(true);
+  });
+
+  it("retries once when the critic rejects a complex turn's draft reply, then finalizes with the corrected answer", async () => {
+    const streamedMessages: BaseMessage[][] = [];
+    resolveChatModelMock.mockReturnValue(
+      fakeModel(
+        [
+          [
+            new AIMessageChunk({
+              content: "",
+              tool_calls: [
+                { name: "get_product_details", args: { productId: "prd_1" }, id: "call_1" },
+                { name: "get_product_details", args: { productId: "prd_2" }, id: "call_2" }
+              ]
+            })
+          ],
+          [new AIMessageChunk({ content: "Looked both up." })],
+          [new AIMessageChunk({ content: "Now actually done." })]
+        ],
+        (messages) => streamedMessages.push(messages),
+        [{ ok: false, feedback: "You still need to call the tool that completes the request." }]
+      )
+    );
+    const { env } = fakeEnv([{ first: productRow("prd_1") }, { first: productRow("prd_2") }]);
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [new HumanMessage("do both things")])) events.push(event);
+
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toMatchObject({ type: "completed", finalMessage: "Now actually done." });
+
+    const finalStream = streamedMessages.at(-1);
+    expect(
+      finalStream?.some(
+        (message) => message instanceof HumanMessage && typeof message.content === "string" && message.content.includes("You still need to call the tool")
+      )
+    ).toBe(true);
+  });
+
+  it("finalizes immediately with the original reply when the critic approves a complex turn", async () => {
+    resolveChatModelMock.mockReturnValue(
+      fakeModel(
+        [
+          [
+            new AIMessageChunk({
+              content: "",
+              tool_calls: [
+                { name: "get_product_details", args: { productId: "prd_1" }, id: "call_1" },
+                { name: "get_product_details", args: { productId: "prd_2" }, id: "call_2" }
+              ]
+            })
+          ],
+          [new AIMessageChunk({ content: "All good." })]
+        ],
+        undefined,
+        [{ ok: true, feedback: "" }]
+      )
+    );
+    const { env } = fakeEnv([{ first: productRow("prd_1") }, { first: productRow("prd_2") }]);
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [new HumanMessage("do both things")])) events.push(event);
+
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toMatchObject({ type: "completed", finalMessage: "All good." });
+    // No corrective note appears anywhere - the approved draft was never sent back.
+    expect(events.some((event) => event.type === "text_delta" && event.text.includes("[reviewer]"))).toBe(false);
   });
 
   it("streams text token-by-token as text_delta events, not as one block at the end", async () => {
