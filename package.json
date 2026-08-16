@@ -2,6 +2,7 @@
   "name": "aether-commerce",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "packageManager": "pnpm@8.15.9",
   "engines": {
