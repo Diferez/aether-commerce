@@ -61,10 +61,12 @@ Respond only through the structured schema you were given.`;
 // LangGraph node config carries a `writer` callback for "custom" stream
 // mode - verified live against the installed @langchain/langgraph version
 // that this, not @langchain/core's dispatchCustomEvent, is what actually
-// reaches a caller using streamMode:["updates","custom"] (dispatchCustomEvent
+// reaches a caller using streamMode including "custom" (dispatchCustomEvent
 // relies on a callback manager that isn't wired up in a bare graph.stream()
 // call here; config.writer is LangGraph's own native channel for exactly
-// this and needed no extra wiring).
+// this and needed no extra wiring). Only "status" events go through it now -
+// token streaming used to as well, replaced by streamMode:"messages" (see
+// runAdminChatLoop and agentNode below).
 type AdminChatNodeConfig = RunnableConfig & {
   configurable?: {
     // Primary first, then fallbacks - see ai-provider/index.ts's
@@ -99,6 +101,15 @@ async function invokeWithFallback<T>(candidates: T[] | undefined, call: (candida
 // graph step) and threaded in via configurable, the same way apps/
 // ai-assistant's buildModelInvoker avoids rebuilding + re-binding tools on
 // every pass through the agent<->tools loop.
+//
+// Still calls .stream() and accumulates chunks itself (rather than
+// .invoke()) to build the final message this node returns to graph state -
+// but no longer manually re-emits each chunk through config.writer. Token
+// deltas now reach the operator via LangGraph's own streamMode:"messages"
+// (see runAdminChatLoop), which - confirmed live against two real Gemini
+// calls, one through a plain node and one through a multi-node graph with a
+// second .invoke()-based model call - picks up every model invocation
+// inside a node automatically, no custom-event wiring needed at all.
 async function agentNode(
   state: AdminAgentStateType,
   config?: AdminChatNodeConfig
@@ -107,9 +118,6 @@ async function agentNode(
   const stream = (await invokeWithFallback(config?.configurable?.boundModels, (model) => model.stream(messages, config))) as AsyncIterable<AIMessageChunk>;
   let full: AIMessageChunk | undefined;
   for await (const chunk of stream) {
-    if (typeof chunk.content === "string" && chunk.content) {
-      config?.writer?.({ kind: "text_delta", text: chunk.content });
-    }
     full = full ? full.concat(chunk) : chunk;
   }
 
@@ -301,17 +309,37 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: BaseMess
   try {
     const stream = await adminAgentGraph.stream(
       { messages: history, data: { ctx, toolCallCount: 0, verifyRetries: 0 } },
-      { configurable: { boundModels, criticModels }, streamMode: ["updates", "custom"] }
+      { configurable: { boundModels, criticModels }, streamMode: ["updates", "custom", "messages"] }
     );
 
-    for await (const [mode, payload] of stream as AsyncIterable<["updates" | "custom", unknown]>) {
+    for await (const [mode, payload] of stream as AsyncIterable<["updates" | "custom" | "messages", unknown]>) {
       if (mode === "custom") {
         const event = payload as AdminChatCustomEvent;
-        if (event.kind === "text_delta") {
-          currentStepText += event.text;
-          yield { type: "text_delta", text: event.text };
-        } else if (event.kind === "status") {
+        if (event.kind === "status") {
           yield { type: "status", phase: event.phase };
+        }
+        continue;
+      }
+
+      // "messages" streams every genuine model call inside every node, not
+      // just agentNode's - confirmed live against a real Gemini call that
+      // verifyNode's critic (a plain .invoke(), not even .stream()) shows up
+      // here too, streaming its raw structured-output text chunk by chunk.
+      // Filtering by metadata.langgraph_node is what keeps that from ever
+      // reaching the operator as if it were the assistant's own reply.
+      // Deliberately no unit test for this exact leak: it only reproduces
+      // against a real network-backed model actually streaming a response -
+      // every offline fake tried (a plain object, and
+      // @langchain/core/testing's fakeModel().withStructuredOutput()) simply
+      // never emits a "messages" event for the critic's call at all, so a
+      // test built on either would pass whether or not this filter exists.
+      // The filter itself is still correct and required; it's just verified
+      // by that live spike, not by anything that runs in CI.
+      if (mode === "messages") {
+        const [chunk, metadata] = payload as [AIMessageChunk, { langgraph_node?: string }];
+        if (metadata?.langgraph_node === "agent" && typeof chunk.content === "string" && chunk.content) {
+          currentStepText += chunk.content;
+          yield { type: "text_delta", text: chunk.content };
         }
         continue;
       }

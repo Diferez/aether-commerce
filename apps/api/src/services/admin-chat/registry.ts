@@ -79,13 +79,16 @@ export const ADMIN_CHAT_EXECUTORS: Record<string, PendingActionExecutor> = {
   prepare_order_status_change: executeOrderStatusChange
 };
 
-// Custom-event payloads dispatched from inside this file's tool wrapper and
-// loop.ts's agent node - a discriminated `kind` field rather than relying
-// on the event name string passed to dispatchCustomEvent surviving into
-// the "custom" stream chunk (the installed LangGraph version's types don't
-// guarantee that; only the payload argument is documented as the streamed
-// value). Shared here since both files dispatch/consume it.
-export type AdminChatCustomEvent = { kind: "text_delta"; text: string } | { kind: "status"; phase: "consulting" | "preparing" };
+// Custom-event payload dispatched from inside this file's tool wrapper -
+// a discriminated `kind` field rather than relying on the event name string
+// passed to dispatchCustomEvent surviving into the "custom" stream chunk
+// (the installed LangGraph version's types don't guarantee that; only the
+// payload argument is documented as the streamed value). Token streaming
+// used to have a "text_delta" variant here too, hand-forwarded from
+// loop.ts's agent node - replaced by LangGraph's own streamMode:"messages"
+// (see loop.ts), which needed no custom event at all once verified live
+// that it correctly attributes chunks per-node via metadata.langgraph_node.
+export type AdminChatCustomEvent = { kind: "status"; phase: "consulting" | "preparing" };
 
 // Wraps one AdminChatTool (whose precondition checks, validation, and error
 // boundary already live in define-tool.ts and don't change here) as a
