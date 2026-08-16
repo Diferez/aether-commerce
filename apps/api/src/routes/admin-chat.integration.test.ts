@@ -95,6 +95,40 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
     vi.clearAllMocks();
   });
 
+  it("rejects anonymous callers before creating a conversation or invoking the model", async () => {
+    const { env, db } = fakeEnv();
+    const response = await worker.fetch(
+      chatRequest("/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.5" },
+        body: JSON.stringify({ message: "Show me all orders" })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(401);
+    expect(db.prepare).not.toHaveBeenCalled();
+    expect(resolveChatModelMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an authenticated customer without an administrative role", async () => {
+    await mockVerifiedActor(["customer"]);
+    const { env } = fakeEnv([{ first: null }]);
+    const response = await worker.fetch(
+      chatRequest("/messages", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "Show me all orders" })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(403);
+  });
+
   it("returns 404 when confirming an operationId that does not exist", async () => {
     await mockVerifiedActor(["admin"]);
     const { env } = fakeEnv([
@@ -135,6 +169,36 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
     // Only the suspension check + the single pending-action lookup ran - no
     // update/execute statement was issued for an already-confirmed action.
     expect(db.prepare).toHaveBeenCalledTimes(2);
+  });
+
+  it("revalidates current permissions before executing a previously prepared mutation", async () => {
+    await mockVerifiedActor(["support"], "usr_1");
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      {
+        first: {
+          id: "pact_revoked",
+          actor_id: "usr_1",
+          status: "pending",
+          result_json: null,
+          params_json: JSON.stringify({ orderId: "ord_1", fulfillmentStatus: "shipped" }),
+          diff_json: "{}",
+          tool_name: "prepare_order_status_change",
+          conversation_id: "conv_1",
+          expires_at: new Date(Date.now() + 60_000).toISOString()
+        }
+      },
+      { run: { changes: 1 } }, // atomic claim
+      { run: { changes: 1 } } // resolve as forbidden
+    ]);
+
+    const response = await worker.fetch(
+      chatRequest("/actions/pact_revoked/confirm", { method: "POST", token: "tok" }),
+      env,
+      ctx
+    );
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "FORBIDDEN" } });
   });
 
   it("surfaces a permission denial from a tool call all the way through the real HTTP path, without pretending anything happened", async () => {

@@ -38,20 +38,20 @@ webhookRoutes.post("/stripe", async (c) => {
         currency?: string;
         customer_details?: { email?: string };
         customer_email?: string;
-        metadata?: { cartId?: string; userId?: string };
+        metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
         payment_intent?: string;
       };
     };
   };
 
-  const { isNew } = await recordWebhookReceived(c.env, {
+  const { shouldProcess } = await recordWebhookReceived(c.env, {
     provider: "stripe",
     eventId: payload.id,
     requestId,
     summary: { id: payload.id, type: payload.type, objectId: payload.data?.object?.id }
   });
 
-  if (!isNew) {
+  if (!shouldProcess) {
     logger.info(OBSERVABILITY_EVENTS.webhookDuplicate, { requestId, webhookEventId: payload.id, metadata: { provider: "stripe", type: payload.type } });
     return ok(c, { received: true, type: payload.type, duplicate: true });
   }
@@ -115,14 +115,14 @@ webhookRoutes.post("/clerk", async (c) => {
 
   // svix-id is the stable per-delivery event id Svix guarantees is unique -
   // same idempotency role payload.id plays for Stripe events above.
-  const { isNew } = await recordWebhookReceived(c.env, {
+  const { shouldProcess } = await recordWebhookReceived(c.env, {
     provider: "clerk",
     eventId: svixId,
     requestId,
     summary: { type: payload.type, clerkUserId: payload.data?.id }
   });
 
-  if (!isNew) {
+  if (!shouldProcess) {
     logger.info(OBSERVABILITY_EVENTS.webhookDuplicate, { requestId, webhookEventId: svixId, metadata: { provider: "clerk", type: payload.type } });
     return ok(c, { received: true, type: payload.type, duplicate: true });
   }

@@ -13,14 +13,14 @@ const requiredRuntime = {
   NEXT_PUBLIC_AETHER_API_URL: "https://api.example.com",
   NEXT_PUBLIC_AETHER_AI_URL: "https://ai.example.com",
   NEXT_PUBLIC_PORTFOLIO_URL: "https://portfolio.example.com",
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_live_example",
   CLOUDFLARE_API_TOKEN: "cloudflare-token",
   CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
-  AETHER_CART_TOKEN_SECRET: "cart-secret",
-  CLERK_SECRET_KEY: "clerk-secret",
+  AETHER_CART_TOKEN_SECRET: "cart-secret-with-at-least-32-characters",
+  CLERK_SECRET_KEY: "sk_live_example",
   CLERK_JWT_ISSUER: "https://clerk.example.com",
   GEMINI_API_KEY: "gemini-key",
-  AI_OPERATIONS_TOKEN: "operations-token"
+  AI_OPERATIONS_TOKEN: "operations-token-with-at-least-32-chars"
 };
 
 test("validate includes Vitest and contract tests", () => {
@@ -57,6 +57,20 @@ test("CI builds and tests the Cloudflare LangGraph assistant", () => {
   assert.doesNotMatch(workflow, /docker build -t aether-ai-assistant/);
 });
 
+test("AI deployments receive only secrets used by the assistant Worker", () => {
+  for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
+    const workflow = read(`.github/workflows/${file}`);
+    const bulkSecretCommand = workflow
+      .split("\n")
+      .find((line) => line.includes("fs.writeFileSync('.ai-secrets.json'"));
+
+    assert.ok(bulkSecretCommand, `${file} must configure assistant secrets`);
+    assert.match(bulkSecretCommand, /GEMINI_API_KEY/);
+    assert.match(bulkSecretCommand, /AI_OPERATIONS_TOKEN/);
+    assert.doesNotMatch(bulkSecretCommand, /AETHER_CART_TOKEN_SECRET/);
+  }
+});
+
 test("runtime deployment preflight accepts a complete configuration", () => {
   const result = spawnSync(process.execPath, ["scripts/check-deploy-runtime.mjs"], {
     cwd: new URL("..", import.meta.url),
@@ -80,4 +94,21 @@ test("runtime deployment preflight names missing values", () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /GEMINI_API_KEY/);
+});
+
+test("runtime deployment preflight rejects Clerk development keys in production", () => {
+  const result = spawnSync(process.execPath, ["scripts/check-deploy-runtime.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...requiredRuntime,
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
+      CLERK_SECRET_KEY: "sk_test_example"
+    }
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /pk_live_/);
+  assert.match(result.stderr, /sk_live_/);
 });

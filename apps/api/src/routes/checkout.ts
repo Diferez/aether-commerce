@@ -9,6 +9,7 @@ import { createCheckoutSession, retrieveCheckoutSession } from "../services/stri
 import { createOrderFromStripeSession } from "../services/orders";
 import { verifyCartToken } from "../services/cart-token";
 import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations } from "../services/inventory";
+import { bindCheckoutSnapshotToSession, createCheckoutSnapshot } from "../services/checkout-snapshots";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -39,7 +40,14 @@ checkoutRoutes.post(
       const checkoutCart = await writeCart(c.env, { ...cart, userId: actor.userId });
       await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const customerEmail = await resolveActorEmail(c.env, actor);
-      return ok(c, await createCheckoutSession(c.env, checkoutCart, customerEmail), 201);
+      const snapshot = c.env.STRIPE_SECRET_KEY
+        ? await createCheckoutSnapshot(c.env, checkoutCart, actor.userId)
+        : undefined;
+      const session = await createCheckoutSession(c.env, checkoutCart, customerEmail, snapshot?.id);
+      if (snapshot && "sessionId" in session) {
+        await bindCheckoutSnapshotToSession(c.env, snapshot.id, session.sessionId);
+      }
+      return ok(c, { checkoutUrl: session.checkoutUrl }, 201);
     } catch {
       return fail(
         c,

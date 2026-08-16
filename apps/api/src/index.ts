@@ -20,11 +20,15 @@ import { healthRoutes } from "./routes/health";
 import { clerkPublishableKey, publicRoutes } from "./routes/public";
 import { userRoutes } from "./routes/user";
 import { webhookRoutes } from "./routes/webhooks";
-import { getStripeSecretKeyStatus } from "./services/stripe";
 import { buildSentryOptions, getLogger } from "./services/observability";
 import { recordTaskRun } from "./services/metrics";
 
 const app = new Hono<AppBindings>();
+
+function retentionDays(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(730, Math.max(7, Math.round(parsed))) : fallback;
+}
 
 // app.onError, not app.use("*", ...) - Hono's compose() resolves a thrown
 // error via the app's registered error handler at the innermost dispatch
@@ -60,22 +64,12 @@ api.get("/health", async (c) => {
     });
     return fail(c, 503, "SERVICE_UNAVAILABLE", "The API is not ready to serve traffic.", {
       status: "degraded",
-      environment: c.env.AETHER_ENV ?? "development",
-      checks: { d1: "error" },
       time
     });
   }
 
   return ok(c, {
     status: "ok",
-    environment: c.env.AETHER_ENV ?? "development",
-    checks: {
-      d1: "ok",
-      catalogSource: "local",
-      stripeSandboxConfigured: Boolean(c.env.STRIPE_SECRET_KEY),
-      stripeSecretKeyStatus: getStripeSecretKeyStatus(c.env.STRIPE_SECRET_KEY),
-      resendConfigured: Boolean(c.env.RESEND_API_KEY)
-    },
     time
   });
 });
@@ -109,11 +103,24 @@ export default withSentry(buildSentryOptions, {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx must be declared so withSentry's real 3-arg ExecutionContext type is preserved (see index.test.ts)
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext) {
     try {
-      await env.DB.prepare(
-        "update inventory_reservations set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at < ?"
-      )
-        .bind(new Date().toISOString())
-        .run();
+      const metricsDays = retentionDays(env.HEALTH_METRICS_RETENTION_DAYS, 90);
+      await env.DB.batch([
+        env.DB.prepare(
+          "update inventory_reservations set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at < ?"
+        ).bind(new Date().toISOString()),
+        env.DB.prepare("update checkout_snapshots set status = 'expired', updated_at = CURRENT_TIMESTAMP where status = 'active' and expires_at <= CURRENT_TIMESTAMP"),
+        env.DB.prepare("delete from checkout_snapshots where status != 'active' and updated_at <= datetime('now', '-30 days')"),
+        env.DB.prepare("delete from webhook_events where created_at <= datetime('now', '-90 days')"),
+        env.DB.prepare("delete from operational_metrics where created_at <= datetime('now', ?)").bind(`-${metricsDays} days`),
+        env.DB.prepare("delete from audit_logs where created_at <= datetime('now', '-365 days')"),
+        env.DB.prepare(
+          "delete from admin_chat_pending_actions where conversation_id in (select id from admin_chat_conversations where updated_at <= datetime('now', '-30 days'))"
+        ),
+        env.DB.prepare(
+          "delete from admin_chat_messages where conversation_id in (select id from admin_chat_conversations where updated_at <= datetime('now', '-30 days'))"
+        ),
+        env.DB.prepare("delete from admin_chat_conversations where updated_at <= datetime('now', '-30 days')")
+      ]);
       // "System health" reads this back to flag a critical task that's gone
       // stale (see health-status.ts's scheduledTasks component) - recorded
       // regardless of whether any row actually needed expiring.

@@ -20,7 +20,7 @@ export type StripeCheckoutSession = {
   currency?: string;
   customer_details?: { email?: string };
   customer_email?: string;
-  metadata?: { cartId?: string; userId?: string };
+  metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
   payment_intent?: string;
 };
 
@@ -74,7 +74,7 @@ function storefrontUrl(origin: string, basePath: string | undefined, path: strin
   return `${normalizedOrigin}${normalizedBasePath === "/" ? "" : normalizedBasePath}${normalizedPath}`;
 }
 
-export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string) {
+export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string, checkoutSnapshotId?: string) {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
     checkoutUrl: storefrontUrl(
@@ -100,6 +100,9 @@ export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?
   );
   params.set("cancel_url", storefrontUrl(origin, env.APP_STORE_BASE_PATH, "/cart?checkout=cancelled"));
   params.set("metadata[cartId]", cart.id);
+  if (checkoutSnapshotId) {
+    params.set("metadata[checkoutSnapshotId]", checkoutSnapshotId);
+  }
   if (cart.userId) {
     params.set("metadata[userId]", cart.userId);
   }
@@ -156,11 +159,17 @@ export async function createCheckoutSession(env: Env, cart: Cart, customerEmail?
   }
 
   const payload: unknown = await response.json();
-  const checkoutUrl =
-    payload && typeof payload === "object" && "url" in payload && typeof payload.url === "string"
-      ? payload.url
-      : storefrontUrl(origin, env.APP_STORE_BASE_PATH, "/cart?checkout=missing-url");
-  return { checkoutUrl };
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("id" in payload) ||
+    typeof payload.id !== "string" ||
+    !("url" in payload) ||
+    typeof payload.url !== "string"
+  ) {
+    throw new PaymentError("Stripe returned an incomplete checkout session", { code: "PAYMENT_SESSION_INVALID" });
+  }
+  return { checkoutUrl: payload.url, sessionId: payload.id };
 }
 
 export async function retrieveCheckoutSession(env: Env, sessionId: string): Promise<StripeCheckoutSession> {

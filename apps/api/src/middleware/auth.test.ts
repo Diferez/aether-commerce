@@ -136,7 +136,7 @@ describe("auth middleware", () => {
     expect(captured).toMatchObject({ userId: "usr_1", roles: ["admin"], mode: "private" });
   });
 
-  it("keeps admin roles when the suspension lookup itself throws (fail-open on D1 error)", async () => {
+  it("downgrades to guest when the suspension lookup itself throws (fail-closed on D1 error)", async () => {
     const jose = await import("jose");
     vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
       payload: { sub: "usr_1", public_metadata: { roles: ["admin"] } }
@@ -162,6 +162,50 @@ describe("auth middleware", () => {
     } as unknown as MiddlewareContext;
     await middleware(context, async () => {});
 
+    expect(captured).toMatchObject({ roles: ["guest"], mode: "public" });
+  });
+
+  it("rejects a verified token whose azp is outside the configured application origins", async () => {
+    const jose = await import("jose");
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: { sub: "usr_1", azp: "https://attacker.example", public_metadata: { roles: ["admin"] } }
+    } as never);
+
+    const middleware = auth();
+    let captured: unknown;
+    const context = {
+      req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
+      env: {
+        CLERK_JWT_ISSUER: "https://clerk.example.com",
+        APP_ORIGIN_STORE: "https://store.example.com",
+        APP_ORIGIN_ADMIN: "https://admin.example.com"
+      },
+      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+    } as unknown as MiddlewareContext;
+
+    await middleware(context, async () => {});
+    expect(captured).toMatchObject({ roles: ["guest"], mode: "public" });
+  });
+
+  it("accepts a verified token whose azp matches a configured application origin", async () => {
+    const jose = await import("jose");
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: { sub: "usr_1", azp: "https://admin.example.com", public_metadata: { roles: ["admin"] } }
+    } as never);
+
+    const middleware = auth();
+    let captured: unknown;
+    const context = {
+      req: { header: () => "Bearer valid-token", path: "/api/v1/admin/products" },
+      env: {
+        CLERK_JWT_ISSUER: "https://clerk.example.com",
+        APP_ORIGIN_STORE: "https://store.example.com",
+        APP_ORIGIN_ADMIN: "https://admin.example.com"
+      },
+      set: (key: string, value: unknown) => key === "actor" && (captured = value)
+    } as unknown as MiddlewareContext;
+
+    await middleware(context, async () => {});
     expect(captured).toMatchObject({ userId: "usr_1", roles: ["admin"], mode: "private" });
   });
 });

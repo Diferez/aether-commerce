@@ -1,10 +1,10 @@
 import type { Cart, CartItem } from "@aether/schemas";
 import { OBSERVABILITY_EVENTS } from "@aether/core";
 import type { Env } from "../types";
-import { readCart } from "./cart";
 import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
 import { getLogger } from "./observability";
+import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
 
 type StripeCheckoutSession = {
   id: string;
@@ -18,6 +18,7 @@ type StripeCheckoutSession = {
   metadata?: {
     cartId?: string;
     userId?: string;
+    checkoutSnapshotId?: string;
   };
   payment_intent?: string;
 };
@@ -44,10 +45,14 @@ async function readOrderBySession(env: Env, sessionId: string) {
     .first<{ payload_json: string }>();
 }
 
-async function markCartPaid(env: Env, cart: Cart) {
-  await env.DB.prepare("update carts set payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(JSON.stringify({ ...cart, items: [], totals: { ...cart.totals, subtotal: 0, discount: 0, tax: 0, total: 0 } }), cart.id)
-    .run();
+function clearCartIfUnchangedStatement(env: Env, cart: Cart, originalPayloadJson: string) {
+  return env.DB.prepare(
+    "update carts set payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ? and payload_json = ?"
+  ).bind(
+    JSON.stringify({ ...cart, items: [], totals: { ...cart.totals, subtotal: 0, discount: 0, tax: 0, total: 0 } }),
+    cart.id,
+    originalPayloadJson
+  );
 }
 
 export async function createOrderFromStripeSession(env: Env, session: StripeCheckoutSession) {
@@ -56,24 +61,45 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     return { order: JSON.parse(existing.payload_json) as Record<string, unknown>, created: false };
   }
 
-  if (session.payment_status && session.payment_status !== "paid") {
+  if (session.payment_status !== "paid") {
     throw new Error("Stripe session is not paid");
   }
 
   const cartId = session.metadata?.cartId;
-  if (!cartId) {
-    throw new Error("Stripe session is missing cartId metadata");
+  const snapshotId = session.metadata?.checkoutSnapshotId;
+  if (!cartId || !snapshotId) {
+    throw new Error("Stripe session is missing immutable checkout metadata");
   }
 
-  const cart = await readCart(env, cartId);
+  const snapshot = await loadCheckoutSnapshot(env, snapshotId);
+  if (!snapshot || snapshot.status !== "active") {
+    throw new Error("Checkout snapshot is missing or no longer active");
+  }
+  if (Date.parse(snapshot.expiresAt) <= Date.now()) {
+    throw new Error("Checkout snapshot has expired");
+  }
+  if (snapshot.providerSessionId && snapshot.providerSessionId !== session.id) {
+    throw new Error("Checkout snapshot belongs to a different Stripe session");
+  }
+  if (snapshot.cartId !== cartId || snapshot.userId !== session.metadata?.userId) {
+    throw new Error("Stripe checkout metadata does not match the immutable snapshot");
+  }
+  if (session.amount_total !== snapshot.amountTotal) {
+    throw new Error("Stripe checkout amount does not match the immutable snapshot");
+  }
+  if (!session.currency || session.currency.toUpperCase() !== snapshot.currency) {
+    throw new Error("Stripe checkout currency does not match the immutable snapshot");
+  }
+
+  const cart = snapshot.cart;
   if (cart.items.length === 0) {
-    throw new Error("Cart is empty or already cleared");
+    throw new Error("Checkout snapshot is empty");
   }
 
   const email = session.customer_details?.email ?? session.customer_email ?? "customer@example.com";
   const now = new Date().toISOString();
-  const total = session.amount_total ?? cart.totals.total;
-  const currency = (session.currency ?? cart.totals.currency).toUpperCase();
+  const total = snapshot.amountTotal;
+  const currency = snapshot.currency;
   const order = {
     id: `ord_${session.id}`,
     number: orderNumber(session.id),
@@ -153,10 +179,11 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
       ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
     ),
     ...buildStockDecrementStatements(env, stockItems, { actorId: "stripe", requestId: session.id, reason: `order:${order.id}` }),
-    convertCartReservations(env, cartId)
+    convertCartReservations(env, cartId),
+    completeCheckoutSnapshotStatement(env, snapshot.id, session.id),
+    clearCartIfUnchangedStatement(env, cart, snapshot.cartPayloadJson)
   ]);
 
-  await markCartPaid(env, cart);
   await clearCatalogCache(env);
 
   return { order, created: true };

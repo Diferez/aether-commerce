@@ -22,6 +22,11 @@ vi.mock("./inventory", () => ({
   convertCartReservations: vi.fn(() => ({ __mockStatement: "convert" }))
 }));
 
+vi.mock("./checkout-snapshots", () => ({
+  loadCheckoutSnapshot: vi.fn(),
+  completeCheckoutSnapshotStatement: vi.fn(() => ({ __mockStatement: "complete-snapshot" }))
+}));
+
 type QueuedResponse = { first?: unknown; all?: unknown[] };
 
 function fakeEnv(responses: QueuedResponse[] = []) {
@@ -67,6 +72,33 @@ function fakeCart(overrides: Partial<Cart> = {}): Cart {
     ],
     totals: { subtotal: 3800, discount: 0, shipping: 0, tax: 0, total: 3800, currency: "USD" },
     updatedAt: new Date().toISOString(),
+    ...overrides
+  };
+}
+
+async function mockActiveSnapshot(cart = fakeCart()) {
+  const { loadCheckoutSnapshot } = await import("./checkout-snapshots");
+  vi.mocked(loadCheckoutSnapshot).mockResolvedValueOnce({
+    id: "chk_1",
+    cartId: cart.id,
+    userId: "usr_1",
+    cart,
+    cartPayloadJson: JSON.stringify(cart),
+    amountTotal: cart.totals.total,
+    currency: cart.totals.currency,
+    status: "active",
+    providerSessionId: "cs_1",
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  });
+}
+
+function paidSession(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "cs_1",
+    payment_status: "paid",
+    amount_total: 3800,
+    currency: "usd",
+    metadata: { cartId: "cart_1", userId: "usr_1", checkoutSnapshotId: "chk_1" },
     ...overrides
   };
 }
@@ -213,12 +245,10 @@ describe("createManualOrder", () => {
 
 describe("createOrderFromStripeSession", () => {
   it("short-circuits on an existing order without decrementing stock again (idempotency)", async () => {
-    const { readCart } = await import("./cart");
     const { buildStockDecrementStatements } = await import("./inventory");
-    vi.mocked(readCart).mockResolvedValueOnce(fakeCart());
 
     const { env, db } = fakeEnv([{ first: { payload_json: JSON.stringify({ id: "ord_cs_1" }) } }]);
-    const result = await createOrderFromStripeSession(env, { id: "cs_1", payment_status: "paid", metadata: { cartId: "cart_1" } });
+    const result = await createOrderFromStripeSession(env, paidSession());
 
     expect(result.created).toBe(false);
     expect(db.batch).not.toHaveBeenCalled();
@@ -226,17 +256,12 @@ describe("createOrderFromStripeSession", () => {
   });
 
   it("decrements stock, converts reservations, and clears the catalog cache on real creation", async () => {
-    const { readCart } = await import("./cart");
     const { clearCatalogCache } = await import("./catalog");
     const { buildStockDecrementStatements, convertCartReservations } = await import("./inventory");
-    vi.mocked(readCart).mockResolvedValueOnce(fakeCart());
+    await mockActiveSnapshot();
 
     const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
-    const result = await createOrderFromStripeSession(env, {
-      id: "cs_1",
-      payment_status: "paid",
-      metadata: { cartId: "cart_1" }
-    });
+    const result = await createOrderFromStripeSession(env, paidSession());
 
     expect(result.created).toBe(true);
     expect(buildStockDecrementStatements).toHaveBeenCalledWith(
@@ -249,22 +274,38 @@ describe("createOrderFromStripeSession", () => {
   });
 
   it("skips stock/movement bookkeeping for a cart item whose product was deleted, without failing order creation", async () => {
-    const { readCart } = await import("./cart");
     const { buildStockDecrementStatements } = await import("./inventory");
-    vi.mocked(readCart).mockResolvedValueOnce(fakeCart());
+    await mockActiveSnapshot();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // sku lookup returns zero rows - the cart's one product is "missing"
     const { env } = fakeEnv([{ first: null }, { all: [] }]);
-    const result = await createOrderFromStripeSession(env, {
-      id: "cs_1",
-      payment_status: "paid",
-      metadata: { cartId: "cart_1" }
-    });
+    const result = await createOrderFromStripeSession(env, paidSession());
 
     expect(result.created).toBe(true);
     expect(buildStockDecrementStatements).toHaveBeenCalledWith(env, [], expect.any(Object));
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it("rejects a paid session whose amount differs from the immutable snapshot", async () => {
+    await mockActiveSnapshot();
+    const { env } = fakeEnv([{ first: null }]);
+    await expect(createOrderFromStripeSession(env, paidSession({ amount_total: 1 }))).rejects.toThrow(
+      "amount does not match"
+    );
+  });
+
+  it("rejects legacy sessions without immutable checkout metadata", async () => {
+    const { env } = fakeEnv([{ first: null }]);
+    await expect(
+      createOrderFromStripeSession(env, {
+        id: "cs_legacy",
+        payment_status: "paid",
+        amount_total: 3800,
+        currency: "usd",
+        metadata: { cartId: "cart_1", userId: "usr_1" }
+      })
+    ).rejects.toThrow("immutable checkout metadata");
   });
 });

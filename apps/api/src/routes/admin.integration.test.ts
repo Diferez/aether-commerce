@@ -72,7 +72,7 @@ function adminRequest(path: string, init: RequestInit & { token?: string } = {})
 async function mockVerifiedActor(roles: string[], sub = "usr_1") {
   const jose = await import("jose");
   vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
-    payload: { sub, public_metadata: { roles } }
+    payload: { sub, azp: "https://admin.example.com", public_metadata: { roles } }
   } as never);
 }
 
