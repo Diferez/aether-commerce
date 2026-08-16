@@ -45,6 +45,15 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
     CLERK_JWT_ISSUER: "https://clerk.test",
     GEMINI_API_KEY: "test-key",
     ADMIN_CHAT_MUTATIONS_ENABLED: "true",
+    // Keep D1 call-count assertions deterministic - without this,
+    // latencySampling's real 5% default sample rate makes recordLatencySample
+    // roll Math.random() on every request and occasionally add 2 extra
+    // db.prepare calls (its two incrementMetric writes), which is exactly
+    // what flush() (see fakeCtx() below) now faithfully surfaces instead of
+    // silently dropping. Latency sampling itself is covered separately by
+    // latency-sampling.test.ts. Same fix already applied in the sibling
+    // admin.integration.test.ts's fakeEnv.
+    PERFORMANCE_SAMPLE_RATE: "0",
     ...overrides
   } as unknown as Env;
   return { env, db, statements };
