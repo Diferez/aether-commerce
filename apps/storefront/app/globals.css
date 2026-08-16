@@ -208,9 +208,22 @@ textarea {
   background-color: var(--color-accent) !important;
 }
 
-.hover\:bg-zinc-800:hover,
-.hover\:bg-zinc-100:hover {
+/* hover:bg-zinc-800 always pairs with a bg-zinc-950 primary button (see the
+   bg-zinc-950 -> --color-accent repaint above), so its hover state repaints
+   to the matching --color-accent-hover. hover:bg-zinc-100 is a different
+   pattern entirely - every real usage pairs it with text-zinc-700 on a
+   light/bordered secondary or icon button (quantity steppers, remove
+   buttons) expecting a subtle gray hover, so it must repaint to the same
+   --color-surface-hover its non-hover sibling (.bg-zinc-100 above) uses.
+   Bundling both under --color-accent-hover made every one of those buttons
+   flip to a purple background while its text stayed the muted gray color,
+   which is unreadable - that's the bug this split fixes. */
+.hover\:bg-zinc-800:hover {
   background-color: var(--color-accent-hover) !important;
+}
+
+.hover\:bg-zinc-100:hover {
+  background-color: var(--color-surface-hover) !important;
 }
 
 .bg-zinc-700 {

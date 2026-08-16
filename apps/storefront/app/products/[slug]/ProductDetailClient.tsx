@@ -3,13 +3,12 @@
 import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { useRouter } from "next/navigation";
 import { Heart, MessageCircle, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { BrandSettings } from "@aether/core";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
 import { Badge, Button } from "@aether/ui";
-import { apiBaseUrl, storefrontPath } from "../../../components/config";
+import { apiBaseUrl } from "../../../components/config";
 import { addProductToCart } from "../../../components/cart-client";
 import { useCustomerSession } from "../../../components/customer-client";
 import { demoProducts } from "../../../components/demo-products";
@@ -22,7 +21,6 @@ import { buildProductWhatsappMessage, buildWhatsappUrl } from "../../../componen
 
 export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
-  const router = useRouter();
   const { customer } = useCustomerSession();
   const productWindowRef = useRef<HTMLDivElement | null>(null);
   const fallback = useMemo(() => demoProducts.find((candidate) => candidate.slug === slug) ?? null, [slug]);
@@ -131,7 +129,10 @@ export function ProductDetailClient({ slug }: { slug: string }) {
       for (let i = 0; i < quantity; i += 1) {
         await addProductToCart(product);
       }
-      router.push(storefrontPath("/cart"));
+      // Open the quick-view drawer instead of navigating to /cart - confirms
+      // the add without pulling the shopper off the product page they're
+      // browsing.
+      window.dispatchEvent(new Event("aether-open-cart"));
     } finally {
       setIsAdding(false);
     }

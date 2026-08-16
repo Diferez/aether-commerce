@@ -250,6 +250,16 @@ export function SiteHeader() {
         </button>
         <StorefrontLink
           href="/cart"
+          onClick={(event) => {
+            // With items, open the quick-view drawer (FloatingCart) instead
+            // of navigating away - keeps the shopper on the page they're
+            // browsing. An empty cart has nothing to show there, so this
+            // falls through to the normal /cart navigation instead.
+            if (cartCount > 0) {
+              event.preventDefault();
+              window.dispatchEvent(new Event("aether-open-cart"));
+            }
+          }}
           className="focus-ring relative inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-ink hover:bg-surface-hover md:hidden"
           aria-label={t.cart}
         >

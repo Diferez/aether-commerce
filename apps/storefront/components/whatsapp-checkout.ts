@@ -11,11 +11,12 @@ export function buildWhatsappUrl(phone: string, message: string): string {
   return `https://wa.me/${digitsOnly}?text=${encodeURIComponent(message)}`;
 }
 
-export function buildCartWhatsappMessage(
-  cart: Cart,
-  locale: "en" | "es",
-  storeUrl: string
-): string {
+// No store URL appended here (unlike buildProductWhatsappMessage below): the
+// cart lives in the shopper's local storage, so a link to /cart/ would open
+// to an empty cart in the store owner's own browser, not the shopper's -
+// useless at best, confusing at worst. The itemized list and total below are
+// the only thing the owner actually needs, and they're already inline.
+export function buildCartWhatsappMessage(cart: Cart, locale: "en" | "es"): string {
   const numberLocale = locale === "es" ? "es-CO" : "en-US";
   const lines = cart.items.map(
     (item) =>
@@ -26,14 +27,13 @@ export function buildCartWhatsappMessage(
       ? "Hola, me gustaria comprar estos productos:"
       : "Hi, I would like to buy these products:";
   const totalLabel = locale === "es" ? "Total" : "Total";
-  return [
-    header,
-    "",
-    ...lines,
-    "",
-    `${totalLabel}: ${formatUsd(cart.totals.total, numberLocale)}`,
-    storeUrl
-  ].join("\n");
+  return [header, "", ...lines, "", `${totalLabel}: ${formatUsd(cart.totals.total, numberLocale)}`].join("\n");
+}
+
+export function buildInquiryWhatsappMessage(locale: "en" | "es"): string {
+  return locale === "es"
+    ? "Hola, me gustaria consultar informacion sobre sus productos."
+    : "Hi, I would like to ask about your products.";
 }
 
 export function buildProductWhatsappMessage(
