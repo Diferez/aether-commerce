@@ -57,7 +57,8 @@ export const openOrderTool = defineAdminChatTool({
   schema: z.object({ orderId: z.string().min(1) }),
   requires: { permission: "orders.read" },
   run: async (args, ctx) => {
-    const row = await ctx.env.DB.prepare("select id, number from orders where id = ? or number = ?")
+    // number matched case-insensitively - see orders.ts's loadOrderRow.
+    const row = await ctx.env.DB.prepare("select id, number from orders where id = ? or upper(number) = upper(?)")
       .bind(args.orderId, args.orderId)
       .first<{ id: string; number: string }>();
     if (!row) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };

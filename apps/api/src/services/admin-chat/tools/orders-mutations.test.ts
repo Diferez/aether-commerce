@@ -3,6 +3,23 @@ import { executeOrderStatusChange, prepareOrderStatusChangeTool } from "./orders
 import { fakeContext, fakeEnv } from "../test-support";
 
 describe("prepareOrderStatusChangeTool", () => {
+  // Real bug found live: this exact tool hit ORDER_NOT_FOUND on a real
+  // "Pásalas a procesando" turn, right after get_pending_orders had just
+  // listed the same order by number - the model's retyped number argument
+  // most likely drifted in case, which the old exact `number = ?` match had
+  // no tolerance for. Pins that loadOrderFulfillment's query now falls back
+  // to a case-insensitive number match too.
+  it("resolves the order by number case-insensitively, not just an exact match", async () => {
+    const { env, statements } = fakeEnv([{ first: { id: "ord_1", number: "AETH-1", fulfillment_status: "delivered", stock_restored_at: null } }]);
+    const ctx = fakeContext(env);
+
+    await prepareOrderStatusChangeTool.run({ orderId: "aeth-1", fulfillmentStatus: "processing" }, ctx);
+
+    const orderLookup = statements.find((statement) => statement.sql.includes("from orders where"));
+    expect(orderLookup?.sql).toMatch(/upper\(number\)\s*=\s*upper\(\?\)/i);
+    expect(orderLookup?.args).toEqual(["aeth-1", "aeth-1"]);
+  });
+
   it("refuses an order transition the fulfillment state machine does not allow, and explains the real options instead of creating a pending action", async () => {
     const { env, db } = fakeEnv([{ first: { id: "ord_1", number: "AETH-1", fulfillment_status: "delivered", stock_restored_at: null } }]);
     const ctx = fakeContext(env);

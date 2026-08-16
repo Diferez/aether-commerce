@@ -63,6 +63,24 @@ describe("getProductDetailsTool", () => {
     expect(result.artifact).toEqual({ type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." });
   });
 
+  // Real bug found live: search_products/summarizeProductsForModel only
+  // ever tell the model a product's SKU, never its internal id - but the
+  // underlying lookup (getProductRow) used to match only `id = ?`, so a
+  // follow-up get_product_details call using the SKU the model was
+  // actually given failed every time, not just on a casing mismatch. This
+  // pins that getProductRow's query now falls back to a case-insensitive
+  // SKU match too.
+  it("resolves a product by SKU, case-insensitively, not just by internal id", async () => {
+    const { env, statements } = fakeEnv([{ first: PRODUCT_ROW }]);
+    const ctx = fakeContext(env);
+
+    await getProductDetailsTool.run({ productId: "sku-a" }, ctx);
+
+    const productLookup = statements.find((statement) => statement.sql.includes("from products where"));
+    expect(productLookup?.sql).toMatch(/upper\(sku\)\s*=\s*upper\(\?\)/i);
+    expect(productLookup?.args).toEqual(["sku-a", "sku-a"]);
+  });
+
   it("returns full product_detail including stock threshold and brand", async () => {
     const { env } = fakeEnv([{ first: PRODUCT_ROW }]);
     const ctx = fakeContext(env);

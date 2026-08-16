@@ -11,9 +11,15 @@ import type { PendingActionExecutor } from "../executors";
 
 const FULFILLMENT_STATUSES = ["unfulfilled", "processing", "shipped", "delivered", "cancelled"] as const;
 
+// number matched case-insensitively - see the identical comment on
+// orders.ts's loadOrderRow. Confirmed live: prepare_order_status_change was
+// the tool that first hit ORDER_NOT_FOUND on a real "Pásalas a procesando"
+// turn, immediately after get_pending_orders had just listed the same
+// order by number - the model's retyped argument almost certainly drifted
+// in case, which this exact-match query had no tolerance for.
 async function loadOrderFulfillment(db: D1Database, orderIdOrNumber: string) {
   return db
-    .prepare("select id, number, fulfillment_status, stock_restored_at from orders where id = ? or number = ?")
+    .prepare("select id, number, fulfillment_status, stock_restored_at from orders where id = ? or upper(number) = upper(?)")
     .bind(orderIdOrNumber, orderIdOrNumber)
     .first<{ id: string; number: string; fulfillment_status: string; stock_restored_at: string | null }>();
 }

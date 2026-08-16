@@ -175,8 +175,17 @@ export async function getCustomerDetail(env: Env, id: string): Promise<AdminCust
     };
   }
 
-  const user = await env.DB.prepare("select id, name, email, roles_json, status, created_at from users where id = ?")
-    .bind(id)
+  // email matched too, case-insensitively - admin-chat's own
+  // summarizeCustomersForModel (services/admin-chat/tools/customers.ts) only
+  // ever shows the model a customer's name and email, never their internal
+  // id, so a bare `id = ?` made a follow-up get_customer_details call fail
+  // every time for anyone the model only knows by name/email (the guest
+  // branch above already tolerates this via its own email lookup - this is
+  // the same accommodation for a registered user). Mirrors the identical fix
+  // applied to orders' loadOrderRow and products' getProductRow after a live
+  // ORDER_NOT_FOUND failure traced to this exact identifier gap.
+  const user = await env.DB.prepare("select id, name, email, roles_json, status, created_at from users where id = ? or lower(email) = lower(?)")
+    .bind(id, id)
     .first<{ id: string; name: string | null; email: string; roles_json: string; status: string; created_at: string }>();
   if (!user) {
     return null;

@@ -151,10 +151,19 @@ export function summarizeOrdersForModel(orders: OrderSummaryArtifact[]): string 
     .join("\n");
 }
 
+// number matched case-insensitively, id left exact: search_orders' own
+// lookup (queryOrders below) matches via SQL LIKE, which SQLite treats as
+// case-insensitive for ASCII by default - so a model that retypes an order
+// number with different casing (a real, observed failure: "AETH-A1AAOIPCWY"
+// reconstructed as a tool-call argument rather than copied byte-for-byte)
+// finds it fine via search_orders but got ORDER_NOT_FOUND here and in
+// prepare_order_status_change/open_order, which used a case-sensitive `=`.
+// Order numbers are generated uppercase and never collide case-insensitively,
+// so this loses no precision - it only accepts what should already match.
 async function loadOrderRow(db: D1Database, orderIdOrNumber: string) {
   return db
     .prepare(
-      "select id, number, email, state, payment_status, fulfillment_status, internal_notes, total, currency, created_at from orders where id = ? or number = ?"
+      "select id, number, email, state, payment_status, fulfillment_status, internal_notes, total, currency, created_at from orders where id = ? or upper(number) = upper(?)"
     )
     .bind(orderIdOrNumber, orderIdOrNumber)
     .first<OrderRow & { internal_notes: string | null }>();

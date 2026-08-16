@@ -116,8 +116,15 @@ export async function listProductsForAdmin(env: Env, query: AdminProductListQuer
   };
 }
 
+// sku matched too, case-insensitively: admin-chat's own summarizeProductsForModel
+// (services/admin-chat/tools/products.ts) only ever shows the model a
+// product's SKU, never its internal id - a bare `id = ?` here made a
+// follow-up get_product_details/prepare_* call for anything the model only
+// knows by SKU fail every time, not just on a casing mismatch. Mirrors the
+// same fix applied to orders' loadOrderRow after a live ORDER_NOT_FOUND
+// failure traced to this exact identifier gap.
 export async function getProductRow(env: Env, id: string): Promise<ProductRow | null> {
-  const row = await env.DB.prepare("select * from products where id = ?").bind(id).first<ProductRow>();
+  const row = await env.DB.prepare("select * from products where id = ? or upper(sku) = upper(?)").bind(id, id).first<ProductRow>();
   return row ?? null;
 }
 

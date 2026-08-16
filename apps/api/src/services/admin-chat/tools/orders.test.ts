@@ -105,6 +105,23 @@ describe("getOrderDetailsTool", () => {
     expect(result.artifact).toEqual({ type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." });
   });
 
+  // Real bug found live: a "Pásalas a procesando" turn hit ORDER_NOT_FOUND
+  // on prepare_order_status_change right after get_pending_orders had just
+  // listed the same order by number - the model's retyped number argument
+  // most likely drifted in case, which the old exact `number = ?` match had
+  // no tolerance for (search_orders' own LIKE-based match is case-insensitive
+  // by default, which is why it kept succeeding on the exact same order).
+  it("resolves an order by number case-insensitively, not just an exact match", async () => {
+    const { env, statements } = fakeEnv([{ first: ORDER_ROW }]);
+    const ctx = fakeContext(env);
+
+    await getOrderDetailsTool.run({ orderId: "aeth-1" }, ctx);
+
+    const orderLookup = statements.find((statement) => statement.sql.includes("from orders where"));
+    expect(orderLookup?.sql).toMatch(/upper\(number\)\s*=\s*upper\(\?\)/i);
+    expect(orderLookup?.args).toEqual(["aeth-1", "aeth-1"]);
+  });
+
   it("includes internal notes and item count in the order_detail artifact", async () => {
     const { env } = fakeEnv([{ first: { ...ORDER_ROW, internal_notes: "Fragile - handle with care" } }, { first: { count: 3 } }]);
     const ctx = fakeContext(env);

@@ -49,6 +49,30 @@ describe("getCustomerDetailsTool", () => {
     expect(result.artifact).toEqual({ type: "error", code: "CUSTOMER_NOT_FOUND", message: "Customer not found." });
   });
 
+  // Real gap found while investigating a live ORDER_NOT_FOUND bug in the
+  // equivalent orders tool: search_customers/summarizeCustomersForModel
+  // only ever tell the model a customer's name and email, never their
+  // internal id - so a follow-up get_customer_details call using the email
+  // the model was actually given used to fail every time (only the
+  // internal id, or a guest_-prefixed email, ever matched). Pins that
+  // getCustomerDetail's query now falls back to a case-insensitive email
+  // match for registered users too, mirroring the guest branch's own
+  // existing email lookup.
+  it("resolves a registered customer by email case-insensitively, not just by internal id", async () => {
+    const { env, statements } = fakeEnv([
+      { first: { id: "usr_1", name: "Ana", email: "ana@example.com", roles_json: '["customer"]', status: "active", created_at: "2026-01-01" } },
+      { all: [] },
+      { all: [] }
+    ]);
+    const ctx = fakeContext(env);
+
+    await getCustomerDetailsTool.run({ customerId: "ANA@EXAMPLE.COM" }, ctx);
+
+    const userLookup = statements.find((statement) => statement.sql.includes("from users where"));
+    expect(userLookup?.sql).toMatch(/lower\(email\)\s*=\s*lower\(\?\)/i);
+    expect(userLookup?.args).toEqual(["ANA@EXAMPLE.COM", "ANA@EXAMPLE.COM"]);
+  });
+
   it("returns a customer_card summarizing status and order count, never raw address/payment data", async () => {
     const { env } = fakeEnv([
       { first: { id: "usr_1", name: "Ana", email: "ana@example.com", roles_json: '["admin"]', status: "active", created_at: "2026-01-01" } },
