@@ -35,4 +35,14 @@ describe("InlineMarkdown", () => {
     expect(container.querySelector("strong")?.textContent).toBe("importante");
     expect(container.textContent).toContain("< 10");
   });
+
+  it("degrades a markdown link to its label text, never a real <a href>", () => {
+    // Observed live: the model wrote "[Abrir pedido](command:default_api:open_order{orderId:AETH-1})"
+    // instead of relying on the order row's own link or the open_order tool.
+    // This chat never turns model-authored text into a real href (same
+    // reasoning as never injecting raw HTML) - it should read as plain text.
+    const { container } = render(<InlineMarkdown text="Ver [Abrir pedido](command:default_api:open_order{orderId:AETH-1}) para más detalle." />);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("Ver Abrir pedido para más detalle.");
+  });
 });
