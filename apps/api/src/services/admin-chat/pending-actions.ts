@@ -63,11 +63,38 @@ export async function createPendingAction(
   const ttlMinutes = Number(env.ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES || 5) || 5;
   const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
 
+  // The operator's own "Cancel" button on a pending_action card is purely
+  // client-side (PendingActionCard just sets local state, never calls a
+  // backend endpoint) - the row this ties to stays status='pending' in D1
+  // forever unless it's actually confirmed, or claimPendingAction happens
+  // to run into it past its expires_at. That means the idempotency_key
+  // collision below is routine, not exceptional: ask for the exact same
+  // mutation again after ignoring/cancelling the first preview (or after
+  // it simply times out unconfirmed) and this insert hits a still-'pending'
+  // row that's already expired. `do nothing` used to leave that stale row
+  // in place and the read-back below would return its long-past expiresAt
+  // - the operator would see an already-expired preview no matter how many
+  // times they asked. `do update ... where` only overwrites when the
+  // conflicting row is no longer usable (not pending, or past its TTL) -
+  // a genuinely in-flight duplicate (the fast-path check above already
+  // returned for that case) never reaches this far, so it's never touched.
   await env.DB.prepare(
     `insert into admin_chat_pending_actions
        (id, conversation_id, actor_id, tool_name, target_type, target_id, params_json, diff_json, idempotency_key, request_id, expires_at)
      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     on conflict(idempotency_key) do nothing`
+     on conflict(idempotency_key) do update set
+       id = excluded.id,
+       target_type = excluded.target_type,
+       target_id = excluded.target_id,
+       params_json = excluded.params_json,
+       diff_json = excluded.diff_json,
+       request_id = excluded.request_id,
+       expires_at = excluded.expires_at,
+       status = 'pending',
+       result_json = null,
+       resolved_at = null,
+       created_at = current_timestamp
+     where admin_chat_pending_actions.status != 'pending' or admin_chat_pending_actions.expires_at <= current_timestamp`
   )
     .bind(
       id,

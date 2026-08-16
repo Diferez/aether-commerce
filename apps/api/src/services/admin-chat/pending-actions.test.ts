@@ -66,6 +66,39 @@ describe("createPendingAction", () => {
     expect(result.operationId).toBe("pact_existing");
     expect(db.prepare).toHaveBeenCalledTimes(1);
   });
+
+  // Real bug found live: the operator's Cancel button is purely client-side
+  // (never calls a backend endpoint), so an abandoned pending row stays
+  // status='pending' in D1 with its original expires_at forever. Asking for
+  // the exact same mutation again after that row has since expired must not
+  // resurrect it - the insert has to win the conflict and overwrite it with
+  // a fresh row, or the operator gets an already-expired preview no matter
+  // how many times they ask.
+  it("overwrites a stale pending row (past its own TTL) instead of resurrecting its expired preview", async () => {
+    const { env, db } = fakeEnv([
+      { first: { id: "pact_stale", expires_at: PAST } }, // existing row found, but it's expired
+      {}, // insert ... on conflict(idempotency_key) do update ... where stale
+      { first: { id: "pact_fresh", expires_at: FUTURE } } // read back - the overwritten row
+    ]);
+
+    const result = await createPendingAction(env, {
+      conversationId: "conv_1",
+      actorId: "usr_admin",
+      toolName: "prepare_order_status_change",
+      targetType: "order",
+      targetId: "ord_1",
+      params: { orderId: "ord_1", fulfillmentStatus: "shipped" },
+      diff: { summary: "test" },
+      requestId: "req_1"
+    });
+
+    expect(result.operationId).toBe("pact_fresh");
+    expect(result.expiresAt).toBe(FUTURE);
+    expect(db.prepare).toHaveBeenCalledTimes(3);
+    const insertSql = db.prepare.mock.calls[1]![0];
+    expect(insertSql).toContain("do update set");
+    expect(insertSql).not.toContain("do nothing");
+  });
 });
 
 describe("claimPendingAction", () => {
