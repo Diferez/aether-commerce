@@ -62,6 +62,18 @@ export async function createPendingAction(
   const id = `pact_${crypto.randomUUID()}`;
   const ttlMinutes = Number(env.ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES || 5) || 5;
   const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
+  // Bound, not SQLite's own current_timestamp: that keyword renders as
+  // "YYYY-MM-DD HH:MM:SS" (space, no "Z"), while expires_at is always a JS
+  // .toISOString() value ("YYYY-MM-DDTHH:MM:SS.sssZ"). Confirmed live this
+  // session that comparing the two directly in SQL is a silent bug, not
+  // just a style choice: `<=` on TEXT columns is a byte-wise string
+  // comparison, and " " (0x20) sorts before "T" (0x54) - so
+  // current_timestamp's string form always compares as "less than" an
+  // expires_at from the same day, no matter which one is chronologically
+  // later. The WHERE clause below relies on this comparison being correct
+  // to detect a stale row, so both sides must be the same JS-generated
+  // ISO format.
+  const nowIso = new Date().toISOString();
 
   // The operator's own "Cancel" button on a pending_action card is purely
   // client-side (PendingActionCard just sets local state, never calls a
@@ -94,7 +106,7 @@ export async function createPendingAction(
        result_json = null,
        resolved_at = null,
        created_at = current_timestamp
-     where admin_chat_pending_actions.status != 'pending' or admin_chat_pending_actions.expires_at <= current_timestamp`
+     where admin_chat_pending_actions.status != 'pending' or admin_chat_pending_actions.expires_at <= ?`
   )
     .bind(
       id,
@@ -107,7 +119,8 @@ export async function createPendingAction(
       JSON.stringify(input.diff),
       idempotencyKey,
       input.requestId,
-      expiresAt
+      expiresAt,
+      nowIso
     )
     .run();
 

@@ -75,7 +75,7 @@ describe("createPendingAction", () => {
   // a fresh row, or the operator gets an already-expired preview no matter
   // how many times they ask.
   it("overwrites a stale pending row (past its own TTL) instead of resurrecting its expired preview", async () => {
-    const { env, db } = fakeEnv([
+    const { env, db, statements } = fakeEnv([
       { first: { id: "pact_stale", expires_at: PAST } }, // existing row found, but it's expired
       {}, // insert ... on conflict(idempotency_key) do update ... where stale
       { first: { id: "pact_fresh", expires_at: FUTURE } } // read back - the overwritten row
@@ -98,6 +98,27 @@ describe("createPendingAction", () => {
     const insertSql = db.prepare.mock.calls[1]![0];
     expect(insertSql).toContain("do update set");
     expect(insertSql).not.toContain("do nothing");
+
+    // Real bug found live, AFTER the fix above first shipped: comparing
+    // expires_at (always a JS .toISOString() value, "...T...Z") against
+    // SQLite's own current_timestamp keyword (space-separated, no "Z") is a
+    // silent no-op for any realistic same-day expiry - "<=" on TEXT columns
+    // is a byte-wise string comparison, and " " (0x20) sorts before "T"
+    // (0x54), so current_timestamp's string form always compares as "less
+    // than" a same-day expires_at regardless of which is chronologically
+    // later. Confirmed live against real D1 that the WHERE clause silently
+    // never matched, resurrecting the same stale preview no matter how many
+    // times the operator asked - exactly the bug this whole test exists to
+    // catch, just reintroduced through the WHERE clause instead of the ON
+    // CONFLICT clause. Pinning both the absence of the broken comparison
+    // and the presence of a same-shaped bound "now" so this can't regress
+    // silently again.
+    expect(insertSql).not.toMatch(/expires_at\s*<=\s*current_timestamp/i);
+    const insertArgs = statements[1]!.args;
+    const boundNow = insertArgs.at(-1);
+    expect(typeof boundNow).toBe("string");
+    expect(boundNow as string).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(Math.abs(new Date(boundNow as string).getTime() - Date.now())).toBeLessThan(5000);
   });
 });
 
