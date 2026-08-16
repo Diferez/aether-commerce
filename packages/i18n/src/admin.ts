@@ -477,7 +477,7 @@ export const adminDictionaries = {
       checkoutMethodDescription: "Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead.",
       paymentMethod: "Payment method",
       salesWhatsappNumber: "Sales WhatsApp number",
-      whatsappNumberHint: "Country code + number, digits only - no +, spaces or dashes.",
+      whatsappNumberHint: "Select the country, then type the local number - no spaces or dashes.",
       checkoutSaveError: "Could not save - check the number format and your permissions.",
       shippingSection: "Shipping",
       shippingDescription: "Orders at or above this subtotal get free standard shipping on the storefront.",
@@ -491,6 +491,17 @@ export const adminDictionaries = {
       imageUploadsNotConfigured: "Image uploads are not configured.",
       imageUploadFailed: "The image upload failed.",
       networkErrorLogoNotUploaded: "Network error - the logo was not uploaded."
+    },
+    phoneInput: {
+      countryCode: "Country code",
+      selectCountryCode: "Select country code, currently {country} {dialCode}",
+      searchPlaceholder: "Search country or code...",
+      searchLabel: "Search country",
+      noCountriesFound: "No countries found.",
+      localNumberLabel: "WhatsApp number, local part",
+      localNumberPlaceholder: "3001234567",
+      copyNumber: "Copy number {number}",
+      copied: "Copied"
     },
     activityPage: {
       title: "Activity",
@@ -1108,7 +1119,7 @@ export const adminDictionaries = {
       checkoutMethodDescription: "Stripe usa el checkout sandbox normal. WhatsApp envía a los compradores a un chat con el número de ventas en su lugar.",
       paymentMethod: "Método de pago",
       salesWhatsappNumber: "Número de WhatsApp de ventas",
-      whatsappNumberHint: "Código de país + número, solo dígitos - sin +, espacios ni guiones.",
+      whatsappNumberHint: "Selecciona el país y escribe el número local - sin espacios ni guiones.",
       checkoutSaveError: "No se pudo guardar - revisa el formato del número y tus permisos.",
       shippingSection: "Envío",
       shippingDescription: "Los pedidos que alcancen o superen este subtotal tienen envío estándar gratis en el storefront.",
@@ -1122,6 +1133,17 @@ export const adminDictionaries = {
       imageUploadsNotConfigured: "La subida de imágenes no está configurada.",
       imageUploadFailed: "La subida de la imagen falló.",
       networkErrorLogoNotUploaded: "Error de red - el logo no se subió."
+    },
+    phoneInput: {
+      countryCode: "Prefijo",
+      selectCountryCode: "Seleccionar prefijo de país, actualmente {country} {dialCode}",
+      searchPlaceholder: "Buscar país o código...",
+      searchLabel: "Buscar país",
+      noCountriesFound: "No se encontraron países.",
+      localNumberLabel: "Número de WhatsApp, parte local",
+      localNumberPlaceholder: "3001234567",
+      copyNumber: "Copiar número {number}",
+      copied: "Copiado"
     },
     activityPage: {
       title: "Actividad",

@@ -9,6 +9,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { FormSection } from "../../components/FormSection";
 import { ErrorState } from "../../components/ErrorState";
 import { useAdminLanguage } from "../../components/AdminLanguageProvider";
+import { WhatsappNumberInput } from "../../components/WhatsappNumberInput";
 
 type CheckoutSettings = {
   paymentMode: "stripe" | "whatsapp";
@@ -294,11 +295,9 @@ export default function SettingsPage() {
               {checkoutForm.paymentMode === "whatsapp" ? (
                 <label className="grid gap-1 text-sm">
                   <span className="font-medium text-ink-muted">{t.settingsPage.salesWhatsappNumber}</span>
-                  <input
+                  <WhatsappNumberInput
                     value={checkoutForm.whatsappNumber}
-                    onChange={(event) => setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))}
-                    placeholder="573001234567"
-                    className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
+                    onChange={(nextValue) => setCheckoutForm((current) => ({ ...current, whatsappNumber: nextValue }))}
                   />
                   <span className="text-xs text-ink-subtle">{t.settingsPage.whatsappNumberHint}</span>
                 </label>
