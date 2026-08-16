@@ -310,6 +310,57 @@ describe("runAdminChatLoop", () => {
     ).toBe(true);
   });
 
+  it("lets a verify-nudged retry actually execute the mutation it was nudged to call, after exhausting the step budget on reads", async () => {
+    // Reproduces a real production turn ("Pásalas a procesando"): 4 reads
+    // used up the normal step budget, the 5th pass's prepare_* call got
+    // blocked by the budget wall and triggered verifyNode's
+    // forcedCutoffWithPendingCall nudge - and under the pre-fix routing
+    // check, the *retry's own* prepare_* call also could never reach
+    // "tools" (toolCallCount had already passed MAX_STEPS), so the turn
+    // always ended in "I could not finish that request" no matter what the
+    // model did in response to the nudge. This asserts the retry's tool
+    // call actually runs (a real pending_action is created) and the
+    // model's own closing text reaches the operator - not the fallback.
+    const filler = () => new AIMessageChunk({ content: "", tool_calls: [{ name: "get_product_details", args: { productId: "prd_1" }, id: `call_${Math.random()}` }] });
+    resolveChatModelMock.mockReturnValue([
+      fakeModel([
+        [filler()],
+        [filler()],
+        [filler()],
+        [filler()],
+        // 5th pass: budget is exhausted here - this call must not run yet.
+        [new AIMessageChunk({ content: "", tool_calls: [{ name: "prepare_order_status_change", args: { orderId: "ord_1", fulfillmentStatus: "processing" }, id: "call_prepare_1" }] })],
+        // Retry after the nudge: this one must actually execute.
+        [new AIMessageChunk({ content: "", tool_calls: [{ name: "prepare_order_status_change", args: { orderId: "ord_1", fulfillmentStatus: "processing" }, id: "call_prepare_2" }] })],
+        [new AIMessageChunk({ content: "Ready to mark it as processing - please confirm." })]
+      ])
+    ]);
+    const { env } = fakeEnv([
+      { first: productRow("prd_1") },
+      { first: productRow("prd_1") },
+      { first: productRow("prd_1") },
+      { first: productRow("prd_1") },
+      // prepare_order_status_change's own lookup, then createPendingAction's
+      // three calls (existing check, insert, read-back) - only consumed
+      // once, by the retry that actually reaches "tools".
+      { first: { id: "ord_1", number: "AETH-1", fulfillment_status: "unfulfilled", stock_restored_at: null } },
+      { first: null },
+      {},
+      { first: { id: "pact_1", expires_at: new Date(Date.now() + 300_000).toISOString() } }
+    ]);
+    const ctx = fakeContext(env);
+
+    const events = [];
+    for await (const event of runAdminChatLoop(ctx, [new HumanMessage("Pásalas a procesando")])) events.push(event);
+
+    const prepareResult = events.find((event) => event.type === "tool_result" && event.toolName === "prepare_order_status_change");
+    expect(prepareResult).toMatchObject({ type: "tool_result", artifact: { type: "pending_action", operationId: "pact_1" } });
+
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed).toMatchObject({ type: "completed", finalMessage: "Ready to mark it as processing - please confirm." });
+    expect(events.some((event) => event.type === "completed" && event.finalMessage.includes("could not finish"))).toBe(false);
+  });
+
   it("finalizes immediately with the original reply when the critic approves a complex turn", async () => {
     resolveChatModelMock.mockReturnValue([
       fakeModel(

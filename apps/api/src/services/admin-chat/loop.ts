@@ -12,10 +12,10 @@ import { ADMIN_CHAT_SYSTEM_PROMPT } from "../../prompts/admin-chat-system-prompt
 // Bounds how many agent -> tools -> agent passes a single turn can take
 // before forcing a final answer - mirrors apps/ai-assistant's
 // MAX_AGENT_STEPS, sized a little higher since an admin request can
-// reasonably need 2 reads before a prepare, plus one extra pass of
-// headroom so a verify-triggered retry (see verifyNode below) still has
-// room to actually call the tool it flagged as missing instead of
-// immediately re-hitting this same budget wall.
+// reasonably need 2 reads before a prepare. routeAfterAgent below extends
+// this further, by exactly enough to let a verify-triggered retry (see
+// verifyNode) actually call the tool it flagged as missing, rather than
+// just adding headroom here that the routing check doesn't actually honor.
 const MAX_STEPS = 5;
 
 export type LoopEvent =
@@ -127,8 +127,25 @@ async function agentNode(
   };
 }
 
+// Real production bug found live: a "Pásalas a procesando" (plural mutation)
+// turn spent 4 tool calls on reads, then on its 5th pass wanted to call
+// prepare_order_status_change - toolCallCount had just reached MAX_STEPS, so
+// routeAfterAgent sent it to "verify" instead of "tools" (the call never
+// ran), verifyNode's forcedCutoffWithPendingCall path correctly nudged it to
+// try again... and the retry's own prepare_order_status_change call *also*
+// never ran, because toolCallCount had incremented to MAX_STEPS+1 by then
+// while the check below only compared against a flat MAX_STEPS. No matter
+// how many times the model tried, its mutation call could never reach
+// "tools" again - the turn always ended in the deterministic "I could not
+// finish that request" fallback despite the model doing exactly what the
+// nudge asked. The pass that gets blocked still costs a toolCallCount
+// increment even though it never reaches "tools" - so a nudge's retry needs
+// TWO extra units of budget (one for the blocked pass that triggered the
+// nudge, one for the retry pass itself), not one. verifyNode's own canRetry
+// bounds verifyRetries to at most 1, so this never grows unbounded.
 function routeAfterAgent(state: AdminAgentStateType): "tools" | "verify" {
-  if (state.data.toolCallCount < MAX_STEPS && toolsCondition(state) === "tools") return "tools";
+  const budget = MAX_STEPS + 2 * state.data.verifyRetries;
+  if (state.data.toolCallCount < budget && toolsCondition(state) === "tools") return "tools";
   return "verify";
 }
 
