@@ -112,3 +112,26 @@ test("runtime deployment preflight rejects Clerk development keys in production"
   assert.match(result.stderr, /pk_live_/);
   assert.match(result.stderr, /sk_live_/);
 });
+
+test("runtime deployment preflight permits Clerk development keys only with an explicit override", () => {
+  assert.match(
+    read(".github/workflows/deploy-production.yml"),
+    /ALLOW_CLERK_DEVELOPMENT_KEYS: \$\{\{ vars\.ALLOW_CLERK_DEVELOPMENT_KEYS \}\}/
+  );
+
+  const result = spawnSync(process.execPath, ["scripts/check-deploy-runtime.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...requiredRuntime,
+      ALLOW_CLERK_DEVELOPMENT_KEYS: "true",
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
+      CLERK_SECRET_KEY: "sk_test_example"
+    }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /deploy_runtime_config_ok/);
+  assert.match(result.stderr, /explicitly using Clerk development keys/);
+});
