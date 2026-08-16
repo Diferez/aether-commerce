@@ -48,6 +48,9 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
     CLERK_JWT_ISSUER: "https://clerk.test",
     APP_ORIGIN_ADMIN: "https://admin.example.com",
     APP_ORIGIN_STORE: "https://store.example.com",
+    // Keep D1 call-count assertions deterministic. Latency sampling is
+    // covered separately by latency-sampling.test.ts.
+    PERFORMANCE_SAMPLE_RATE: "0",
     ...overrides
   } as unknown as Env;
   return { env, db, statements };
