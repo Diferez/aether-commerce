@@ -1,8 +1,9 @@
 import type { z } from "zod";
-import { hasPermission, isDemoMutationBlocked } from "@aether/core";
+import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether/core";
 import type { Permission } from "@aether/schemas";
 import type { AdminChatContext } from "./context";
 import type { ChatArtifact } from "./artifacts";
+import { getLogger } from "../observability";
 
 export type ToolRequirements = { permission?: Permission; mutation?: boolean };
 
@@ -60,6 +61,16 @@ export function defineAdminChatTool<Schema extends z.ZodType>(spec: AdminChatToo
       try {
         return await spec.run(parsed.data, ctx);
       } catch (error) {
+        // ai-assistant's defineAssistantTool logs this same class of
+        // failure (logAgentObservability({type:"tool_exception", ...})) -
+        // admin-chat's own tool boundary had no equivalent, so a real tool
+        // failure here was only ever visible by querying admin_chat_messages
+        // directly, after the fact.
+        getLogger(ctx.env).error(OBSERVABILITY_EVENTS.adminChatToolFailed, {
+          requestId: ctx.requestId,
+          metadata: { toolName: spec.name, conversationId: ctx.conversationId },
+          error
+        });
         return errorResult("TOOL_FAILED", error instanceof Error ? error.message : "I could not complete that action right now.");
       }
     }

@@ -23,6 +23,7 @@ export type Env = {
   AETHER_ENV?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
+  GEMINI_FALLBACK_MODEL?: string;
   AI_PROVIDER?: string;
   ADMIN_CHAT_MUTATIONS_ENABLED?: string;
   ADMIN_CHAT_MAX_INPUT_CHARACTERS?: string;

@@ -4021,6 +4021,12 @@ type CheckpointRow = {
 
 const agentToolNode = new ToolNode(assistantTools);
 
+// See admin-chat/loop.ts's identical comment for the full reasoning: most
+// tool-level failures already turn into a graceful ToolArtifact via
+// defineAssistantTool's own try/catch (checkToolPreconditions, tool_exception
+// handling above) rather than a thrown exception, so this retryPolicy is a
+// safety net for what's left outside that boundary - not a replacement for it.
+
 // D1CheckpointSaver (above) is deliberately NOT wired in here. Tried it,
 // found a real problem via the eval suite: with a checkpointer active,
 // LangGraph resumes/accumulates the `messages` channel for any reused
@@ -4041,7 +4047,7 @@ const agentToolNode = new ToolNode(assistantTools);
 export const agentGraph = new StateGraph(AgentGraphState)
   .addNode("validate_agent_request", validateAgentRequestNode)
   .addNode("agent", agentNode)
-  .addNode("tools", agentToolNode)
+  .addNode("tools", agentToolNode, { retryPolicy: { maxAttempts: 2 } })
   .addNode("finalize_agent_response", finalizeAgentResponseNode)
   .addNode("persist_agent_response", persistAgentResponseNode)
   .addEdge(START, "validate_agent_request")

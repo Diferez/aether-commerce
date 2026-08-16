@@ -71,7 +71,13 @@ export type ActionDiff = {
   sampleAffected?: string[];
 };
 
-export type ChatArtifact =
+// displayMessage lets a tool response's model-facing message diverge from
+// what the operator sees in the chat bubble above the card - see the
+// matching comment in apps/api/src/services/admin-chat/artifacts.ts.
+// Undefined means "no override, render ChatMessage.content as before".
+type WithDisplayMessage = { displayMessage?: string };
+
+export type ChatArtifact = (
   | { type: "text" }
   | { type: "navigate"; href: string; label: string }
   | { type: "product_list"; products: ProductSummaryArtifact[] }
@@ -93,7 +99,9 @@ export type ChatArtifact =
   | { type: "pending_action"; operationId: string; toolName: string; diff: ActionDiff; expiresAt: string }
   | { type: "receipt"; operationId: string; status: "succeeded" | "failed"; summary: string; result: Record<string, unknown> }
   | { type: "missing_info"; message: string; missingFields: string[] }
-  | { type: "error"; code: string; message: string };
+  | { type: "error"; code: string; message: string }
+) &
+  WithDisplayMessage;
 
 export type ChatStatusPhase = "analyzing" | "consulting" | "preparing" | "waiting_for_confirmation" | "executing" | "done";
 

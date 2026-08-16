@@ -73,7 +73,13 @@ export const getSystemHealthTool = defineAdminChatTool({
             : "never run"
         },
         ...(issues.length > 0 ? { issues } : {}),
-        ...(relatedOrders.length > 0 ? { relatedOrders } : {})
+        ...(relatedOrders.length > 0 ? { relatedOrders } : {}),
+        // The card (status badge, issues, stat grid, related orders) already
+        // fully represents this - showing the raw message too would just
+        // repeat the same data less legibly, ids and all. message itself
+        // stays as-is: the model still needs the full detail (exact ids,
+        // durations) to act on a follow-up like "change it to processing".
+        displayMessage: ""
       }
     };
   }

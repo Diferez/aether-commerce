@@ -15,7 +15,7 @@ describe("getSystemHealthTool", () => {
 
     const result = await getSystemHealthTool.run({}, ctx);
 
-    expect(result.artifact).toMatchObject({ type: "dashboard_summary", summary: { status: "operational" } });
+    expect(result.artifact).toMatchObject({ type: "dashboard_summary", summary: { status: "operational" }, displayMessage: "" });
     expect(result.message).toContain("System status: operational");
     expect(result.message).not.toContain("component(s) need attention");
   });
@@ -49,7 +49,8 @@ describe("getSystemHealthTool", () => {
       type: "dashboard_summary",
       summary: { status: "critical", blockedOrdersCount: 1 },
       issues: [{ name: "orders", level: "critical" }],
-      relatedOrders: [{ id: "ord_blocked_1", number: "AETH-A1IMHHNRFA" }]
+      relatedOrders: [{ id: "ord_blocked_1", number: "AETH-A1IMHHNRFA" }],
+      displayMessage: ""
     });
     expect(result.message).toContain("orders (critical)");
     expect(result.message).toContain("unfulfilled for");

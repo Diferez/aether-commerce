@@ -62,15 +62,15 @@ export function MessageList({
         if (message.artifact.type === "receipt") {
           return <ReceiptCard key={message.id} status={message.artifact.status} summary={message.artifact.summary} result={message.artifact.result} />;
         }
-        // dashboard_summary's card (status badge, issues, stat grid, related
-        // orders) already fully represents its tool message - showing the
-        // raw text too would just repeat the same data less legibly, ids
-        // and all.
+        // displayMessage (set by the tool itself, e.g. get_system_health)
+        // overrides the raw model-facing text when the card already fully
+        // represents it - undefined means "no override", so every tool
+        // that hasn't opted in keeps showing message.content exactly as
+        // before. An empty string is a valid override (suppress entirely).
+        const displayText = message.artifact.displayMessage ?? message.content;
         return (
           <div key={message.id} className="min-w-0 max-w-[95%]">
-            {message.artifact.type !== "dashboard_summary" ? (
-              <p className="mb-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{message.content}</p>
-            ) : null}
+            {displayText ? <p className="mb-1.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{displayText}</p> : null}
             <ToolResultCard artifact={message.artifact} />
           </div>
         );

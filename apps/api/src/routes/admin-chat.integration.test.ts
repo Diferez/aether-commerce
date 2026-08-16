@@ -9,10 +9,10 @@ vi.mock("jose", () => ({
   jwtVerify: vi.fn()
 }));
 
-const resolveChatModelMock = vi.fn<(...args: unknown[]) => ReturnType<typeof AiProviderModule.resolveChatModel>>();
+const resolveChatModelMock = vi.fn<(...args: unknown[]) => ReturnType<typeof AiProviderModule.resolveChatModelChain>>();
 vi.mock("../services/ai-provider", async () => {
   const actual = await vi.importActual<typeof AiProviderModule>("../services/ai-provider");
-  return { ...actual, resolveChatModel: (...args: unknown[]) => resolveChatModelMock(...args) };
+  return { ...actual, resolveChatModelChain: (...args: unknown[]) => resolveChatModelMock(...args) };
 });
 
 type QueuedResponse = { first?: unknown; all?: unknown[]; run?: { changes?: number } };
@@ -203,7 +203,7 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
 
   it("surfaces a permission denial from a tool call all the way through the real HTTP path, without pretending anything happened", async () => {
     await mockVerifiedActor(["support"], "usr_2"); // support has no orders.write
-    resolveChatModelMock.mockReturnValue(
+    resolveChatModelMock.mockReturnValue([
       fakeModel([
         [
           new AIMessageChunk({
@@ -212,8 +212,8 @@ describe("admin chat routes integration (real middleware chain, mocked D1 and pr
           })
         ],
         [new AIMessageChunk({ content: "I could not do that." })]
-      ]) as unknown as ReturnType<typeof AiProviderModule.resolveChatModel>
-    );
+      ])
+    ] as unknown as ReturnType<typeof AiProviderModule.resolveChatModelChain>);
     const { env } = fakeEnv([
       { first: null }, // suspension check
       {}, // loadOrCreateConversation: no conversationId given, so this is the insert (no select)

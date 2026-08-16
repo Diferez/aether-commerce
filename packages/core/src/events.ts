@@ -41,7 +41,9 @@ export const OBSERVABILITY_EVENTS = {
   databaseQueryFailed: "database.query_failed",
   externalApiFailed: "external_api.failed",
   applicationUnhandledError: "application.unhandled_error",
-  securitySuspiciousActivity: "security.suspicious_activity"
+  securitySuspiciousActivity: "security.suspicious_activity",
+
+  adminChatToolFailed: "admin_chat.tool_failed"
 } as const;
 
 export type ObservabilityEvent = (typeof OBSERVABILITY_EVENTS)[keyof typeof OBSERVABILITY_EVENTS];

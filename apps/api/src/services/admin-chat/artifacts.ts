@@ -71,7 +71,20 @@ export type ActionDiff = {
   sampleAffected?: string[];
 };
 
-export type ChatArtifact =
+// displayMessage lets a tool's ToolResult.message (always what the model
+// reads on the next turn) diverge from what the operator sees in the chat
+// bubble above the artifact card - needed the first time by
+// get_system_health, whose model-facing message deliberately repeats every
+// blocked order's internal id (so a follow-up "change it to processing"
+// can act on it directly) but whose card (status badge, issues, related
+// orders) already shows everything a human needs, id-less. Undefined means
+// "no override, show ToolResult.message as before" - every existing tool
+// keeps its current behavior without any change. An intersection (not a
+// field on the union's parent) so every artifact variant gets it without
+// having to add it one by one.
+type WithDisplayMessage = { displayMessage?: string };
+
+export type ChatArtifact = (
   | { type: "text" }
   | { type: "navigate"; href: string; label: string }
   | { type: "product_list"; products: ProductSummaryArtifact[] }
@@ -97,4 +110,6 @@ export type ChatArtifact =
   | { type: "pending_action"; operationId: string; toolName: string; diff: ActionDiff; expiresAt: string }
   | { type: "receipt"; operationId: string; status: "succeeded" | "failed"; summary: string; result: Record<string, unknown> }
   | { type: "missing_info"; message: string; missingFields: string[] }
-  | { type: "error"; code: string; message: string };
+  | { type: "error"; code: string; message: string }
+) &
+  WithDisplayMessage;
