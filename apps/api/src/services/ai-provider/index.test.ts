@@ -26,6 +26,20 @@ describe("resolveChatModelChain", () => {
     expect(chain).toHaveLength(1);
   });
 
+  it("returns a three-model chain from a comma-separated fallback list, in order", () => {
+    const chain = resolveChatModelChain(
+      fakeEnv({ GEMINI_API_KEY: "key", GEMINI_MODEL: "gemini-primary", GEMINI_FALLBACK_MODEL: "gemini-fallback-1, gemini-fallback-2" })
+    );
+    expect(chain).toHaveLength(3);
+  });
+
+  it("dedupes a fallback list that repeats itself or the primary model", () => {
+    const chain = resolveChatModelChain(
+      fakeEnv({ GEMINI_API_KEY: "key", GEMINI_MODEL: "gemini-primary", GEMINI_FALLBACK_MODEL: "gemini-fallback-1,gemini-primary,gemini-fallback-1" })
+    );
+    expect(chain).toHaveLength(2);
+  });
+
   it("throws for an unrecognized AI_PROVIDER instead of silently defaulting to Gemini", () => {
     expect(() => resolveChatModelChain(fakeEnv({ GEMINI_API_KEY: "key", AI_PROVIDER: "openai" }))).toThrow(/Unknown AI_PROVIDER/);
   });

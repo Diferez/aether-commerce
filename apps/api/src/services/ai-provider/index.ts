@@ -30,8 +30,13 @@ export function isGeminiQuotaError(error: unknown): boolean {
 // of the same name and same purpose: a Gemini quota is per-model, not
 // per-account, so a 429 on the primary model doesn't mean the API is
 // unavailable - callers should retry the *next* model in this list rather
-// than failing the whole turn. Optional; a deployment with only
-// GEMINI_MODEL set still works exactly as before, just without fallback.
+// than failing the whole turn. Comma-separated so more than one fallback
+// tier can be configured (e.g. "gemini-3.5-flash-lite,gemini-3.1-flash-lite") -
+// confirmed live this session that even two same-generation models
+// (3.5-flash and its own 3.5-flash-lite fallback) can both be rate-limited
+// together, while an older generation (3.1) draws from a separate quota
+// pool. Optional; a deployment with only GEMINI_MODEL set still works
+// exactly as before, just without fallback.
 export function resolveChatModelChain(env: Env): BaseChatModel[] | null {
   if (!env.GEMINI_API_KEY) return null;
   const provider = env.AI_PROVIDER || "gemini";
@@ -40,7 +45,11 @@ export function resolveChatModelChain(env: Env): BaseChatModel[] | null {
   }
   const apiKey = env.GEMINI_API_KEY;
   const primaryModel = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-  const modelNames = [primaryModel, ...(env.GEMINI_FALLBACK_MODEL && env.GEMINI_FALLBACK_MODEL !== primaryModel ? [env.GEMINI_FALLBACK_MODEL] : [])];
+  const fallbackModels = (env.GEMINI_FALLBACK_MODEL || "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name, index, all) => name && name !== primaryModel && all.indexOf(name) === index);
+  const modelNames = [primaryModel, ...fallbackModels];
   return modelNames.map(
     (model) =>
       new ChatGoogleGenerativeAI({

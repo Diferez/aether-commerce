@@ -83,9 +83,13 @@ export const searchOrdersTool = defineAdminChatTool({
       pageSize: args.pageSize
     });
     const orders = rows.map(toSummaryArtifact);
+    if (orders.length === 0) {
+      return { message: "No orders matched that search.", artifact: { type: "order_list", orders: [] } };
+    }
+    const shortMessage = `Found ${total} order(s)${total > orders.length ? `, showing the first ${orders.length}` : ""}.`;
     return {
-      message: orders.length === 0 ? "No orders matched that search." : `Found ${total} order(s)${total > orders.length ? `, showing the first ${orders.length}` : ""}.`,
-      artifact: { type: "order_list", orders }
+      message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
+      artifact: { type: "order_list", orders, displayMessage: shortMessage }
     };
   }
 });
@@ -101,9 +105,13 @@ export const getOrdersByStatusTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const { rows, total } = await queryOrders(ctx.env.DB, { fulfillmentStatus: args.fulfillmentStatus, pageSize: args.pageSize });
     const orders = rows.map(toSummaryArtifact);
+    if (orders.length === 0) {
+      return { message: `No orders are currently ${args.fulfillmentStatus}.`, artifact: { type: "order_list", orders: [] } };
+    }
+    const shortMessage = `${total} order(s) are ${args.fulfillmentStatus}.`;
     return {
-      message: orders.length === 0 ? `No orders are currently ${args.fulfillmentStatus}.` : `${total} order(s) are ${args.fulfillmentStatus}.`,
-      artifact: { type: "order_list", orders }
+      message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
+      artifact: { type: "order_list", orders, displayMessage: shortMessage }
     };
   }
 });
@@ -116,12 +124,32 @@ export const getPendingOrdersTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const { rows, total } = await queryOrders(ctx.env.DB, { fulfillmentStatus: "unfulfilled", pageSize: args.pageSize });
     const orders = rows.map(toSummaryArtifact);
+    if (orders.length === 0) {
+      return { message: "There are no pending orders right now.", artifact: { type: "order_list", orders: [] } };
+    }
+    const shortMessage = `${total} order(s) are pending fulfillment.`;
     return {
-      message: orders.length === 0 ? "There are no pending orders right now." : `${total} order(s) are pending fulfillment.`,
-      artifact: { type: "order_list", orders }
+      message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
+      artifact: { type: "order_list", orders, displayMessage: shortMessage }
     };
   }
 });
+
+// A list tool's `message` is the ONLY thing the model reads back (the
+// artifact is UI-only, see artifacts.ts's displayMessage comment) - a
+// bare count like "3 order(s) are pending fulfillment." gives the model
+// no way to reference a specific one for a follow-up single-record call
+// (get_order_details, prepare_order_status_change, ...) except by
+// guessing. Confirmed live in production: the model guessed wrong and the
+// whole turn fell back to "I could not finish that request" despite the
+// order having already been found. Enumerating numbers here (and keeping
+// the short count as displayMessage, unchanged in the UI) is the fix -
+// same pattern get_system_health already uses for blocked orders.
+export function summarizeOrdersForModel(orders: OrderSummaryArtifact[]): string {
+  return orders
+    .map((order) => `- ${order.number}: ${order.fulfillmentStatus}, payment ${order.paymentStatus}, ${(order.totalCents / 100).toFixed(2)} ${order.currency}, ${order.email}`)
+    .join("\n");
+}
 
 async function loadOrderRow(db: D1Database, orderIdOrNumber: string) {
   return db

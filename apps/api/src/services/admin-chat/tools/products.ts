@@ -17,6 +17,15 @@ function toSummaryArtifact(row: AdminProductSummary): ProductSummaryArtifact {
   };
 }
 
+// See orders.ts's summarizeOrdersForModel for why this exists: the model
+// only ever reads `message` back, never the artifact, so a bare count
+// leaves it unable to reference a specific product for a follow-up call.
+function summarizeProductsForModel(products: ProductSummaryArtifact[]): string {
+  return products
+    .map((product) => `- ${product.name} (SKU ${product.sku}): ${product.stock} in stock, ${product.visibility}`)
+    .join("\n");
+}
+
 export const searchProductsTool = defineAdminChatTool({
   name: "search_products",
   description: "Searches products by name, SKU, or slug, with optional category/visibility/stock filters. Use this for any 'find products...' request.",
@@ -41,9 +50,10 @@ export const searchProductsTool = defineAdminChatTool({
     if (products.length === 0) {
       return { message: "No products matched that search.", artifact: { type: "product_list", products: [] } };
     }
+    const shortMessage = `Found ${result.pagination.total} product(s)${result.pagination.total > products.length ? `, showing the first ${products.length}` : ""}.`;
     return {
-      message: `Found ${result.pagination.total} product(s)${result.pagination.total > products.length ? `, showing the first ${products.length}` : ""}.`,
-      artifact: { type: "product_list", products }
+      message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
+      artifact: { type: "product_list", products, displayMessage: shortMessage }
     };
   }
 });
@@ -81,9 +91,13 @@ export const getLowStockProductsTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const result = await listProductsForAdmin(ctx.env, { stockFilter: "low", page: 1, pageSize: args.pageSize, sort: "stock", sortDirection: "asc" });
     const products = result.data.map(toSummaryArtifact);
+    if (products.length === 0) {
+      return { message: "No products are currently low on stock.", artifact: { type: "product_list", products: [] } };
+    }
+    const shortMessage = `${result.pagination.total} product(s) are low on stock.`;
     return {
-      message: products.length === 0 ? "No products are currently low on stock." : `${result.pagination.total} product(s) are low on stock.`,
-      artifact: { type: "product_list", products }
+      message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
+      artifact: { type: "product_list", products, displayMessage: shortMessage }
     };
   }
 });
@@ -96,9 +110,13 @@ export const getOutOfStockProductsTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const result = await listProductsForAdmin(ctx.env, { stockFilter: "out", page: 1, pageSize: args.pageSize });
     const products = result.data.map(toSummaryArtifact);
+    if (products.length === 0) {
+      return { message: "No products are out of stock.", artifact: { type: "product_list", products: [] } };
+    }
+    const shortMessage = `${result.pagination.total} product(s) are out of stock.`;
     return {
-      message: products.length === 0 ? "No products are out of stock." : `${result.pagination.total} product(s) are out of stock.`,
-      artifact: { type: "product_list", products }
+      message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
+      artifact: { type: "product_list", products, displayMessage: shortMessage }
     };
   }
 });

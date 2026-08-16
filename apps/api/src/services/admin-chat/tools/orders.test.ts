@@ -32,6 +32,8 @@ describe("searchOrdersTool", () => {
       type: "order_list",
       orders: [{ id: "ord_1", number: "AETH-1", totalCents: 5000, fulfillmentStatus: "unfulfilled", href: "/orders/detail/?id=ord_1" }]
     });
+    expect(result.message).toContain("AETH-1");
+    expect(result.artifact).toMatchObject({ displayMessage: "Found 1 order(s)." });
   });
 
   it("reports no matches without inventing an order", async () => {
@@ -54,6 +56,16 @@ describe("getOrdersByStatusTool", () => {
     expect(result.artifact).toMatchObject({ type: "order_list", orders: [{ id: "ord_1" }] });
     expect(db.prepare.mock.calls[1]![0]).toContain("fulfillment_status = ?");
   });
+
+  it("enumerates the order number in the model-facing message, not just a count, and keeps the UI text short via displayMessage", async () => {
+    const { env } = fakeEnv([{ first: { count: 1 } }, { all: [ORDER_ROW] }]);
+    const ctx = fakeContext(env);
+
+    const result = await getOrdersByStatusTool.run({ fulfillmentStatus: "unfulfilled", pageSize: 10 }, ctx);
+
+    expect(result.message).toContain("AETH-1");
+    expect(result.artifact).toMatchObject({ displayMessage: "1 order(s) are unfulfilled." });
+  });
 });
 
 describe("getPendingOrdersTool", () => {
@@ -64,6 +76,13 @@ describe("getPendingOrdersTool", () => {
     const result = await getPendingOrdersTool.run({ pageSize: 10 }, ctx);
 
     expect(result.message).toMatch(/1 order\(s\) are pending fulfillment/i);
+    // Real production finding: get_pending_orders found the order, but a
+    // follow-up get_order_details still failed with ORDER_NOT_FOUND because
+    // the model was never told the order's number - only a bare count.
+    // The model-facing message must enumerate it so a follow-up call can
+    // reference the right order instead of guessing.
+    expect(result.message).toContain("AETH-1");
+    expect(result.artifact).toMatchObject({ displayMessage: "1 order(s) are pending fulfillment." });
   });
 
   it("reports no pending orders", async () => {

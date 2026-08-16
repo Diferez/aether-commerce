@@ -36,6 +36,10 @@ describe("searchProductsTool", () => {
       type: "product_list",
       products: [{ id: "prd_1", name: "Funda A", sku: "SKU-A", priceCents: 1000, stock: 12, visibility: "visible", href: "/products/edit/?id=prd_1" }]
     });
+    // Model-facing message must name the product, not just a count, so a
+    // follow-up single-record call can reference it instead of guessing.
+    expect(result.message).toContain("SKU-A");
+    expect(result.artifact).toMatchObject({ displayMessage: "Found 1 product(s)." });
   });
 
   it("reports no matches without inventing a product", async () => {
@@ -81,6 +85,7 @@ describe("getLowStockProductsTool", () => {
     const result = await getLowStockProductsTool.run({ pageSize: 10 }, ctx);
 
     expect(result.artifact).toMatchObject({ type: "product_list", products: [{ id: "prd_1", stock: 2 }] });
+    expect(result.message).toContain("SKU-A");
   });
 
   it("reports none currently low on stock", async () => {

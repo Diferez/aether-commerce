@@ -3,6 +3,7 @@ import { defineAdminChatTool } from "../define-tool";
 import { getCustomerDetail, listCustomersForAdmin } from "../../customers";
 import type { AdminCustomerSummary } from "../../customers";
 import type { CustomerSummaryArtifact, OrderSummaryArtifact } from "../artifacts";
+import { summarizeOrdersForModel } from "./orders";
 
 function asString(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
@@ -21,6 +22,13 @@ function toSummaryArtifact(row: AdminCustomerSummary): CustomerSummaryArtifact {
   };
 }
 
+// See orders.ts's summarizeOrdersForModel for why this exists: the model
+// only ever reads `message` back, never the artifact, so a bare count
+// leaves it unable to reference a specific customer for a follow-up call.
+function summarizeCustomersForModel(customers: CustomerSummaryArtifact[]): string {
+  return customers.map((customer) => `- ${customer.name ?? customer.email} (${customer.email}): ${customer.orderCount} order(s), ${customer.status}`).join("\n");
+}
+
 // Customers are read-only from chat in this phase - there is no existing
 // "safe, authorized" customer mutation beyond role/suspend, which are
 // already fully committed through their own confirmation UI on the customer
@@ -33,9 +41,13 @@ export const searchCustomersTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const result = await listCustomersForAdmin(ctx.env, { search: args.query, page: 1, pageSize: args.pageSize });
     const customers = result.data.map(toSummaryArtifact);
+    if (customers.length === 0) {
+      return { message: "No customers matched that search.", artifact: { type: "customer_list", customers: [] } };
+    }
+    const shortMessage = `Found ${result.pagination.total} customer(s)${result.pagination.total > customers.length ? `, showing the first ${customers.length}` : ""}.`;
     return {
-      message: customers.length === 0 ? "No customers matched that search." : `Found ${result.pagination.total} customer(s)${result.pagination.total > customers.length ? `, showing the first ${customers.length}` : ""}.`,
-      artifact: { type: "customer_list", customers }
+      message: `${shortMessage}\n${summarizeCustomersForModel(customers)}`,
+      artifact: { type: "customer_list", customers, displayMessage: shortMessage }
     };
   }
 });
@@ -95,9 +107,16 @@ export const getCustomerOrderHistoryTool = defineAdminChatTool({
       };
     });
 
+    if (orders.length === 0) {
+      return {
+        message: `${detail.name ?? detail.email} has no orders yet.`,
+        artifact: { type: "customer_order_history", customerId: detail.id, orders: [] }
+      };
+    }
+    const shortMessage = `${detail.name ?? detail.email} has ${orders.length} order(s).`;
     return {
-      message: orders.length === 0 ? `${detail.name ?? detail.email} has no orders yet.` : `${detail.name ?? detail.email} has ${orders.length} order(s).`,
-      artifact: { type: "customer_order_history", customerId: detail.id, orders }
+      message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
+      artifact: { type: "customer_order_history", customerId: detail.id, orders, displayMessage: shortMessage }
     };
   }
 });

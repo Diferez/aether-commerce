@@ -22,6 +22,10 @@ describe("searchCustomersTool", () => {
       customers: [{ id: "usr_1", email: "ana@example.com", orderCount: 3, totalSpentCents: 9000, href: "/customers/detail/?id=usr_1" }]
     });
     expect(result.message).toMatch(/found 1 customer/i);
+    // Model-facing message must name the customer, not just a count, so a
+    // follow-up single-record call can reference it instead of guessing.
+    expect(result.message).toContain("ana@example.com");
+    expect(result.artifact).toMatchObject({ displayMessage: "Found 1 customer(s)." });
   });
 
   it("reports no matches without inventing a customer", async () => {
@@ -108,6 +112,10 @@ describe("getCustomerOrderHistoryTool", () => {
       expect(result.artifact.orders[0]).not.toHaveProperty("shippingAddress");
       expect(result.artifact.orders[0]).not.toHaveProperty("payment");
     }
+    // Model-facing message must name the order, not just a count, so a
+    // follow-up single-record call can reference it instead of guessing.
+    expect(result.message).toContain("AETH-1");
+    expect(result.artifact).toMatchObject({ displayMessage: "Ana has 1 order(s)." });
   });
 
   it("reports no orders yet instead of an empty error", async () => {

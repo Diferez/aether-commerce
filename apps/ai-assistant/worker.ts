@@ -3572,9 +3572,14 @@ function buildModelInvoker(env: Env, language: AssistantLanguage, requestId: str
   if (!env.GEMINI_API_KEY) throw new Error("agent_node_missing_gemini_api_key");
   const apiKey = env.GEMINI_API_KEY;
   const primaryModel = env.GEMINI_MODEL || "gemini-3.5-flash";
-  const modelNames = [primaryModel, env.GEMINI_FALLBACK_MODEL].filter(
-    (name): name is string => Boolean(name) && name !== primaryModel
-  );
+  // Comma-separated so more than one fallback tier can be configured (e.g.
+  // "gemini-3.5-flash-lite,gemini-3.1-flash-lite") - confirmed live that
+  // even two same-generation models can both be rate-limited together at
+  // once, while an older generation draws from a separate quota pool.
+  const modelNames = (env.GEMINI_FALLBACK_MODEL || "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name, index, all) => name && name !== primaryModel && all.indexOf(name) === index);
   const systemPrompt = AGENT_SYSTEM_PROMPT_BY_LANGUAGE[language];
   // Deliberately NOT filtering unreachable tools (e.g. mutation tools when
   // AI_MUTATIONS_ENABLED is false) out of the bound set - tried it, verified
