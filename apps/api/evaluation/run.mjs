@@ -8,14 +8,25 @@
 // hand - this is that manual testing made repeatable.
 //
 // Requires a real admin session, unlike apps/ai-assistant's public
-// endpoint - there is no way to script one without either a live Clerk
-// login or a service-account API key this deployment doesn't have
-// configured, so this script takes one as an env var instead of trying to
-// mint it. Run:
+// endpoint - there is no way to script one. Tried minting a token via
+// Clerk's own Backend API (POST /v1/sessions -> POST /v1/sessions/{id}/
+// tokens, Clerk's documented flow for testing without a browser) and
+// confirmed live it does not work here: this deployment's auth middleware
+// (middleware/auth.ts) requires the JWT's `azp` (authorized party) claim to
+// match APP_ORIGIN_ADMIN, and a backend-minted token's `azp` is genuinely
+// absent - Clerk only populates it for a token issued through a real
+// browser sign-in against that exact origin. That's a deliberate origin-
+// binding protection working as intended, not a gap to route around - so
+// this script takes a real admin bearer token as an env var instead:
 //   AETHER_ADMIN_CHAT_EVAL_URL=https://aether-api.<worker>.workers.dev \
-//   AETHER_ADMIN_CHAT_EVAL_TOKEN=<a real admin bearer token, e.g. copied
-//     from the panel's network tab after signing in> \
+//   AETHER_ADMIN_CHAT_EVAL_TOKEN=<a real admin bearer token, copied from
+//     the panel's network tab right after signing in> \
 //   node apps/api/evaluation/run.mjs [--limit N] [--category name] [--delay-ms N]
+//
+// Clerk session tokens are valid for only 60 seconds, so copy the token and
+// start the run immediately - this only realistically covers a short/
+// limited run (a small --limit), not the full suite in one sitting, unless
+// the panel's session token has been configured with a longer lifetime.
 //
 // Mutation cases only ever reach the prepare stage (a pending_action row) -
 // nothing here ever calls the confirm endpoint, so this is safe to run
@@ -140,7 +151,14 @@ for (const result of results) {
   const failed = result.checks.filter((check) => !check.pass);
   const pass = failed.length === 0;
   if (pass) passedCases += 1;
-  console.log(JSON.stringify({ id: result.id, pass, toolCallCount: result.toolCallCount, failedChecks: failed.map((check) => check.name) }));
+  console.log(
+    JSON.stringify({
+      id: result.id,
+      pass,
+      toolCallCount: result.toolCallCount,
+      failedChecks: failed.map((check) => (check.error ? `${check.name}: ${check.error}` : check.name))
+    })
+  );
   const bucket = byCategory.get(result.category) || { total: 0, passed: 0 };
   bucket.total += 1;
   if (pass) bucket.passed += 1;
