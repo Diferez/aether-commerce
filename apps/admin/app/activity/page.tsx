@@ -12,6 +12,8 @@ import { FilterBar, type FilterChip } from "../../components/FilterBar";
 import { DataTable, type Column } from "../../components/DataTable";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 type AuditLogRow = {
   id: string;
@@ -69,13 +71,16 @@ function parseJson(value: string | null): Record<string, unknown> | null {
   }
 }
 
-function summarizeChange(entry: AuditLogRow): string {
+function summarizeChange(entry: AuditLogRow, t: AdminDictionary): string {
   const previous = parseJson(entry.previous_data);
   const next = parseJson(entry.new_data);
   if (next) {
     const fields = Object.keys(next);
-    if (fields.length === 0) return previous ? "No fields changed" : "—";
-    return `${fields.length} field${fields.length === 1 ? "" : "s"} changed: ${fields.slice(0, 3).join(", ")}${fields.length > 3 ? "…" : ""}`;
+    if (fields.length === 0) return previous ? t.activityPage.noFieldsChanged : "—";
+    const fieldsText = `${fields.slice(0, 3).join(", ")}${fields.length > 3 ? "…" : ""}`;
+    return (fields.length === 1 ? t.activityPage.fieldsChangedOne : t.activityPage.fieldsChangedOther)
+      .replace("{count}", String(fields.length))
+      .replace("{fields}", fieldsText);
   }
   const payload = parseJson(entry.payload_json);
   const payloadFields = payload ? Object.keys(payload) : [];
@@ -91,6 +96,7 @@ function formatValue(value: unknown): string {
 }
 
 function CopyRequestId({ requestId }: { requestId: string }) {
+  const { t } = useAdminLanguage();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -108,7 +114,7 @@ function CopyRequestId({ requestId }: { requestId: string }) {
     <button
       type="button"
       onClick={() => void copy()}
-      aria-label={`Copy request ID ${requestId}`}
+      aria-label={t.activityPage.copyRequestId.replace("{id}", requestId)}
       className="focus-ring inline-flex items-center gap-1 rounded-md border border-border-strong px-2 py-1 font-mono text-xs text-ink-muted hover:bg-surface-hover hover:text-ink"
     >
       {copied ? <Check size={12} aria-hidden /> : <ClipboardCopy size={12} aria-hidden />}
@@ -118,13 +124,14 @@ function CopyRequestId({ requestId }: { requestId: string }) {
 }
 
 function DiffTable({ entry }: { entry: AuditLogRow }) {
+  const { t } = useAdminLanguage();
   const previous = parseJson(entry.previous_data);
   const next = parseJson(entry.new_data);
 
   if (!previous && !next) {
     const payload = parseJson(entry.payload_json);
     if (!payload || Object.keys(payload).length === 0) {
-      return <p className="text-sm text-ink-subtle">No additional detail was recorded for this event.</p>;
+      return <p className="text-sm text-ink-subtle">{t.activityPage.noAdditionalDetail}</p>;
     }
     return (
       <dl className="grid gap-2">
@@ -140,7 +147,7 @@ function DiffTable({ entry }: { entry: AuditLogRow }) {
 
   const fields = new Set([...Object.keys(previous ?? {}), ...Object.keys(next ?? {})]);
   if (fields.size === 0) {
-    return <p className="text-sm text-ink-subtle">Nothing changed.</p>;
+    return <p className="text-sm text-ink-subtle">{t.activityPage.nothingChanged}</p>;
   }
 
   return (
@@ -165,6 +172,7 @@ function DiffTable({ entry }: { entry: AuditLogRow }) {
 }
 
 function AuditDetailSheet({ entry, onClose }: { entry: AuditLogRow | null; onClose: () => void }) {
+  const { t, locale } = useAdminLanguage();
   const [showRaw, setShowRaw] = useState(false);
 
   return (
@@ -173,39 +181,39 @@ function AuditDetailSheet({ entry, onClose }: { entry: AuditLogRow | null; onClo
         <div className="grid gap-4">
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">When</dt>
-              <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString()}</dd>
+              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colWhen}</dt>
+              <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">Admin</dt>
+              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colAdmin}</dt>
               <dd className="mt-0.5 font-mono text-xs text-ink [overflow-wrap:anywhere]">
                 {entry.actor_id}
                 {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">Entity</dt>
+              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colEntity}</dt>
               <dd className="mt-0.5 text-ink [overflow-wrap:anywhere]">
                 {entry.target_type}
                 {entry.target_id ? <span className="text-ink-subtle"> · {entry.target_id}</span> : ""}
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">Request ID</dt>
+              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colRequestId}</dt>
               <dd className="mt-0.5">{entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>}</dd>
             </div>
           </dl>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold text-ink">What changed</p>
+              <p className="text-sm font-semibold text-ink">{t.activityPage.whatChanged}</p>
               <button
                 type="button"
                 onClick={() => setShowRaw((v) => !v)}
                 className="focus-ring inline-flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-ink hover:underline"
               >
                 <Code2 size={12} aria-hidden />
-                {showRaw ? "Hide raw JSON" : "View raw JSON"}
+                {showRaw ? t.activityPage.hideRawJson : t.activityPage.viewRawJson}
               </button>
             </div>
             {showRaw ? (
@@ -228,6 +236,7 @@ function AuditDetailSheet({ entry, onClose }: { entry: AuditLogRow | null; onClo
 
 export default function ActivityPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
   const [filters, setFilters] = useState<Filters>(() => readFiltersFromUrl());
   const [requestIdInput, setRequestIdInput] = useState(filters.requestId);
   const [result, setResult] = useState<ListResponse | null>(null);
@@ -283,23 +292,23 @@ export default function ActivityPage() {
   const hasFilters = Boolean(filters.actorId || filters.action || filters.targetType || filters.requestId || filters.from || filters.to);
   const chips: FilterChip[] = useMemo(() => {
     const list: FilterChip[] = [];
-    if (filters.actorId) list.push({ key: "actorId", label: `Admin: ${filters.actorId}`, onRemove: () => updateFilter("actorId", "") });
-    if (filters.action) list.push({ key: "action", label: `Action: ${filters.action}`, onRemove: () => updateFilter("action", "") });
-    if (filters.targetType) list.push({ key: "targetType", label: `Entity: ${filters.targetType}`, onRemove: () => updateFilter("targetType", "") });
+    if (filters.actorId) list.push({ key: "actorId", label: t.activityPage.adminChip.replace("{value}", filters.actorId), onRemove: () => updateFilter("actorId", "") });
+    if (filters.action) list.push({ key: "action", label: t.activityPage.actionChip.replace("{value}", filters.action), onRemove: () => updateFilter("action", "") });
+    if (filters.targetType) list.push({ key: "targetType", label: t.activityPage.entityChip.replace("{value}", filters.targetType), onRemove: () => updateFilter("targetType", "") });
     if (filters.requestId) {
       list.push({
         key: "requestId",
-        label: `Request: ${filters.requestId}`,
+        label: t.activityPage.requestChip.replace("{value}", filters.requestId),
         onRemove: () => {
           setRequestIdInput("");
           updateFilter("requestId", "");
         }
       });
     }
-    if (filters.from) list.push({ key: "from", label: `From: ${filters.from}`, onRemove: () => updateFilter("from", "") });
-    if (filters.to) list.push({ key: "to", label: `To: ${filters.to}`, onRemove: () => updateFilter("to", "") });
+    if (filters.from) list.push({ key: "from", label: t.activityPage.fromChip.replace("{value}", filters.from), onRemove: () => updateFilter("from", "") });
+    if (filters.to) list.push({ key: "to", label: t.activityPage.toChip.replace("{value}", filters.to), onRemove: () => updateFilter("to", "") });
     return list;
-  }, [filters]);
+  }, [filters, t]);
 
   function clearAll() {
     setRequestIdInput("");
@@ -309,12 +318,12 @@ export default function ActivityPage() {
   const columns: Column<AuditLogRow>[] = [
     {
       key: "when",
-      header: "When",
-      render: (entry) => <span className="whitespace-nowrap text-xs text-ink-subtle">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString()}</span>
+      header: t.activityPage.colWhen,
+      render: (entry) => <span className="whitespace-nowrap text-xs text-ink-subtle">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</span>
     },
     {
       key: "actor",
-      header: "Admin",
+      header: t.activityPage.colAdmin,
       render: (entry) => (
         <span className="font-mono text-xs text-ink-muted [overflow-wrap:anywhere]">
           {entry.actor_id}
@@ -324,7 +333,7 @@ export default function ActivityPage() {
     },
     {
       key: "action",
-      header: "Action",
+      header: t.activityPage.colAction,
       render: (entry) => (
         <button type="button" onClick={() => setSelected(entry)} className="focus-ring text-left font-medium text-ink hover:underline">
           {humanizeAction(entry.action)}
@@ -333,7 +342,7 @@ export default function ActivityPage() {
     },
     {
       key: "entity",
-      header: "Entity",
+      header: t.activityPage.colEntity,
       hideBelow: "sm",
       render: (entry) => (
         <span className="text-ink-muted [overflow-wrap:anywhere]">
@@ -342,10 +351,10 @@ export default function ActivityPage() {
         </span>
       )
     },
-    { key: "summary", header: "Change", hideBelow: "sm", render: (entry) => <span className="text-ink-muted [overflow-wrap:anywhere]">{summarizeChange(entry)}</span> },
+    { key: "summary", header: t.activityPage.colChange, hideBelow: "sm", render: (entry) => <span className="text-ink-muted [overflow-wrap:anywhere]">{summarizeChange(entry, t)}</span> },
     {
       key: "requestId",
-      header: "Request ID",
+      header: t.activityPage.colRequestId,
       hideBelow: "sm",
       render: (entry) => (entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>)
     }
@@ -355,51 +364,51 @@ export default function ActivityPage() {
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
         <PageHeader
-          title="Activity"
-          description={result ? `${result.pagination.total} event${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
+          title={t.activityPage.title}
+          description={result ? (result.pagination.total === 1 ? t.activityPage.countOne : t.activityPage.countOther).replace("{count}", String(result.pagination.total)) : t.activityPage.loading}
         />
 
         <TableToolbar
           searchValue={requestIdInput}
           onSearchChange={setRequestIdInput}
           onSearchSubmit={submitRequestId}
-          searchPlaceholder="Search by request ID"
-          searchLabel="Search activity by request ID"
+          searchPlaceholder={t.activityPage.searchPlaceholder}
+          searchLabel={t.activityPage.searchLabel}
           filters={
             <>
               <input
                 value={filters.actorId}
                 onChange={(event) => updateFilter("actorId", event.target.value)}
-                placeholder="Admin ID"
-                aria-label="Filter by admin ID"
+                placeholder={t.activityPage.adminIdPlaceholder}
+                aria-label={t.activityPage.filterByAdminId}
                 className="focus-ring min-h-11 w-32 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               />
               <input
                 value={filters.action}
                 onChange={(event) => updateFilter("action", event.target.value)}
-                placeholder="Action (e.g. product.updated)"
-                aria-label="Filter by action"
+                placeholder={t.activityPage.actionPlaceholder}
+                aria-label={t.activityPage.filterByAction}
                 className="focus-ring min-h-11 w-48 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               />
               <input
                 value={filters.targetType}
                 onChange={(event) => updateFilter("targetType", event.target.value)}
-                placeholder="Entity type"
-                aria-label="Filter by entity type"
+                placeholder={t.activityPage.entityTypePlaceholder}
+                aria-label={t.activityPage.filterByEntityType}
                 className="focus-ring min-h-11 w-32 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               />
               <input
                 type="date"
                 value={filters.from}
                 onChange={(event) => updateFilter("from", event.target.value)}
-                aria-label="From date"
+                aria-label={t.activityPage.fromDateLabel}
                 className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               />
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => updateFilter("to", event.target.value)}
-                aria-label="To date"
+                aria-label={t.activityPage.toDateLabel}
                 className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               />
             </>
@@ -414,11 +423,11 @@ export default function ActivityPage() {
           getRowId={(entry) => entry.id}
           pagination={result?.pagination ?? null}
           onPageChange={(page) => updateFilter("page", page)}
-          errorState={<ErrorState title="Could not load activity" />}
+          errorState={<ErrorState title={t.activityPage.couldNotLoad} />}
           emptyState={
             <EmptyState
-              title={hasFilters ? "No events match these filters" : "No activity recorded yet"}
-              description={hasFilters ? "Try adjusting or clearing your filters." : "Sensitive actions across the panel - product, order, customer and settings changes - will show up here."}
+              title={hasFilters ? t.activityPage.noEventsMatchFilters : t.activityPage.noActivityYet}
+              description={hasFilters ? t.activityPage.tryAdjustingFilters : t.activityPage.noActivityDescription}
             />
           }
         />

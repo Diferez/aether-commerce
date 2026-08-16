@@ -12,6 +12,7 @@ import { DataTable, type Column } from "../../components/DataTable";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { StatusBadge, type StatusTone } from "../../components/StatusBadge";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
 
 type AdminProductSummary = {
   id: string;
@@ -52,8 +53,8 @@ function readFiltersFromUrl() {
   };
 }
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
 const visibilityTone: Record<AdminProductSummary["visibility"], StatusTone> = {
@@ -61,14 +62,15 @@ const visibilityTone: Record<AdminProductSummary["visibility"], StatusTone> = {
   draft: "pending",
   hidden: "archived"
 };
-const visibilityLabel: Record<AdminProductSummary["visibility"], string> = {
-  visible: "Published",
-  draft: "Draft",
-  hidden: "Archived"
-};
 
 export default function ProductsListPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
+  const visibilityLabel: Record<AdminProductSummary["visibility"], string> = {
+    visible: t.productsPage.statusPublished,
+    draft: t.productsPage.statusDraft,
+    hidden: t.productsPage.statusArchived
+  };
   const [filters, setFilters] = useState(() => readFiltersFromUrl());
   const [searchInput, setSearchInput] = useState(filters.search);
   const [result, setResult] = useState<ListResponse | null>(null);
@@ -156,19 +158,27 @@ export default function ProductsListPage() {
   const hasFilters = Boolean(filters.search || filters.visibility || filters.category || filters.stock);
   const chips: FilterChip[] = [];
   if (filters.visibility) {
-    chips.push({ key: "visibility", label: `Status: ${visibilityLabel[filters.visibility as AdminProductSummary["visibility"]]}`, onRemove: () => updateFilter("visibility", "") });
+    chips.push({
+      key: "visibility",
+      label: t.productsPage.statusChip.replace("{value}", visibilityLabel[filters.visibility as AdminProductSummary["visibility"]]),
+      onRemove: () => updateFilter("visibility", "")
+    });
   }
   if (filters.stock) {
-    chips.push({ key: "stock", label: `Stock: ${filters.stock === "low" ? "Low" : "Out"}`, onRemove: () => updateFilter("stock", "") });
+    chips.push({
+      key: "stock",
+      label: t.productsPage.stockChip.replace("{value}", filters.stock === "low" ? t.productsPage.stockLow : t.productsPage.stockOut),
+      onRemove: () => updateFilter("stock", "")
+    });
   }
   if (filters.category) {
-    chips.push({ key: "category", label: `Category: ${filters.category}`, onRemove: () => updateFilter("category", "") });
+    chips.push({ key: "category", label: t.productsPage.categoryChip.replace("{value}", filters.category), onRemove: () => updateFilter("category", "") });
   }
 
   const columns: Column<AdminProductSummary>[] = [
     {
       key: "product",
-      header: "Product",
+      header: t.productsPage.colProduct,
       render: (product) => (
         <a href={`/products/edit/?id=${encodeURIComponent(product.id)}`} className="focus-ring flex items-center gap-3">
           {product.thumbnail ? (
@@ -181,22 +191,22 @@ export default function ProductsListPage() {
         </a>
       )
     },
-    { key: "sku", header: "SKU", hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.sku}</span> },
-    { key: "category", header: "Category", hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.category}</span> },
+    { key: "sku", header: t.productsPage.colSku, hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.sku}</span> },
+    { key: "category", header: t.productsPage.colCategory, hideBelow: "md", render: (product) => <span className="text-ink-muted">{product.category}</span> },
     {
       key: "price",
-      header: "Price",
+      header: t.productsPage.colPrice,
       align: "end",
       render: (product) => (
         <>
-          {money(product.finalPriceCents)}
-          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents)}</span> : null}
+          {money(product.finalPriceCents, locale)}
+          {product.compareAtPriceCents ? <span className="ml-1.5 text-xs text-ink-subtle line-through">{money(product.compareAtPriceCents, locale)}</span> : null}
         </>
       )
     },
     {
       key: "stock",
-      header: "Stock",
+      header: t.productsPage.colStock,
       align: "end",
       render: (product) => (
         <span className={product.stock <= 0 ? "font-semibold text-danger" : product.stock <= product.lowStockThreshold ? "font-semibold text-warning" : "text-ink-muted"}>
@@ -206,14 +216,14 @@ export default function ProductsListPage() {
     },
     {
       key: "status",
-      header: "Status",
+      header: t.productsPage.colStatus,
       render: (product) => <StatusBadge tone={visibilityTone[product.visibility]}>{visibilityLabel[product.visibility]}</StatusBadge>
     },
     {
       key: "updated",
-      header: "Updated",
+      header: t.productsPage.colUpdated,
       hideBelow: "sm",
-      render: (product) => <span className="text-xs text-ink-subtle">{new Date(product.updatedAt).toLocaleDateString()}</span>
+      render: (product) => <span className="text-xs text-ink-subtle">{new Date(product.updatedAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US")}</span>
     }
   ];
 
@@ -221,12 +231,12 @@ export default function ProductsListPage() {
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
         <PageHeader
-          title="Products"
-          description={result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."}
+          title={t.productsPage.title}
+          description={result ? (result.pagination.total === 1 ? t.productsPage.countOne : t.productsPage.countOther).replace("{count}", String(result.pagination.total)) : t.productsPage.loading}
           primaryAction={
             <a href="/products/new/" className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover">
               <Plus size={16} aria-hidden />
-              New product
+              {t.productsPage.newProduct}
             </a>
           }
         />
@@ -235,36 +245,36 @@ export default function ProductsListPage() {
           searchValue={searchInput}
           onSearchChange={setSearchInput}
           onSearchSubmit={submitSearch}
-          searchPlaceholder="Search by name or SKU"
-          searchLabel="Search products by name or SKU"
+          searchPlaceholder={t.productsPage.searchPlaceholder}
+          searchLabel={t.productsPage.searchLabel}
           filters={
             <>
               <select
                 value={filters.visibility}
                 onChange={(event) => updateFilter("visibility", event.target.value)}
-                aria-label="Filter by status"
+                aria-label={t.productsPage.filterByStatus}
                 className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               >
-                <option value="">All statuses</option>
-                <option value="draft">Draft</option>
-                <option value="visible">Published</option>
-                <option value="hidden">Archived</option>
+                <option value="">{t.productsPage.allStatuses}</option>
+                <option value="draft">{t.productsPage.statusDraft}</option>
+                <option value="visible">{t.productsPage.statusPublished}</option>
+                <option value="hidden">{t.productsPage.statusArchived}</option>
               </select>
               <select
                 value={filters.stock}
                 onChange={(event) => updateFilter("stock", event.target.value)}
-                aria-label="Filter by stock status"
+                aria-label={t.productsPage.filterByStock}
                 className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
               >
-                <option value="">All inventory</option>
-                <option value="low">Low stock</option>
-                <option value="out">Out of stock</option>
+                <option value="">{t.productsPage.allInventory}</option>
+                <option value="low">{t.productsPage.stockLow}</option>
+                <option value="out">{t.productsPage.stockOut}</option>
               </select>
               <input
                 value={filters.category}
                 onChange={(event) => updateFilter("category", event.target.value)}
-                placeholder="Category slug"
-                aria-label="Filter by category slug"
+                placeholder={t.productsPage.categorySlugPlaceholder}
+                aria-label={t.productsPage.filterByCategorySlug}
                 className="focus-ring min-h-11 w-40 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-subtle"
               />
             </>
@@ -274,7 +284,7 @@ export default function ProductsListPage() {
 
         {selected.size > 0 ? (
           <div className="mb-3 flex items-center gap-3 rounded-md border border-border bg-surface-hover px-3 py-2 text-sm">
-            <span className="font-medium text-ink">{selected.size} selected</span>
+            <span className="font-medium text-ink">{t.productsPage.selectedCount.replace("{count}", String(selected.size))}</span>
             <button
               type="button"
               disabled={bulkPending}
@@ -282,7 +292,7 @@ export default function ProductsListPage() {
               className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 py-1.5 font-semibold text-ink disabled:opacity-50"
             >
               <Send size={13} aria-hidden />
-              Publish
+              {t.productsPage.publish}
             </button>
             <button
               type="button"
@@ -291,7 +301,7 @@ export default function ProductsListPage() {
               className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 py-1.5 font-semibold text-ink disabled:opacity-50"
             >
               <EyeOff size={13} aria-hidden />
-              Archive
+              {t.productsPage.archive}
             </button>
           </div>
         ) : null}
@@ -304,16 +314,16 @@ export default function ProductsListPage() {
           pagination={result?.pagination ?? null}
           onPageChange={(page) => updateFilter("page", page)}
           selection={{ selectedIds: selected, onToggle: toggleSelected, onToggleAll: toggleSelectAll, getRowLabel: (product) => product.name }}
-          errorState={<ErrorState title="Could not load products" />}
+          errorState={<ErrorState title={t.productsPage.couldNotLoad} />}
           emptyState={
             <EmptyState
-              title={hasFilters ? "No products match these filters" : "No products yet"}
-              description={hasFilters ? "Try adjusting or clearing your filters." : "Create the first product to start building the catalog."}
+              title={hasFilters ? t.productsPage.noProductsMatchFilters : t.dashboard.noProductsYetTitle}
+              description={hasFilters ? t.productsPage.tryAdjustingFilters : t.dashboard.noProductsYetDescription}
               action={
                 !hasFilters ? (
                   <a href="/products/new/" className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover">
                     <Plus size={15} aria-hidden />
-                    Create product
+                    {t.productsPage.createProduct}
                   </a>
                 ) : undefined
               }

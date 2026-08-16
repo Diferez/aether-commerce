@@ -11,6 +11,7 @@ import { FilterBar, type FilterChip } from "../../components/FilterBar";
 import { StatusBadge, type StatusTone } from "../../components/StatusBadge";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
 
 type AdminProductSummary = {
   id: string;
@@ -52,16 +53,17 @@ function readFiltersFromUrl() {
   };
 }
 
-const stockLabel: Record<"low" | "out", string> = { low: "Low stock", out: "Out of stock" };
-
-function stockStatus(product: AdminProductSummary): { label: string; tone: StatusTone } {
-  if (product.stock <= 0) return { label: "Out of stock", tone: "error" };
-  if (product.stock <= product.lowStockThreshold) return { label: "Low stock", tone: "warning" };
-  return { label: "In stock", tone: "success" };
-}
-
 export default function InventoryListPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
+  const stockLabel: Record<"low" | "out", string> = { low: t.inventoryPage.stockLow, out: t.inventoryPage.stockOut };
+
+  function stockStatus(product: AdminProductSummary): { label: string; tone: StatusTone } {
+    if (product.stock <= 0) return { label: t.inventoryPage.stockOut, tone: "error" };
+    if (product.stock <= product.lowStockThreshold) return { label: t.inventoryPage.stockLow, tone: "warning" };
+    return { label: t.inventoryPage.stockInStock, tone: "success" };
+  }
+
   const [filters, setFilters] = useState(() => readFiltersFromUrl());
   const [searchInput, setSearchInput] = useState(filters.search);
   const [result, setResult] = useState<ListResponse | null>(null);
@@ -129,7 +131,7 @@ export default function InventoryListPage() {
     const draft = draftFor(productId);
     const delta = Number(draft.delta);
     if (!Number.isInteger(delta) || delta === 0) {
-      setAdjustError("Enter a non-zero whole number for the adjustment.");
+      setAdjustError(t.inventoryPage.adjustmentNonZeroRequired);
       return;
     }
     setAdjustingId(productId);
@@ -142,13 +144,13 @@ export default function InventoryListPage() {
       });
       const payload = (await response.json()) as { success: boolean; error?: { message?: string } };
       if (!payload.success) {
-        setAdjustError(payload.error?.message ?? "Could not adjust stock.");
+        setAdjustError(payload.error?.message ?? t.inventoryPage.couldNotAdjustStock);
         return;
       }
       setAdjustDrafts((current) => ({ ...current, [productId]: { delta: "", reason: "" } }));
       await load();
     } catch {
-      setAdjustError("Could not adjust stock.");
+      setAdjustError(t.inventoryPage.couldNotAdjustStock);
     } finally {
       setAdjustingId(null);
     }
@@ -180,30 +182,33 @@ export default function InventoryListPage() {
   const hasFilters = Boolean(filters.search || filters.stock);
   const chips: FilterChip[] = [];
   if (filters.stock) {
-    chips.push({ key: "stock", label: `Stock: ${stockLabel[filters.stock as "low" | "out"]}`, onRemove: () => updateFilter("stock", "") });
+    chips.push({ key: "stock", label: t.inventoryPage.stockChip.replace("{value}", stockLabel[filters.stock as "low" | "out"]), onRemove: () => updateFilter("stock", "") });
   }
 
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <PageHeader title="Inventory" description={result ? `${result.pagination.total} product${result.pagination.total === 1 ? "" : "s"}` : "Loading..."} />
+        <PageHeader
+          title={t.inventoryPage.title}
+          description={result ? (result.pagination.total === 1 ? t.inventoryPage.countOne : t.inventoryPage.countOther).replace("{count}", String(result.pagination.total)) : t.inventoryPage.loading}
+        />
 
         <TableToolbar
           searchValue={searchInput}
           onSearchChange={setSearchInput}
           onSearchSubmit={submitSearch}
-          searchPlaceholder="Search by name or SKU"
-          searchLabel="Search inventory by product name or SKU"
+          searchPlaceholder={t.inventoryPage.searchPlaceholder}
+          searchLabel={t.inventoryPage.searchLabel}
           filters={
             <select
               value={filters.stock}
               onChange={(event) => updateFilter("stock", event.target.value)}
-              aria-label="Filter by stock status"
+              aria-label={t.inventoryPage.filterByStock}
               className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
             >
-              <option value="">All inventory</option>
-              <option value="low">Low stock</option>
-              <option value="out">Out of stock</option>
+              <option value="">{t.inventoryPage.allInventory}</option>
+              <option value="low">{t.inventoryPage.stockLow}</option>
+              <option value="out">{t.inventoryPage.stockOut}</option>
             </select>
           }
         />
@@ -211,7 +216,7 @@ export default function InventoryListPage() {
 
         {adjustError ? (
           <div className="mb-3">
-            <ErrorState title="Could not adjust stock" description={adjustError} />
+            <ErrorState title={t.inventoryPage.couldNotAdjustStock} description={adjustError} />
           </div>
         ) : null}
 
@@ -224,23 +229,23 @@ export default function InventoryListPage() {
             </div>
           ) : status === "error" ? (
             <div className="p-4">
-              <ErrorState title="Could not load inventory" />
+              <ErrorState title={t.inventoryPage.couldNotLoadInventory} />
             </div>
           ) : !result || result.data.length === 0 ? (
             <EmptyState
-              title={hasFilters ? "No products match these filters" : "No products yet"}
-              description={hasFilters ? "Try adjusting or clearing your filters." : "Products you create will show up here once they have stock to track."}
+              title={hasFilters ? t.inventoryPage.noProductsMatchFilters : t.inventoryPage.noProductsYet}
+              description={hasFilters ? t.inventoryPage.tryAdjustingFilters : t.inventoryPage.noProductsYetDescription}
             />
           ) : (
             <table className="w-full min-w-[880px] text-left text-sm">
               <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
                 <tr>
-                  <th className="px-3 py-3">Product</th>
-                  <th className="hidden px-3 py-3 sm:table-cell">SKU</th>
-                  <th className="px-3 py-3 text-right">Stock</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Adjust</th>
-                  <th className="px-3 py-3">History</th>
+                  <th className="px-3 py-3">{t.inventoryPage.colProduct}</th>
+                  <th className="hidden px-3 py-3 sm:table-cell">{t.inventoryPage.colSku}</th>
+                  <th className="px-3 py-3 text-right">{t.inventoryPage.colStock}</th>
+                  <th className="px-3 py-3">{t.inventoryPage.colStatus}</th>
+                  <th className="px-3 py-3">{t.inventoryPage.colAdjust}</th>
+                  <th className="px-3 py-3">{t.inventoryPage.colHistory}</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,15 +281,15 @@ export default function InventoryListPage() {
                             <input
                               value={draft.delta}
                               onChange={(event) => updateDraft(product.id, { delta: event.target.value })}
-                              placeholder="+/-"
-                              aria-label={`Stock adjustment amount for ${product.name}`}
+                              placeholder={t.inventoryPage.deltaPlaceholder}
+                              aria-label={t.inventoryPage.adjustmentAmountLabel.replace("{name}", product.name)}
                               className="focus-ring min-h-9 w-16 rounded-md border border-border bg-surface px-2 text-sm text-ink"
                             />
                             <input
                               value={draft.reason}
                               onChange={(event) => updateDraft(product.id, { reason: event.target.value })}
-                              placeholder="Reason"
-                              aria-label={`Reason for stock adjustment for ${product.name}`}
+                              placeholder={t.inventoryPage.reasonPlaceholder}
+                              aria-label={t.inventoryPage.reasonLabel.replace("{name}", product.name)}
                               className="focus-ring min-h-9 w-28 rounded-md border border-border bg-surface px-2 text-sm text-ink"
                             />
                             <button
@@ -293,7 +298,7 @@ export default function InventoryListPage() {
                               onClick={() => void submitAdjustment(product.id)}
                               className="focus-ring min-h-9 rounded-md border border-border-strong px-2.5 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              Apply
+                              {t.inventoryPage.apply}
                             </button>
                           </div>
                         </td>
@@ -304,7 +309,7 @@ export default function InventoryListPage() {
                             className="focus-ring inline-flex items-center gap-1.5 text-sm font-semibold text-ink hover:underline"
                           >
                             <History size={14} aria-hidden />
-                            {historyProductId === product.id ? "Hide" : "View"}
+                            {historyProductId === product.id ? t.inventoryPage.hide : t.inventoryPage.view}
                           </button>
                         </td>
                       </tr>
@@ -312,11 +317,11 @@ export default function InventoryListPage() {
                         <tr className="border-b border-border bg-surface-hover last:border-b-0">
                           <td colSpan={6} className="px-3 py-3">
                             {historyStatus === "loading" ? (
-                              <p className="text-sm text-ink-muted">Loading history...</p>
+                              <p className="text-sm text-ink-muted">{t.inventoryPage.loadingHistory}</p>
                             ) : historyStatus === "error" ? (
-                              <p className="text-sm text-danger">Could not load movement history.</p>
+                              <p className="text-sm text-danger">{t.inventoryPage.couldNotLoadMovementHistory}</p>
                             ) : history.length === 0 ? (
-                              <p className="text-sm text-ink-muted">No movements recorded yet.</p>
+                              <p className="text-sm text-ink-muted">{t.inventoryPage.noMovementsRecorded}</p>
                             ) : (
                               <div className="grid gap-1.5">
                                 {history.map((movement) => (
@@ -325,7 +330,7 @@ export default function InventoryListPage() {
                                     <span className="tabular-nums">{movement.quantity}</span>
                                     {movement.reason ? <span className="text-ink-subtle">&middot; {movement.reason}</span> : null}
                                     <span className="text-xs text-ink-subtle">
-                                      {new Date(movement.created_at).toLocaleString()} &middot; {movement.actor_id ?? "system"}
+                                      {new Date(movement.created_at).toLocaleString(locale === "es" ? "es-ES" : "en-US")} &middot; {movement.actor_id ?? t.inventoryPage.systemActor}
                                     </span>
                                   </div>
                                 ))}
@@ -350,10 +355,10 @@ export default function InventoryListPage() {
               onClick={() => updateFilter("page", filters.page - 1)}
               className="focus-ring inline-flex items-center gap-1 rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Previous
+              {t.common.previous}
             </button>
             <span className="tabular-nums">
-              Page {result.pagination.page} of {result.pagination.pageCount}
+              {t.common.pageOf.replace("{page}", String(result.pagination.page)).replace("{pageCount}", String(result.pagination.pageCount))}
             </span>
             <button
               type="button"
@@ -361,7 +366,7 @@ export default function InventoryListPage() {
               onClick={() => updateFilter("page", filters.page + 1)}
               className="focus-ring rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Next
+              {t.common.next}
             </button>
           </div>
         ) : null}

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ErrorState } from "./ErrorState";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 export type Column<T> = {
   key: string;
@@ -53,6 +54,7 @@ export function DataTable<T>({
   errorState?: ReactNode;
   selection?: TableSelection<T>;
 }) {
+  const { t } = useAdminLanguage();
   return (
     <div>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
@@ -74,7 +76,7 @@ export function DataTable<T>({
                   <th className="w-10 px-3 py-3">
                     <input
                       type="checkbox"
-                      aria-label="Select all rows"
+                      aria-label={t.dataTable.selectAllRows}
                       checked={rows.length > 0 && rows.every((row) => selection.selectedIds.has(getRowId(row)))}
                       onChange={selection.onToggleAll}
                       className="h-4 w-4 rounded border-border-strong"
@@ -100,7 +102,7 @@ export function DataTable<T>({
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
-                          aria-label={`Select ${selection.getRowLabel?.(row) ?? id}`}
+                          aria-label={t.dataTable.selectRow.replace("{label}", selection.getRowLabel?.(row) ?? id)}
                           checked={selection.selectedIds.has(id)}
                           onChange={() => selection.onToggle(id)}
                           className="h-4 w-4 rounded border-border-strong"
@@ -131,10 +133,10 @@ export function DataTable<T>({
             onClick={() => onPageChange(pagination.page - 1)}
             className="focus-ring inline-flex items-center gap-1 rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Previous
+            {t.common.previous}
           </button>
           <span className="tabular-nums">
-            Page {pagination.page} of {pagination.pageCount}
+            {t.common.pageOf.replace("{page}", String(pagination.page)).replace("{pageCount}", String(pagination.pageCount))}
           </span>
           <button
             type="button"
@@ -142,7 +144,7 @@ export function DataTable<T>({
             onClick={() => onPageChange(pagination.page + 1)}
             className="focus-ring rounded-md border border-border-strong px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Next
+            {t.common.next}
           </button>
         </div>
       ) : null}

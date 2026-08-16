@@ -4,10 +4,12 @@ import { useEffect, useRef } from "react";
 import { useAuth, UserButton, useUser } from "@clerk/react";
 import { Sheet } from "@aether/ui";
 import { ExternalLink, Sparkles } from "lucide-react";
-import { navGroups } from "./nav-items";
+import { getNavGroups } from "./nav-items";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
 import { storefrontUrl } from "./config";
 import { useBrand } from "./useBrand";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 // Clerk's <UserButton/> only renders the avatar as the real clickable
 // trigger (.cl-userButtonTrigger) - the name/role text next to it is our
@@ -25,6 +27,8 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   const { isSignedIn } = useAuth();
   const { user } = useUser();
   const brand = useBrand();
+  const { t } = useAdminLanguage();
+  const navGroups = getNavGroups(t);
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
 
   useEffect(() => {
@@ -34,7 +38,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   let firstLink = true;
 
   return (
-    <Sheet open={open} onClose={onClose} side="left" title="Navigation">
+    <Sheet open={open} onClose={onClose} side="left" title={t.sidebar.navigation}>
       <div className="flex min-h-full flex-col">
         <div className="flex items-center gap-2.5 border-b border-border pb-4">
           {brand?.logoUrl ? (
@@ -45,11 +49,11 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
             </span>
           )}
           <div>
-            <p className="text-sm font-semibold text-ink">Aether</p>
-            <p className="text-xs text-ink-subtle">Admin console</p>
+            <p className="text-sm font-semibold text-ink">{t.sidebar.brand}</p>
+            <p className="text-xs text-ink-subtle">{t.sidebar.adminConsole}</p>
           </div>
         </div>
-        <nav aria-label="Admin" className="mt-4">
+        <nav aria-label={t.nav.navLabel} className="mt-4">
           {navGroups.map((group, groupIndex) => (
             <div key={group.label ?? `group-${groupIndex}`} className={groupIndex > 0 ? "mt-4" : undefined}>
               {group.label ? <p className="px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{group.label}</p> : null}
@@ -81,13 +85,16 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
             on mobile there was no way to see who's signed in or sign out. */}
         <div className="mt-auto grid gap-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <LanguageToggle />
+            </div>
             <a
               href={storefrontUrl}
               target="_blank"
               rel="noreferrer"
               className="focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink"
-              aria-label="Open storefront in a new tab"
+              aria-label={t.sidebar.openStorefront}
             >
               <ExternalLink size={16} aria-hidden />
             </a>
@@ -100,7 +107,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
               {isSignedIn ? <UserButton /> : null}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Account"}</p>
+              <p className="truncate text-sm font-medium text-ink">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? t.common.account}</p>
               {role ? <p className="truncate text-xs capitalize text-ink-subtle">{role.replaceAll("_", " ")}</p> : null}
             </div>
           </div>

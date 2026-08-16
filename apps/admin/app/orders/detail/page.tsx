@@ -12,6 +12,8 @@ import { ErrorState } from "../../../components/ErrorState";
 import { StatusBadge, type StatusTone } from "../../../components/StatusBadge";
 import { ActivityTimeline } from "../../../components/ActivityTimeline";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { useAdminLanguage } from "../../../components/AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 // Same reason as products/edit/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime-created order ids, so ?id= is read from
@@ -89,13 +91,19 @@ const fulfillmentTone: Record<FulfillmentStatus, StatusTone> = {
   cancelled: "error"
 };
 
-function money(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency }).format(cents / 100);
+}
+
+function statusLabel(t: AdminDictionary, value: string) {
+  const raw = (t.orderStatus as Record<string, string>)[value] ?? value.replaceAll("_", " ");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 export default function OrderDetailPage() {
   const id = useOrderIdParam();
   const { getToken, isLoaded: authLoaded } = useAuth();
+  const { t, locale } = useAdminLanguage();
   const [state, setState] = useState<"loading" | "ready" | "not-found" | "error">("loading");
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
@@ -155,14 +163,14 @@ export default function OrderDetailPage() {
       });
       const payload = (await response.json()) as { success: boolean; error?: { message?: string } };
       if (!payload.success) {
-        setActionError(payload.error?.message ?? "The action could not be completed.");
+        setActionError(payload.error?.message ?? t.orderDetailPage.actionCouldNotComplete);
         setActionStatus("error");
         return;
       }
       setActionStatus("idle");
       await load();
     } catch {
-      setActionError("The action could not be completed.");
+      setActionError(t.orderDetailPage.actionCouldNotComplete);
       setActionStatus("error");
     }
   }
@@ -171,7 +179,7 @@ export default function OrderDetailPage() {
     return (
       <RequireAdminAuth>
         <main id="main-content" className="admin-shell py-8">
-          <NotFound />
+          <NotFound t={t} />
         </main>
       </RequireAdminAuth>
     );
@@ -186,34 +194,37 @@ export default function OrderDetailPage() {
             <div className="skeleton h-40 rounded-lg" />
           </div>
         ) : state === "not-found" ? (
-          <NotFound />
+          <NotFound t={t} />
         ) : state === "error" || !order ? (
-          <ErrorState title="Could not load this order" />
+          <ErrorState title={t.orderDetailPage.couldNotLoadOrder} />
         ) : (
           <>
             <PageHeader
               title={order.number}
-              breadcrumb={[{ label: "Orders", href: "/orders/" }]}
-              description={`${order.email} · created ${new Date(order.createdAt).toLocaleString()} · state: ${order.state}`}
+              breadcrumb={[{ label: t.orderDetailPage.ordersBreadcrumb, href: "/orders/" }]}
+              description={t.orderDetailPage.descriptionTemplate
+                .replace("{email}", order.email)
+                .replace("{date}", new Date(order.createdAt).toLocaleString(locale === "es" ? "es-ES" : "en-US"))
+                .replace("{state}", order.state)}
               meta={
                 <>
                   {order.channel === "whatsapp" ? <MessageCircle size={18} className="text-accent-2" aria-hidden /> : null}
-                  <StatusBadge tone={paymentTone[order.paymentStatus]}>{order.paymentStatus.replaceAll("_", " ")}</StatusBadge>
-                  <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus]}>{order.fulfillmentStatus.replaceAll("_", " ")}</StatusBadge>
+                  <StatusBadge tone={paymentTone[order.paymentStatus]}>{statusLabel(t, order.paymentStatus)}</StatusBadge>
+                  <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus]}>{statusLabel(t, order.fulfillmentStatus)}</StatusBadge>
                 </>
               }
-              primaryAction={<span className="text-xl font-semibold tabular-nums text-ink">{money(order.totals.total, order.totals.currency)}</span>}
+              primaryAction={<span className="text-xl font-semibold tabular-nums text-ink">{money(order.totals.total, order.totals.currency, locale)}</span>}
             />
 
             {actionError ? (
               <div className="mb-4">
-                <ErrorState title="Action failed" description={actionError} />
+                <ErrorState title={t.orderDetailPage.actionFailed} description={actionError} />
               </div>
             ) : null}
 
             <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="grid gap-6">
-                <FormSection title="Items">
+                <FormSection title={t.orderDetailPage.itemsSection}>
                   <div className="grid gap-3">
                     {order.items.map((item) => (
                       <div key={item.productId} className="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-b-0 last:pb-0">
@@ -222,32 +233,32 @@ export default function OrderDetailPage() {
                           <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
                           <div>
                             <p className="font-medium text-ink">{item.name}</p>
-                            <p className="text-xs text-ink-subtle">Qty {item.quantity}</p>
+                            <p className="text-xs text-ink-subtle">{t.orderDetailPage.qtyLabel.replace("{count}", String(item.quantity))}</p>
                           </div>
                         </div>
-                        <span className="text-sm tabular-nums text-ink-muted">{money(item.lineTotal, item.currency)}</span>
+                        <span className="text-sm tabular-nums text-ink-muted">{money(item.lineTotal, item.currency, locale)}</span>
                       </div>
                     ))}
                   </div>
                   <dl className="grid gap-1 border-t border-border pt-3 text-sm">
                     <div className="flex justify-between text-ink-muted">
-                      <dt>Subtotal</dt>
-                      <dd className="tabular-nums">{money(order.totals.subtotal, order.totals.currency)}</dd>
+                      <dt>{t.orderDetailPage.subtotal}</dt>
+                      <dd className="tabular-nums">{money(order.totals.subtotal, order.totals.currency, locale)}</dd>
                     </div>
                     {order.totals.discount > 0 ? (
                       <div className="flex justify-between text-ink-muted">
-                        <dt>Discount</dt>
-                        <dd className="tabular-nums">-{money(order.totals.discount, order.totals.currency)}</dd>
+                        <dt>{t.orderDetailPage.discount}</dt>
+                        <dd className="tabular-nums">-{money(order.totals.discount, order.totals.currency, locale)}</dd>
                       </div>
                     ) : null}
                     <div className="flex justify-between font-semibold text-ink">
-                      <dt>Total</dt>
-                      <dd className="tabular-nums">{money(order.totals.total, order.totals.currency)}</dd>
+                      <dt>{t.orderDetailPage.total}</dt>
+                      <dd className="tabular-nums">{money(order.totals.total, order.totals.currency, locale)}</dd>
                     </div>
                   </dl>
                 </FormSection>
 
-                <FormSection title="Shipping address">
+                <FormSection title={t.orderDetailPage.shippingAddressSection}>
                   <p className="text-sm leading-6 text-ink-muted">
                     {order.shippingAddress.fullName}
                     <br />
@@ -259,24 +270,24 @@ export default function OrderDetailPage() {
                   </p>
                 </FormSection>
 
-                <FormSection title="Tracking">
+                <FormSection title={t.orderDetailPage.trackingSection}>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <input
                       value={trackingDraft.carrier}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, carrier: event.target.value }))}
-                      placeholder="Carrier"
+                      placeholder={t.orderDetailPage.carrierPlaceholder}
                       className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                     <input
                       value={trackingDraft.number}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, number: event.target.value }))}
-                      placeholder="Tracking number"
+                      placeholder={t.orderDetailPage.trackingNumberPlaceholder}
                       className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                     <input
                       value={trackingDraft.url}
                       onChange={(event) => setTrackingDraft((current) => ({ ...current, url: event.target.value }))}
-                      placeholder="Tracking URL"
+                      placeholder={t.orderDetailPage.trackingUrlPlaceholder}
                       className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-ink"
                     />
                   </div>
@@ -292,11 +303,11 @@ export default function OrderDetailPage() {
                     }
                     className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Save tracking
+                    {t.orderDetailPage.saveTracking}
                   </button>
                 </FormSection>
 
-                <FormSection title="Internal notes" description="Only visible to admin staff, never shown to the customer.">
+                <FormSection title={t.orderDetailPage.internalNotesSection} description={t.orderDetailPage.internalNotesDescription}>
                   <textarea
                     value={notesDraft}
                     onChange={(event) => setNotesDraft(event.target.value)}
@@ -310,31 +321,31 @@ export default function OrderDetailPage() {
                     onClick={() => void runAction("/notes", "PATCH", { notes: notesDraft || null })}
                     className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Save notes
+                    {t.orderDetailPage.saveNotes}
                   </button>
                 </FormSection>
 
-                <FormSection title="Timeline">
+                <FormSection title={t.orderDetailPage.timelineSection}>
                   <ActivityTimeline
                     items={order.history.map((entry) => ({
                       id: entry.id,
-                      title: entry.previous_state ? `${entry.previous_state} -> ${entry.new_state}` : entry.new_state,
+                      title: entry.previous_state ? `${statusLabel(t, entry.previous_state)} -> ${statusLabel(t, entry.new_state)}` : statusLabel(t, entry.new_state),
                       ...(entry.reason ? { detail: entry.reason } : {}),
-                      timestamp: `${new Date(entry.created_at).toLocaleString()} · ${entry.actor_id}`
+                      timestamp: `${new Date(entry.created_at).toLocaleString(locale === "es" ? "es-ES" : "en-US")} · ${entry.actor_id}`
                     }))}
                   />
                 </FormSection>
               </div>
 
               <div className="grid gap-6">
-                <FormSection title="Fulfillment">
+                <FormSection title={t.orderDetailPage.fulfillmentSection}>
                   <div className="flex items-center gap-2 text-sm text-ink-muted">
                     <Package size={15} aria-hidden />
-                    Current: <span className="font-semibold text-ink">{order.fulfillmentStatus.replaceAll("_", " ")}</span>
+                    {t.orderDetailPage.current} <span className="font-semibold text-ink">{statusLabel(t, order.fulfillmentStatus)}</span>
                   </div>
                   <div className="grid gap-2">
                     {fulfillmentNext[order.fulfillmentStatus].length === 0 ? (
-                      <p className="text-sm text-ink-muted">No further transitions available.</p>
+                      <p className="text-sm text-ink-muted">{t.orderDetailPage.noFurtherTransitions}</p>
                     ) : (
                       fulfillmentNext[order.fulfillmentStatus].map((next) => (
                         <button
@@ -344,22 +355,22 @@ export default function OrderDetailPage() {
                           onClick={() => void runAction("/fulfillment", "PATCH", { fulfillmentStatus: next })}
                           className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-left text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          Mark as {next.replaceAll("_", " ")}
+                          {t.orderDetailPage.markAs.replace("{status}", statusLabel(t, next))}
                         </button>
                       ))
                     )}
                   </div>
                 </FormSection>
 
-                <FormSection title="Payment">
+                <FormSection title={t.orderDetailPage.paymentSection}>
                   <p className="text-sm text-ink-muted">
-                    Current: <span className="font-semibold text-ink">{order.paymentStatus.replaceAll("_", " ")}</span>
+                    {t.orderDetailPage.current} <span className="font-semibold text-ink">{statusLabel(t, order.paymentStatus)}</span>
                   </p>
 
                   {order.channel === "whatsapp" ? (
                     <div className="grid gap-2">
                       {paymentNext[order.paymentStatus].length === 0 ? (
-                        <p className="text-sm text-ink-muted">No further transitions available.</p>
+                        <p className="text-sm text-ink-muted">{t.orderDetailPage.noFurtherTransitions}</p>
                       ) : (
                         paymentNext[order.paymentStatus].map((next) => (
                           <button
@@ -369,14 +380,14 @@ export default function OrderDetailPage() {
                             onClick={() => void runAction("/payment", "PATCH", { paymentStatus: next })}
                             className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-left text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            Mark as {next.replaceAll("_", " ")}
+                            {t.orderDetailPage.markAs.replace("{status}", statusLabel(t, next))}
                           </button>
                         ))
                       )}
                     </div>
                   ) : (
                     <div>
-                      <p className="text-sm text-ink-muted">Stripe orders can only change payment status through a real refund below.</p>
+                      <p className="text-sm text-ink-muted">{t.orderDetailPage.stripeRefundOnly}</p>
                       {(order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded") && order.payment?.providerPaymentIntentId ? (
                         <button
                           type="button"
@@ -384,7 +395,7 @@ export default function OrderDetailPage() {
                           className="focus-ring mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-danger/30 px-3 text-sm font-semibold text-danger hover:bg-danger-soft"
                         >
                           <RotateCcw size={14} aria-hidden />
-                          Refund via Stripe
+                          {t.orderDetailPage.refundViaStripe}
                         </button>
                       ) : null}
                     </div>
@@ -395,9 +406,9 @@ export default function OrderDetailPage() {
 
             <ConfirmDialog
               open={refundConfirming}
-              title="Refund via Stripe?"
-              description={`Refund the full amount (${money(order.totals.total, order.totals.currency)}) via Stripe? This calls the real Stripe API and cannot be undone.`}
-              confirmLabel="Confirm refund"
+              title={t.orderDetailPage.refundViaStripeTitle}
+              description={t.orderDetailPage.refundDescription.replace("{amount}", money(order.totals.total, order.totals.currency, locale))}
+              confirmLabel={t.orderDetailPage.confirmRefund}
               tone="danger"
               pending={actionStatus === "pending"}
               onConfirm={() => {
@@ -413,10 +424,10 @@ export default function OrderDetailPage() {
   );
 }
 
-function NotFound() {
+function NotFound({ t }: { t: AdminDictionary }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-6">
-      <EmptyState title="Order not found" description="It may have been deleted, or the link is incorrect." />
+      <EmptyState title={t.orderDetailPage.orderNotFoundTitle} description={t.orderDetailPage.orderNotFoundDescription} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "../../test/render";
 import { ToolResultCard } from "./ToolResultCard";
 import type { ChatArtifact } from "./types";
 

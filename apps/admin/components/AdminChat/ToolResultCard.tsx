@@ -1,6 +1,8 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
 import { StatusBadge } from "../StatusBadge";
 import { money, visibilityTone, fulfillmentTone, customerStatusTone, healthLevelTone, statFieldLabel, formatStatValue } from "./format";
+import { useAdminLanguage } from "../AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 import type {
   ActivityItemArtifact,
   ChatArtifact,
@@ -14,7 +16,7 @@ import type {
 // string rendered as HTML. Links are plain <a href> (static export, no
 // client router, same convention as CommandMenu's search results).
 
-function ProductRow({ product }: { product: ProductSummaryArtifact }) {
+function ProductRow({ product, t }: { product: ProductSummaryArtifact; t: AdminDictionary }) {
   return (
     <a href={product.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -23,13 +25,18 @@ function ProductRow({ product }: { product: ProductSummaryArtifact }) {
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <span className="tabular-nums text-ink-muted">{money(product.priceCents)}</span>
-        <StatusBadge tone={visibilityTone[product.visibility]}>{product.stock} in stock</StatusBadge>
+        <StatusBadge tone={visibilityTone[product.visibility]}>{t.chat.inStock.replace("{count}", String(product.stock))}</StatusBadge>
       </span>
     </a>
   );
 }
 
-function OrderRow({ order }: { order: OrderSummaryArtifact }) {
+function orderStatusLabel(t: AdminDictionary, value: string) {
+  const raw = t.orderStatus[value as keyof AdminDictionary["orderStatus"]] ?? value;
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function OrderRow({ order, t }: { order: OrderSummaryArtifact; t: AdminDictionary }) {
   return (
     <a href={order.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -38,13 +45,13 @@ function OrderRow({ order }: { order: OrderSummaryArtifact }) {
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency)}</span>
-        <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{order.fulfillmentStatus}</StatusBadge>
+        <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{orderStatusLabel(t, order.fulfillmentStatus)}</StatusBadge>
       </span>
     </a>
   );
 }
 
-function CustomerRow({ customer }: { customer: CustomerSummaryArtifact }) {
+function CustomerRow({ customer, t }: { customer: CustomerSummaryArtifact; t: AdminDictionary }) {
   return (
     <a href={customer.href} className="focus-ring flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover">
       <span className="min-w-0">
@@ -52,8 +59,8 @@ function CustomerRow({ customer }: { customer: CustomerSummaryArtifact }) {
         <span className="block text-xs text-ink-subtle">{customer.email}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2">
-        <span className="text-xs text-ink-muted">{customer.orderCount} order(s)</span>
-        <StatusBadge tone={customerStatusTone[customer.status]}>{customer.status}</StatusBadge>
+        <span className="text-xs text-ink-muted">{t.chat.ordersCountLabel.replace("{count}", String(customer.orderCount))}</span>
+        <StatusBadge tone={customerStatusTone[customer.status]}>{t.customerStatus[customer.status]}</StatusBadge>
       </span>
     </a>
   );
@@ -61,11 +68,24 @@ function CustomerRow({ customer }: { customer: CustomerSummaryArtifact }) {
 
 const healthStatusIcon = { operational: CheckCircle2, degraded: AlertTriangle, critical: XCircle, unknown: HelpCircle };
 
-function HealthStatusBadge({ status }: { status: string }) {
+function healthStatusLabel(t: AdminDictionary, status: string): string {
+  switch (status) {
+    case "operational":
+      return t.systemHealthPage.levelOperational;
+    case "degraded":
+      return t.systemHealthPage.levelDegraded;
+    case "critical":
+      return t.systemHealthPage.levelCritical;
+    default:
+      return t.systemHealthPage.statNoData;
+  }
+}
+
+function HealthStatusBadge({ status, t }: { status: string; t: AdminDictionary }) {
   const Icon = healthStatusIcon[status as keyof typeof healthStatusIcon] ?? HelpCircle;
   return (
     <StatusBadge tone={healthLevelTone[status] ?? "neutral"} icon={Icon}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {healthStatusLabel(t, status)}
     </StatusBadge>
   );
 }
@@ -80,19 +100,20 @@ function IssueRow({ issue }: { issue: { name: string; level: "critical" | "degra
   );
 }
 
-function ActivityRow({ item }: { item: ActivityItemArtifact }) {
+function ActivityRow({ item, locale }: { item: ActivityItemArtifact; locale: string }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2 text-sm">
       <p className="font-medium text-ink [overflow-wrap:anywhere]">{item.action}</p>
       <p className="text-xs text-ink-subtle [overflow-wrap:anywhere]">
         {item.targetType}
-        {item.targetId ? ` - ${item.targetId}` : ""} - {item.actorId} - {new Date(item.createdAt).toLocaleString()}
+        {item.targetId ? ` - ${item.targetId}` : ""} - {item.actorId} - {new Date(item.createdAt).toLocaleString(locale === "es" ? "es-ES" : "en-US")}
       </p>
     </div>
   );
 }
 
 export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
+  const { t, locale } = useAdminLanguage();
   switch (artifact.type) {
     case "text":
       return null;
@@ -100,45 +121,45 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
     case "navigate":
       return (
         <a href={artifact.href} className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/20">
-          Open {artifact.label} <ArrowRight size={14} aria-hidden />
+          {t.chat.openLabel.replace("{label}", artifact.label)} <ArrowRight size={14} aria-hidden />
         </a>
       );
 
     case "product_list":
       return artifact.products.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No products matched.</p>
+        <p className="text-sm text-ink-subtle">{t.chat.noProductsMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} />)}</div>
+        <div className="grid gap-1.5">{artifact.products.map((product) => <ProductRow key={product.id} product={product} t={t} />)}</div>
       );
 
     case "product_detail":
-      return <ProductRow product={artifact.product} />;
+      return <ProductRow product={artifact.product} t={t} />;
 
     case "order_list":
       return artifact.orders.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No orders matched.</p>
+        <p className="text-sm text-ink-subtle">{t.chat.noOrdersMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} />)}</div>
+        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} />)}</div>
       );
 
     case "order_detail":
-      return <OrderRow order={artifact.order} />;
+      return <OrderRow order={artifact.order} t={t} />;
 
     case "customer_card":
-      return <CustomerRow customer={artifact.customer} />;
+      return <CustomerRow customer={artifact.customer} t={t} />;
 
     case "customer_list":
       return artifact.customers.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No customers matched.</p>
+        <p className="text-sm text-ink-subtle">{t.chat.noCustomersMatched}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.customers.map((customer) => <CustomerRow key={customer.id} customer={customer} />)}</div>
+        <div className="grid gap-1.5">{artifact.customers.map((customer) => <CustomerRow key={customer.id} customer={customer} t={t} />)}</div>
       );
 
     case "customer_order_history":
       return artifact.orders.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No orders yet.</p>
+        <p className="text-sm text-ink-subtle">{t.chat.noOrdersYet}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} />)}</div>
+        <div className="grid gap-1.5">{artifact.orders.map((order) => <OrderRow key={order.id} order={order} t={t} />)}</div>
       );
 
     case "dashboard_summary": {
@@ -148,7 +169,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       const statEntries = Object.entries(stats);
       return (
         <div className="grid gap-2">
-          {typeof status === "string" ? <HealthStatusBadge status={status} /> : null}
+          {typeof status === "string" ? <HealthStatusBadge status={status} t={t} /> : null}
           {artifact.issues && artifact.issues.length > 0 ? (
             <div className="grid gap-1.5">
               {artifact.issues.map((issue) => (
@@ -160,8 +181,8 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {statEntries.map(([key, value]) => (
                 <div key={key} className="min-w-0 rounded-md border border-border px-3 py-2">
-                  <dt className="text-xs text-ink-subtle">{statFieldLabel(key)}</dt>
-                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(key, value)}</dd>
+                  <dt className="text-xs text-ink-subtle">{statFieldLabel(t, key)}</dt>
+                  <dd className="tabular-nums text-sm font-semibold text-ink [overflow-wrap:anywhere]">{formatStatValue(t, key, value)}</dd>
                 </div>
               ))}
             </dl>
@@ -169,7 +190,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
           {artifact.relatedOrders && artifact.relatedOrders.length > 0 ? (
             <div className="grid gap-1.5">
               {artifact.relatedOrders.map((order) => (
-                <OrderRow key={order.id} order={order} />
+                <OrderRow key={order.id} order={order} t={t} />
               ))}
             </div>
           ) : null}
@@ -179,16 +200,16 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
 
     case "activity_list":
       return artifact.items.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No activity to show.</p>
+        <p className="text-sm text-ink-subtle">{t.chat.noActivityToShow}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.items.map((item) => <ActivityRow key={item.id} item={item} />)}</div>
+        <div className="grid gap-1.5">{artifact.items.map((item) => <ActivityRow key={item.id} item={item} locale={locale} />)}</div>
       );
 
     case "allowed_transitions":
       return (
         <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-ink [overflow-wrap:anywhere]">
-          Currently <strong>{artifact.current}</strong>.{" "}
-          {artifact.allowed.length > 0 ? <>Can move to: {artifact.allowed.join(", ")}.</> : "No further transitions are possible."}
+          {t.chat.currentlyStatus.replace("{status}", artifact.current)}{" "}
+          {artifact.allowed.length > 0 ? t.chat.canMoveTo.replace("{options}", artifact.allowed.join(", ")) : t.chat.noFurtherTransitions}
         </div>
       );
 

@@ -8,6 +8,8 @@ import { apiBaseUrl } from "./config";
 import { Metric } from "./Metric";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
+import { useAdminLanguage } from "./AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 type ProductSummary = {
   id: string;
@@ -70,20 +72,23 @@ const fallback: Summary = {
   }
 };
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
 const stockTone: Record<"in" | "low" | "out", StatusTone> = { in: "success", low: "warning", out: "error" };
-function stockStatus(product: ProductSummary): { label: string; tone: StatusTone } {
-  if (product.stock <= 0) return { label: "Out of stock", tone: stockTone.out };
-  if (product.stock <= product.lowStockThreshold) return { label: "Low stock", tone: stockTone.low };
-  return { label: "In stock", tone: stockTone.in };
+function stockStatus(product: ProductSummary, t: AdminDictionary): { label: string; tone: StatusTone } {
+  if (product.stock <= 0) return { label: t.dashboard.outOfStock, tone: stockTone.out };
+  if (product.stock <= product.lowStockThreshold) return { label: t.dashboard.lowStock, tone: stockTone.low };
+  return { label: t.dashboard.inStock, tone: stockTone.in };
 }
 
+type StatusKey = "statusDemoData" | "statusPrivateAdmin" | "statusPublicDemo" | "statusLivePrivateAdmin" | "statusOfflineDemo";
+
 export function AdminDashboard({ demo = false }: { demo?: boolean }) {
+  const { t, locale } = useAdminLanguage();
   const [summary, setSummary] = useState<Summary>(fallback);
-  const [status, setStatus] = useState(demo ? "Demo data" : "Private admin");
+  const [statusKey, setStatusKey] = useState<StatusKey>(demo ? "statusDemoData" : "statusPrivateAdmin");
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
   const [openMessageId, setOpenMessageId] = useState<string | null>(null);
@@ -138,10 +143,10 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       .then((payload: { success: boolean; data?: Summary }) => {
         if (payload.success && payload.data) {
           setSummary(payload.data);
-          setStatus(payload.data.mode === "demo" ? "Public demo" : "Live private admin");
+          setStatusKey(payload.data.mode === "demo" ? "statusPublicDemo" : "statusLivePrivateAdmin");
         }
       })
-      .catch(() => setStatus("Offline demo"));
+      .catch(() => setStatusKey("statusOfflineDemo"));
   }, [demo]);
 
   useEffect(() => {
@@ -241,21 +246,19 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   }, [demo, isLoaded, getToken]);
 
   const metrics: Array<[string, string, LucideIcon]> = [
-    ["Revenue", money(summary.revenue), PackageCheck],
-    ["Orders", String(summary.orders), Boxes],
-    ["Conversion", `${summary.conversionRate}%`, UsersRound],
-    ["Low stock", String(summary.lowStock), AlertTriangle]
+    [t.dashboard.metricRevenue, money(summary.revenue, locale), PackageCheck],
+    [t.dashboard.metricOrders, String(summary.orders), Boxes],
+    [t.dashboard.metricConversion, `${summary.conversionRate}%`, UsersRound],
+    [t.dashboard.metricLowStock, String(summary.lowStock), AlertTriangle]
   ];
 
   return (
     <main id="main-content" className="admin-shell py-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent-hover">{status}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{demo ? "Public demo admin" : "Home"}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">
-            Catalog health, order operations, customer support, and audit events at a glance.
-          </p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent-hover">{t.dashboard[statusKey]}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{demo ? t.dashboard.publicDemoAdmin : t.dashboard.home}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">{t.dashboard.subtitle}</p>
         </div>
         <button
           type="button"
@@ -264,7 +267,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download size={17} aria-hidden />
-          Export orders CSV
+          {t.dashboard.exportOrdersCsv}
         </button>
       </div>
 
@@ -272,15 +275,12 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         <section className="mt-5 rounded-lg border border-warning/25 bg-warning-soft p-4 text-sm text-ink">
           <div className="flex gap-3">
             <Shield size={18} aria-hidden className="mt-0.5 shrink-0 text-warning" />
-            <div>
-              <p className="font-semibold">{summary.notice.en}</p>
-              <p className="text-ink-muted">{summary.notice.es}</p>
-            </div>
+            <p className="font-semibold">{summary.notice[locale]}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Metrics">
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t.dashboard.metricsLabel}>
         {metrics.map(([label, value, Icon]) => (
           <Metric key={label} label={label} value={value} icon={Icon} />
         ))}
@@ -289,17 +289,19 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       <section id="products" className="mt-6 rounded-lg border border-border bg-surface">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-base font-semibold text-ink">Products</h2>
+            <h2 className="text-base font-semibold text-ink">{t.dashboard.productsHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {productsTotal !== null ? `${productsTotal} product${productsTotal === 1 ? "" : "s"} in the catalog.` : "Create, edit, publish and archive products."}
+              {productsTotal !== null
+                ? (productsTotal === 1 ? t.dashboard.productsCountOne : t.dashboard.productsCountOther).replace("{count}", String(productsTotal))
+                : t.dashboard.productsSubtitleFallback}
             </p>
           </div>
           <a href="/products/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
-            View all
+            {t.common.viewAll}
           </a>
         </div>
         {recentProducts.length === 0 ? (
-          <EmptyState title="No products yet" description="Create the first product to start building the catalog." />
+          <EmptyState title={t.dashboard.noProductsYetTitle} description={t.dashboard.noProductsYetDescription} />
         ) : (
           recentProducts.map((product) => (
             <div key={product.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
@@ -307,12 +309,12 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
                 <h3 className="font-medium text-ink">{product.name}</h3>
                 <p className="text-sm text-ink-muted">SKU {product.sku}</p>
               </div>
-              <StatusBadge tone={stockStatus(product).tone}>{stockStatus(product).label}</StatusBadge>
+              <StatusBadge tone={stockStatus(product, t).tone}>{stockStatus(product, t).label}</StatusBadge>
               <a
                 href={`/products/edit/?id=${encodeURIComponent(product.id)}`}
                 className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
-                Edit product
+                {t.dashboard.editProduct}
               </a>
             </div>
           ))
@@ -322,17 +324,17 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       <section id="inventory" className="mt-6 rounded-lg border border-border bg-surface">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-base font-semibold text-ink">Inventory</h2>
+            <h2 className="text-base font-semibold text-ink">{t.dashboard.inventoryHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {summary.lowStock} product{summary.lowStock === 1 ? "" : "s"} at or below its low-stock threshold.
+              {(summary.lowStock === 1 ? t.dashboard.inventoryCountOne : t.dashboard.inventoryCountOther).replace("{count}", String(summary.lowStock))}
             </p>
           </div>
           <a href="/inventory/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
-            View all
+            {t.common.viewAll}
           </a>
         </div>
         {lowStockProducts.length === 0 ? (
-          <EmptyState title="Nothing running low" description="Every product is above its low-stock threshold right now." />
+          <EmptyState title={t.dashboard.nothingRunningLowTitle} description={t.dashboard.nothingRunningLowDescription} />
         ) : (
           lowStockProducts.map((product) => (
             <div key={product.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_180px] md:items-center">
@@ -341,13 +343,13 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
                 <p className="text-sm text-ink-muted">SKU {product.sku}</p>
               </div>
               <span className={`text-sm font-semibold tabular-nums ${product.stock <= 0 ? "text-danger" : "text-warning"}`}>
-                {product.stock} left (threshold {product.lowStockThreshold})
+                {t.dashboard.leftThreshold.replace("{count}", String(product.stock)).replace("{threshold}", String(product.lowStockThreshold))}
               </span>
               <a
                 href="/inventory/"
                 className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
-                Adjust stock
+                {t.dashboard.adjustStock}
               </a>
             </div>
           ))
@@ -357,17 +359,19 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       <section id="orders" className="mt-6 rounded-lg border border-border bg-surface">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-base font-semibold text-ink">Orders</h2>
+            <h2 className="text-base font-semibold text-ink">{t.dashboard.ordersHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {ordersTotal !== null ? `${ordersTotal} order${ordersTotal === 1 ? "" : "s"} recorded.` : "Fulfillment, payments and refunds."}
+              {ordersTotal !== null
+                ? (ordersTotal === 1 ? t.dashboard.ordersCountOne : t.dashboard.ordersCountOther).replace("{count}", String(ordersTotal))
+                : t.dashboard.ordersSubtitleFallback}
             </p>
           </div>
           <a href="/orders/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
-            View all
+            {t.common.viewAll}
           </a>
         </div>
         {ordersStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">Could not load recent orders.</p>
+          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadOrders}</p>
         ) : ordersStatus === "loading" ? (
           <div className="grid gap-2 p-4">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -375,20 +379,20 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             ))}
           </div>
         ) : recentOrders.length === 0 ? (
-          <EmptyState title="No orders yet" description="Orders placed on the storefront or created manually will show up here." />
+          <EmptyState title={t.dashboard.noOrdersYetTitle} description={t.dashboard.noOrdersYetDescription} />
         ) : (
           recentOrders.map((order) => (
             <div key={order.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
               <strong className="text-ink">{order.number}</strong>
               <span className="truncate text-ink-muted">{order.email}</span>
               <span className="text-sm text-ink-muted">
-                {order.payment_status.replaceAll("_", " ")} &middot; {order.fulfillment_status.replaceAll("_", " ")}
+                {t.orderStatus[order.payment_status]} &middot; {t.orderStatus[order.fulfillment_status]}
               </span>
               <a
                 href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
                 className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
-                Open order
+                {t.dashboard.openOrder}
               </a>
             </div>
           ))
@@ -398,17 +402,19 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       <section id="customers" className="mt-6 rounded-lg border border-border bg-surface">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <h2 className="text-base font-semibold text-ink">Customers</h2>
+            <h2 className="text-base font-semibold text-ink">{t.dashboard.customersHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {customersTotal !== null ? `${customersTotal} customer${customersTotal === 1 ? "" : "s"} tracked.` : "Accounts, guest checkouts and access."}
+              {customersTotal !== null
+                ? (customersTotal === 1 ? t.dashboard.customersCountOne : t.dashboard.customersCountOther).replace("{count}", String(customersTotal))
+                : t.dashboard.customersSubtitleFallback}
             </p>
           </div>
           <a href="/customers/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
-            View all
+            {t.common.viewAll}
           </a>
         </div>
         {customersStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">Could not load recent customers.</p>
+          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadCustomers}</p>
         ) : customersStatus === "loading" ? (
           <div className="grid gap-2 p-4">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -416,18 +422,18 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             ))}
           </div>
         ) : recentCustomers.length === 0 ? (
-          <EmptyState title="No customers yet" description="Registered accounts and guest checkouts will show up here." />
+          <EmptyState title={t.dashboard.noCustomersYetTitle} description={t.dashboard.noCustomersYetDescription} />
         ) : (
           recentCustomers.map((customer) => (
             <div key={customer.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
               <span className="text-ink">{customer.name ?? customer.email}</span>
-              <span className="text-sm text-ink-muted">{customer.source === "guest" ? "Guest checkout" : "Registered"}</span>
-              <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{customer.status}</StatusBadge>
+              <span className="text-sm text-ink-muted">{customer.source === "guest" ? t.dashboard.guestCheckout : t.dashboard.registered}</span>
+              <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge>
               <a
                 href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`}
                 className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
-                Open customer
+                {t.dashboard.openCustomer}
               </a>
             </div>
           ))
@@ -436,15 +442,15 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
 
       <section id="messages" className="mt-6 rounded-lg border border-border bg-surface">
         <div className="border-b border-border p-4">
-          <h2 className="text-base font-semibold text-ink">Contact messages</h2>
-          <p className="text-sm text-ink-muted">Every submission from the portfolio and storefront contact forms lands here.</p>
+          <h2 className="text-base font-semibold text-ink">{t.dashboard.contactMessagesHeading}</h2>
+          <p className="text-sm text-ink-muted">{t.dashboard.contactMessagesSubtitle}</p>
         </div>
         {messagesStatus === "forbidden" ? (
           <p className="p-4 text-sm text-ink-muted">
-            {demo ? "Public demo mode hides real visitor messages." : "Your role does not have the contacts.read permission."}
+            {demo ? t.dashboard.demoHidesMessages : t.dashboard.noContactPermission}
           </p>
         ) : messagesStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">Could not load contact messages.</p>
+          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadMessages}</p>
         ) : messagesStatus === "loading" ? (
           <div className="grid gap-2 p-4">
             {Array.from({ length: 2 }).map((_, index) => (
@@ -452,7 +458,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <EmptyState title="No messages yet" description="Contact form submissions will appear here as they come in." />
+          <EmptyState title={t.dashboard.noMessagesYetTitle} description={t.dashboard.noMessagesYetDescription} />
         ) : (
           messages.map((entry) => {
             const isOpen = openMessageId === entry.id;
@@ -466,7 +472,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
                 >
                   <span className="font-medium text-ink">{entry.name}</span>
                   <span className="truncate text-sm text-ink-muted">{entry.subject}</span>
-                  <span className="text-xs text-ink-subtle">{new Date(entry.created_at).toLocaleString()}</span>
+                  <span className="text-xs text-ink-subtle">{new Date(entry.created_at).toLocaleString(locale === "es" ? "es-ES" : "en-US")}</span>
                   <ChevronDown size={16} aria-hidden className={`justify-self-end text-ink-subtle transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 </button>
                 {isOpen ? (
@@ -491,27 +497,27 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
         <div className="rounded-lg border border-border bg-surface p-5">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <TicketPercent size={17} aria-hidden />
-            Coupons
+            {t.dashboard.couponsHeading}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">Case-insensitive coupons with usage and subtotal rules, managed via the API today.</p>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.couponsDescription}</p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="text-base font-semibold text-ink">Reviews</h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">Moderation queue for verified or seeded demo reviews, managed via the API today.</p>
+          <h2 className="text-base font-semibold text-ink">{t.dashboard.reviewsHeading}</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.reviewsDescription}</p>
         </div>
         <a href="/activity/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <History size={17} aria-hidden />
-            Activity
+            {t.dashboard.activityHeading}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">Every privileged action records actor, entity and request ID.</p>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.activityDescription}</p>
         </a>
         <a href="/settings/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <Settings size={17} aria-hidden />
-            Settings
+            {t.dashboard.settingsHeading}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">Branding, checkout method, shipping, and cart reservation hold time.</p>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.settingsDescription}</p>
         </a>
       </section>
     </main>

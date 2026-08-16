@@ -4,6 +4,7 @@ import "./globals.css";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { SentryProvider } from "../components/SentryProvider";
+import { AdminLanguageProvider } from "../components/AdminLanguageProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,6 +24,14 @@ const themeInitScript = `
     if (window.localStorage.getItem("aether.admin.theme.v1") === "dark") {
       document.documentElement.setAttribute("data-theme", "dark");
     }
+
+    var storedLocale = window.localStorage.getItem("aether.admin.locale.v1");
+    var locale = storedLocale === "en" || storedLocale === "es"
+      ? storedLocale
+      : (navigator.language || "").toLowerCase().indexOf("es") === 0 ? "es" : "en";
+    if (locale !== "en") {
+      document.documentElement.setAttribute("data-locale-pending", "1");
+    }
   } catch (e) {}
 })();
 `;
@@ -32,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
         <a
@@ -42,7 +52,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <SentryProvider>
           <ClerkAuthProvider>
-            <AdminShell>{children}</AdminShell>
+            <AdminLanguageProvider>
+              <AdminShell>{children}</AdminShell>
+            </AdminLanguageProvider>
           </ClerkAuthProvider>
         </SentryProvider>
       </body>

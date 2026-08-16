@@ -8,6 +8,7 @@ import { apiBaseUrl } from "./config";
 import { FormSection } from "./FormSection";
 import { StickyFormActions } from "./StickyFormActions";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 export type ProductFormValues = {
   name: string;
@@ -88,6 +89,7 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const { getToken } = useAuth();
+  const { t } = useAdminLanguage();
   const [values, setValues] = useState<ProductFormValues>(initialValues);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -151,17 +153,17 @@ export function ProductForm({
 
     if (!values.name.trim() || !values.category.trim() || !values.shortDescription.trim() || !values.description.trim()) {
       setStatus("error");
-      setErrorMessage("Name, category, short description and description are required.");
+      setErrorMessage(t.productForm.requiredFieldsMissing);
       return;
     }
     if (!values.images.main) {
       setStatus("error");
-      setErrorMessage("Add at least a main image before saving.");
+      setErrorMessage(t.productForm.mainImageRequired);
       return;
     }
     if (values.compareAtPriceCents != null && values.compareAtPriceCents <= values.priceCents) {
       setStatus("error");
-      setErrorMessage("The compare-at price must be higher than the current price.");
+      setErrorMessage(t.productForm.compareAtPriceTooLow);
       return;
     }
 
@@ -173,7 +175,7 @@ export function ProductForm({
       const payload = (await response.json()) as { success: boolean; data?: { id: string }; error?: { message: string } };
       if (!payload.success) {
         setStatus("error");
-        setErrorMessage(payload.error?.message ?? "Could not save the product.");
+        setErrorMessage(payload.error?.message ?? t.productForm.couldNotSaveProduct);
         return;
       }
       setStatus("saved");
@@ -184,7 +186,7 @@ export function ProductForm({
       }
     } catch {
       setStatus("error");
-      setErrorMessage("Network error - the product was not saved.");
+      setErrorMessage(t.productForm.networkErrorProductNotSaved);
     }
   }
 
@@ -199,7 +201,7 @@ export function ProductForm({
         error?: { message: string };
       };
       if (!sigPayload.success || !sigPayload.data) {
-        setErrorMessage(sigPayload.error?.message ?? "Image uploads are not configured.");
+        setErrorMessage(sigPayload.error?.message ?? t.productForm.imageUploadsNotConfigured);
         return;
       }
       const { cloudName, apiKey, timestamp, folder, signature } = sigPayload.data;
@@ -215,7 +217,7 @@ export function ProductForm({
       });
       const uploadPayload = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
       if (!uploadResponse.ok || !uploadPayload.secure_url) {
-        setErrorMessage(uploadPayload.error?.message ?? "The image upload failed.");
+        setErrorMessage(uploadPayload.error?.message ?? t.productForm.imageUploadFailed);
         return;
       }
       setValues((current) =>
@@ -224,7 +226,7 @@ export function ProductForm({
           : { ...current, images: { main: uploadPayload.secure_url as string, gallery: current.images.gallery } }
       );
     } catch {
-      setErrorMessage("Network error - the image was not uploaded.");
+      setErrorMessage(t.productForm.networkErrorImageNotUploaded);
     } finally {
       setUploading(false);
     }
@@ -257,12 +259,12 @@ export function ProductForm({
       const response = await authorizedFetch(`/api/v1/admin/products/${productId}`, { method: "DELETE" });
       const payload = (await response.json()) as { success: boolean; data?: { deleted: boolean; softDeleted: boolean } };
       if (!payload.success) {
-        setErrorMessage("Could not delete the product.");
+        setErrorMessage(t.productForm.couldNotDeleteProduct);
         return;
       }
       router.push("/products/");
     } catch {
-      setErrorMessage("Network error - the product was not deleted.");
+      setErrorMessage(t.productForm.networkErrorProductNotDeleted);
     } finally {
       setDeleting(false);
       setConfirmingDelete(false);
@@ -280,47 +282,47 @@ export function ProductForm({
         </div>
       ) : null}
 
-      <FormSection title="Basic information">
+      <FormSection title={t.productForm.basicInfoSection}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
-            <span className={labelTextClass}>Name *</span>
+            <span className={labelTextClass}>{t.productForm.nameLabel}</span>
             <input required className={inputClass} value={values.name} onChange={(event) => set("name", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Slug</span>
+            <span className={labelTextClass}>{t.productForm.slugLabel}</span>
             <input
               className={inputClass}
               value={values.slug}
-              placeholder="auto-generated from name if empty"
+              placeholder={t.productForm.slugPlaceholder}
               onChange={(event) => set("slug", event.target.value)}
             />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Category *</span>
+            <span className={labelTextClass}>{t.productForm.categoryLabel}</span>
             <input required className={inputClass} value={values.category} onChange={(event) => set("category", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Subcategory</span>
+            <span className={labelTextClass}>{t.productForm.subcategoryLabel}</span>
             <input className={inputClass} value={values.subcategory} onChange={(event) => set("subcategory", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Brand</span>
+            <span className={labelTextClass}>{t.productForm.brandLabel}</span>
             <input className={inputClass} value={values.brand} onChange={(event) => set("brand", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Status</span>
+            <span className={labelTextClass}>{t.productForm.statusLabel}</span>
             <select
               className={inputClass}
               value={values.visibility}
               onChange={(event) => set("visibility", event.target.value as ProductFormValues["visibility"])}
             >
-              <option value="draft">Draft</option>
-              <option value="visible">Published</option>
-              <option value="hidden">Archived</option>
+              <option value="draft">{t.productsPage.statusDraft}</option>
+              <option value="visible">{t.productsPage.statusPublished}</option>
+              <option value="hidden">{t.productsPage.statusArchived}</option>
             </select>
           </label>
           <label className={`${labelClass} sm:col-span-2`}>
-            <span className={labelTextClass}>Short description *</span>
+            <span className={labelTextClass}>{t.productForm.shortDescriptionLabel}</span>
             <input
               required
               maxLength={300}
@@ -330,7 +332,7 @@ export function ProductForm({
             />
           </label>
           <label className={`${labelClass} sm:col-span-2`}>
-            <span className={labelTextClass}>Description *</span>
+            <span className={labelTextClass}>{t.productForm.descriptionLabel}</span>
             <textarea
               required
               rows={5}
@@ -340,34 +342,34 @@ export function ProductForm({
             />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Tags (comma separated)</span>
+            <span className={labelTextClass}>{t.productForm.tagsLabel}</span>
             <input className={inputClass} value={values.tags} onChange={(event) => set("tags", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Highlights (one per line)</span>
+            <span className={labelTextClass}>{t.productForm.highlightsLabel}</span>
             <input className={inputClass} value={values.highlights} onChange={(event) => set("highlights", event.target.value)} />
           </label>
           <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.featured} onChange={(event) => set("featured", event.target.checked)} />
-              Featured
+              {t.productForm.featured}
             </label>
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.isNew} onChange={(event) => set("isNew", event.target.checked)} />
-              New arrival
+              {t.productForm.newArrival}
             </label>
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={values.isDeal} onChange={(event) => set("isDeal", event.target.checked)} />
-              On sale
+              {t.productForm.onSale}
             </label>
           </div>
         </div>
       </FormSection>
 
-      <FormSection title="Price">
+      <FormSection title={t.productForm.priceSection}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelClass}>
-            <span className={labelTextClass}>Price (USD) *</span>
+            <span className={labelTextClass}>{t.productForm.priceLabel}</span>
             <input
               required
               type="number"
@@ -379,7 +381,7 @@ export function ProductForm({
             />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Compare-at price (optional)</span>
+            <span className={labelTextClass}>{t.productForm.compareAtPriceLabel}</span>
             <input
               type="number"
               min="0"
@@ -388,19 +390,19 @@ export function ProductForm({
               value={centsToInput(values.compareAtPriceCents)}
               onChange={(event) => set("compareAtPriceCents", inputToCents(event.target.value))}
             />
-            <span className="text-xs text-ink-subtle">Must be higher than the price - shown struck through.</span>
+            <span className="text-xs text-ink-subtle">{t.productForm.compareAtPriceHint}</span>
           </label>
         </div>
       </FormSection>
 
-      <FormSection title="Inventory">
+      <FormSection title={t.productForm.inventorySection}>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className={labelClass}>
-            <span className={labelTextClass}>SKU</span>
-            <input className={inputClass} value={values.sku} placeholder="auto-generated if empty" onChange={(event) => set("sku", event.target.value)} />
+            <span className={labelTextClass}>{t.productForm.skuLabel}</span>
+            <input className={inputClass} value={values.sku} placeholder={t.productForm.skuPlaceholder} onChange={(event) => set("sku", event.target.value)} />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Stock *</span>
+            <span className={labelTextClass}>{t.productForm.stockLabel}</span>
             <input
               required
               type="number"
@@ -411,7 +413,7 @@ export function ProductForm({
             />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>Low stock threshold</span>
+            <span className={labelTextClass}>{t.productForm.lowStockThresholdLabel}</span>
             <input
               type="number"
               min="0"
@@ -423,7 +425,7 @@ export function ProductForm({
         </div>
       </FormSection>
 
-      <FormSection title="Images" description="The first image is the main image shown in the catalog.">
+      <FormSection title={t.productForm.imagesSection} description={t.productForm.imagesDescription}>
         <div className="flex flex-wrap gap-3">
           {allImages.map((url) => (
             <div key={url} className="group relative h-24 w-24 overflow-hidden rounded-md border border-border">
@@ -438,7 +440,7 @@ export function ProductForm({
                   type="button"
                   onClick={() => makeMainImage(url)}
                   className="focus-ring absolute left-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
-                  aria-label="Make main image"
+                  aria-label={t.productForm.makeMainImage}
                 >
                   <Star size={11} aria-hidden />
                 </button>
@@ -447,7 +449,7 @@ export function ProductForm({
                 type="button"
                 onClick={() => removeImage(url)}
                 className="focus-ring absolute right-1 top-1 rounded bg-ink/70 p-1 text-surface opacity-0 group-hover:opacity-100"
-                aria-label="Remove image"
+                aria-label={t.productForm.removeImage}
               >
                 <X size={11} aria-hidden />
               </button>
@@ -463,7 +465,7 @@ export function ProductForm({
             className="focus-ring grid h-24 w-24 place-items-center gap-1 rounded-md border-2 border-dashed border-border-strong text-xs font-medium text-ink-muted hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <ImagePlus size={18} aria-hidden />}
-            {uploading ? "Uploading..." : "Add image"}
+            {uploading ? t.productForm.uploading : t.productForm.addImage}
           </button>
           <input
             ref={fileInputRef}
@@ -479,10 +481,10 @@ export function ProductForm({
         </div>
       </FormSection>
 
-      <FormSection title="SEO">
+      <FormSection title={t.productForm.seoSection}>
         <div className="grid gap-3">
           <label className={labelClass}>
-            <span className={labelTextClass}>SEO title</span>
+            <span className={labelTextClass}>{t.productForm.seoTitleLabel}</span>
             <input
               maxLength={160}
               className={inputClass}
@@ -492,7 +494,7 @@ export function ProductForm({
             />
           </label>
           <label className={labelClass}>
-            <span className={labelTextClass}>SEO description</span>
+            <span className={labelTextClass}>{t.productForm.seoDescriptionLabel}</span>
             <input
               maxLength={300}
               className={inputClass}
@@ -502,7 +504,7 @@ export function ProductForm({
             />
           </label>
           <p className="text-xs text-ink-subtle">
-            Preview: <span className="font-medium text-ink-muted">{values.seoTitle || (values.name ? `${values.name} | Aether` : "...")}</span>
+            {t.productForm.previewLabel} <span className="font-medium text-ink-muted">{values.seoTitle || (values.name ? `${values.name} | Aether` : "...")}</span>
             {" - "}
             /products/{values.slug || "..."}
           </p>
@@ -516,9 +518,9 @@ export function ProductForm({
           className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "saving" ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
-          {mode === "create" ? "Create product" : "Save changes"}
+          {mode === "create" ? t.productsPage.createProduct : t.productForm.saveChanges}
         </button>
-        {status === "saved" ? <span className="text-sm text-success">Saved.</span> : null}
+        {status === "saved" ? <span className="text-sm text-success">{t.productForm.saved}</span> : null}
 
         {mode === "edit" ? (
           <button
@@ -527,16 +529,16 @@ export function ProductForm({
             className="focus-ring ml-auto inline-flex min-h-11 items-center gap-2 rounded-md border border-danger/30 px-3 text-sm font-semibold text-danger hover:bg-danger-soft"
           >
             <Trash2 size={15} aria-hidden />
-            Delete
+            {t.common.delete}
           </button>
         ) : null}
       </StickyFormActions>
 
       <ConfirmDialog
         open={confirmingDelete}
-        title="Delete this product?"
-        description="This removes it from the catalog. If it has order history, it's archived instead of hard-deleted."
-        confirmLabel="Confirm delete"
+        title={t.productForm.deleteThisProductTitle}
+        description={t.productForm.deleteThisProductDescription}
+        confirmLabel={t.productForm.confirmDelete}
         tone="danger"
         pending={deleting}
         onConfirm={() => void handleDelete()}

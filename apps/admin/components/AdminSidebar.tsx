@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { useAuth, UserButton, useUser } from "@clerk/react";
 import { ChevronsLeft, ChevronsRight, ExternalLink, Sparkles } from "lucide-react";
-import { navGroups } from "./nav-items";
+import { getNavGroups } from "./nav-items";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
 import { apiBaseUrl, storefrontUrl } from "./config";
 import { useBrand } from "./useBrand";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 function useCurrentPath() {
   // Every nav link is a real <a href> (static export, full page navigation,
@@ -81,6 +83,8 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
   const brand = useBrand();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
+  const { t } = useAdminLanguage();
+  const navGroups = getNavGroups(t);
   const isDemo = pathname.startsWith("/demo");
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
 
@@ -99,8 +103,8 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
         )}
         {!collapsed ? (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-tight text-ink">Aether</p>
-            <p className="truncate text-xs leading-tight text-ink-subtle">Admin console</p>
+            <p className="truncate text-sm font-semibold leading-tight text-ink">{t.sidebar.brand}</p>
+            <p className="truncate text-xs leading-tight text-ink-subtle">{t.sidebar.adminConsole}</p>
           </div>
         ) : null}
       </div>
@@ -114,11 +118,11 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
           in this app - theme is toggled via data-theme, not prefers-color-scheme). */}
       {isDemo && !collapsed ? (
         <div className="demo-badge-text mx-3 mt-3 rounded-md bg-warning-soft px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wide">
-          Demo
+          {t.sidebar.demo}
         </div>
       ) : null}
 
-      <nav aria-label="Admin" className="flex-1 overflow-y-auto px-2.5 py-3">
+      <nav aria-label={t.nav.navLabel} className="flex-1 overflow-y-auto px-2.5 py-3">
         {navGroups.map((group, groupIndex) => (
           <div key={group.label ?? `group-${groupIndex}`} className={groupIndex > 0 ? "mt-4" : undefined}>
             {group.label && !collapsed ? (
@@ -167,13 +171,14 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
       <div className="border-t border-border p-2.5">
         <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : "justify-between"} px-1 pb-2`}>
           <ThemeToggle />
+          <LanguageToggle />
           <a
             href={storefrontUrl}
             target="_blank"
             rel="noreferrer"
             className="focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink"
-            aria-label="Open storefront in a new tab"
-            title="Open storefront"
+            aria-label={t.sidebar.openStorefront}
+            title={t.sidebar.openStorefrontTitle}
           >
             <ExternalLink size={16} aria-hidden />
           </a>
@@ -181,7 +186,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
             type="button"
             onClick={onToggleCollapsed}
             className="focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? t.sidebar.expandSidebar : t.sidebar.collapseSidebar}
           >
             {collapsed ? <ChevronsRight size={16} aria-hidden /> : <ChevronsLeft size={16} aria-hidden />}
           </button>
@@ -195,7 +200,7 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
           </div>
           {!collapsed ? (
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Account"}</p>
+              <p className="truncate text-sm font-medium text-ink">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? t.common.account}</p>
               {role ? <p className="truncate text-xs capitalize text-ink-subtle">{role.replaceAll("_", " ")}</p> : null}
             </div>
           ) : null}

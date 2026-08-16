@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { clsx } from "clsx";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 /**
  * One shared confirmation modal for every destructive/sensitive action in
@@ -15,7 +16,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = "Cancel",
+  cancelLabel,
   tone = "default",
   pending = false,
   onConfirm,
@@ -31,6 +32,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useAdminLanguage();
   const confirmRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
@@ -78,7 +80,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             className="focus-ring min-h-9 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
           >
-            {cancelLabel}
+            {cancelLabel ?? t.common.cancel}
           </button>
           <button
             ref={confirmRef}
@@ -90,7 +92,7 @@ export function ConfirmDialog({
               tone === "danger" ? "bg-danger hover:bg-danger/90" : "bg-accent hover:bg-accent-hover"
             )}
           >
-            {pending ? "Working..." : confirmLabel}
+            {pending ? t.common.working : confirmLabel}
           </button>
         </div>
       </div>

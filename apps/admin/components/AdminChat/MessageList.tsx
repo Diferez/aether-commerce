@@ -1,8 +1,11 @@
+"use client";
+
 import { AlertTriangle } from "lucide-react";
 import { ToolResultCard } from "./ToolResultCard";
 import { PendingActionCard } from "./PendingActionCard";
 import { ReceiptCard } from "./ReceiptCard";
 import { InlineMarkdown } from "./InlineMarkdown";
+import { useAdminLanguage } from "../AdminLanguageProvider";
 import type { ChatMessage } from "./types";
 
 export function MessageList({
@@ -14,12 +17,10 @@ export function MessageList({
   resolvedOperationIds: Set<string>;
   onConfirmAction: (operationId: string) => void;
 }) {
+  const { t } = useAdminLanguage();
+
   if (messages.length === 0) {
-    return (
-      <p className="px-1 py-6 text-center text-sm text-ink-subtle">
-        Ask about orders, products, inventory, or customers - e.g. &ldquo;show me today&apos;s pending orders&rdquo;.
-      </p>
-    );
+    return <p className="px-1 py-6 text-center text-sm text-ink-subtle">{t.chat.emptyState}</p>;
   }
 
   return (

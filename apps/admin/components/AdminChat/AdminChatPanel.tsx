@@ -1,24 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@aether/ui";
 import { Send, Sparkles, X } from "lucide-react";
 import { useAdminChat } from "./AdminChatProvider";
 import { MessageList } from "./MessageList";
 import { StatusIndicator } from "./StatusIndicator";
 import { buildChatRequestContext } from "./useAdminChatContext";
+import { useAdminLanguage } from "../AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 import type { ChatStatusPhase } from "./types";
 
-const suggestionsByModule: Record<string, string[]> = {
-  orders: ["Show today's pending orders", "What happened today?"],
-  products: ["Show low-stock products", "Show out-of-stock products"],
-  inventory: ["Show low-stock products", "What happened today?"],
-  customers: ["What happened today?"],
-  home: ["Show today's pending orders", "Show low-stock products", "What happened today?"]
-};
+function getSuggestionsByModule(t: AdminDictionary): Record<string, string[]> {
+  return {
+    orders: [t.chat.suggestionOrdersPending, t.chat.suggestionWhatHappenedToday],
+    products: [t.chat.suggestionLowStock, t.chat.suggestionOutOfStock],
+    inventory: [t.chat.suggestionLowStock, t.chat.suggestionWhatHappenedToday],
+    customers: [t.chat.suggestionWhatHappenedToday],
+    home: [t.chat.suggestionOrdersPending, t.chat.suggestionLowStock, t.chat.suggestionWhatHappenedToday]
+  };
+}
 
 export function AdminChatPanel() {
   const { open, closePanel, messages, status, sending, resolvedOperationIds, sendMessage, confirmPendingAction } = useAdminChat();
+  const { t } = useAdminLanguage();
+  const suggestionsByModule = useMemo(() => getSuggestionsByModule(t), [t]);
   const [input, setInput] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -51,14 +57,14 @@ export function AdminChatPanel() {
               <Sparkles size={16} aria-hidden />
             </span>
             <div>
-              <p className="text-sm font-semibold text-ink">Aether Chat</p>
-              <p className="text-xs text-ink-subtle">Operational assistant</p>
+              <p className="text-sm font-semibold text-ink">{t.chat.title}</p>
+              <p className="text-xs text-ink-subtle">{t.chat.subtitle}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={closePanel}
-            aria-label="Minimize Aether Chat"
+            aria-label={t.chat.minimize}
             className="focus-ring inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink"
           >
             <X size={18} aria-hidden />
@@ -100,15 +106,15 @@ export function AdminChatPanel() {
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask Aether Chat..."
-            aria-label="Message"
+            placeholder={t.chat.inputPlaceholder}
+            aria-label={t.chat.messageLabel}
             disabled={sending}
             className="focus-ring min-h-11 flex-1 rounded-md border border-border bg-bg px-3 text-sm text-ink placeholder:text-ink-subtle disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={sending || !input.trim()}
-            aria-label="Send"
+            aria-label={t.chat.send}
             className="focus-ring inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Send size={16} aria-hidden />

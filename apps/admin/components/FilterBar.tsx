@@ -1,10 +1,12 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 export type FilterChip = { key: string; label: string; onRemove: () => void };
 
 export function FilterBar({ chips, onClearAll }: { chips: FilterChip[]; onClearAll: () => void }) {
+  const { t } = useAdminLanguage();
   if (chips.length === 0) return null;
 
   return (
@@ -22,7 +24,7 @@ export function FilterBar({ chips, onClearAll }: { chips: FilterChip[]; onClearA
       ))}
       {chips.length > 1 ? (
         <button type="button" onClick={onClearAll} className="focus-ring text-xs font-semibold text-ink-muted hover:text-ink hover:underline">
-          Clear all
+          {t.filterBar.clearAll}
         </button>
       ) : null}
     </div>

@@ -11,6 +11,8 @@ import { EmptyState } from "../../../components/EmptyState";
 import { ErrorState } from "../../../components/ErrorState";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { useAdminLanguage } from "../../../components/AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 // Same reason as orders/detail/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime ids (and customer ids can be a raw
@@ -59,13 +61,24 @@ type CustomerDetail = {
 
 const assignableRoles = ["customer", "support", "catalog_manager", "order_manager", "admin", "super_admin", "demo_viewer"] as const;
 
-function money(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+function money(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency }).format(cents / 100);
+}
+
+function orderStatusLabel(t: AdminDictionary, value: string | undefined) {
+  if (!value) return "";
+  const raw = (t.orderStatus as Record<string, string>)[value] ?? value.replaceAll("_", " ");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function roleLabel(t: AdminDictionary, role: string) {
+  return (t.customerDetailPage.roleLabels as Record<string, string>)[role] ?? role.replaceAll("_", " ");
 }
 
 export default function CustomerDetailPage() {
   const id = useCustomerIdParam();
   const { getToken, isLoaded: authLoaded } = useAuth();
+  const { t, locale } = useAdminLanguage();
   const [state, setState] = useState<"loading" | "ready" | "not-found" | "error">("loading");
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [roleDraft, setRoleDraft] = useState<string>("customer");
@@ -120,14 +133,14 @@ export default function CustomerDetailPage() {
       });
       const payload = (await response.json()) as { success: boolean; error?: { message?: string } };
       if (!payload.success) {
-        setActionError(payload.error?.message ?? "The action could not be completed.");
+        setActionError(payload.error?.message ?? t.customerDetailPage.actionCouldNotComplete);
         setActionStatus("error");
         return;
       }
       setActionStatus("idle");
       await load();
     } catch {
-      setActionError("The action could not be completed.");
+      setActionError(t.customerDetailPage.actionCouldNotComplete);
       setActionStatus("error");
     }
   }
@@ -136,7 +149,7 @@ export default function CustomerDetailPage() {
     return (
       <RequireAdminAuth>
         <main id="main-content" className="admin-shell py-8">
-          <NotFound />
+          <NotFound t={t} />
         </main>
       </RequireAdminAuth>
     );
@@ -151,35 +164,33 @@ export default function CustomerDetailPage() {
             <div className="skeleton h-40 rounded-lg" />
           </div>
         ) : state === "not-found" ? (
-          <NotFound />
+          <NotFound t={t} />
         ) : state === "error" || !customer ? (
-          <ErrorState title="Could not load this customer" />
+          <ErrorState title={t.customerDetailPage.couldNotLoadCustomer} />
         ) : (
           <>
             <PageHeader
               title={customer.name ?? customer.email}
-              breadcrumb={[{ label: "Customers", href: "/customers/" }]}
-              description={`${customer.email} · ${customer.source === "guest" ? "Guest checkout" : "Registered account"}`}
-              meta={<StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{customer.status}</StatusBadge>}
+              breadcrumb={[{ label: t.customerDetailPage.customersBreadcrumb, href: "/customers/" }]}
+              description={`${customer.email} · ${customer.source === "guest" ? t.dashboard.guestCheckout : t.customerDetailPage.registeredAccountLabel}`}
+              meta={<StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge>}
             />
 
             {actionError ? (
               <div className="mb-4">
-                <ErrorState title="Action failed" description={actionError} />
+                <ErrorState title={t.customerDetailPage.actionFailed} description={actionError} />
               </div>
             ) : null}
 
             {customer.source === "guest" ? (
-              <div className="mb-6 rounded-lg border border-border bg-surface-hover p-4 text-sm text-ink-muted">
-                This person checked out as a guest and has no Clerk account yet - there is nothing to suspend or promote until they sign up.
-              </div>
+              <div className="mb-6 rounded-lg border border-border bg-surface-hover p-4 text-sm text-ink-muted">{t.customerDetailPage.guestNoticeText}</div>
             ) : null}
 
             <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="grid gap-6">
-                <FormSection title="Order history">
+                <FormSection title={t.customerDetailPage.orderHistorySection}>
                   {customer.orders.length === 0 ? (
-                    <EmptyState title="No orders yet" />
+                    <EmptyState title={t.customerDetailPage.noOrdersYetTitle} />
                   ) : (
                     <div className="grid gap-2">
                       {customer.orders.map((order) => (
@@ -190,10 +201,10 @@ export default function CustomerDetailPage() {
                         >
                           <strong className="text-ink">{order.number}</strong>
                           <span className="text-sm text-ink-muted">
-                            {order.paymentStatus?.replaceAll("_", " ")} &middot; {order.fulfillmentStatus?.replaceAll("_", " ")}
+                            {orderStatusLabel(t, order.paymentStatus)} &middot; {orderStatusLabel(t, order.fulfillmentStatus)}
                           </span>
-                          <span className="text-sm tabular-nums text-ink-muted">{money(order.totals.total, order.totals.currency)}</span>
-                          <span className="text-xs text-ink-subtle">{new Date(order.createdAt).toLocaleDateString()}</span>
+                          <span className="text-sm tabular-nums text-ink-muted">{money(order.totals.total, order.totals.currency, locale)}</span>
+                          <span className="text-xs text-ink-subtle">{new Date(order.createdAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US")}</span>
                         </a>
                       ))}
                     </div>
@@ -204,12 +215,12 @@ export default function CustomerDetailPage() {
                   title={
                     <span className="flex items-center gap-2">
                       <MapPin size={16} aria-hidden />
-                      Addresses
+                      {t.customerDetailPage.addressesSection}
                     </span>
                   }
                 >
                   {customer.addresses.length === 0 ? (
-                    <p className="text-sm text-ink-muted">No saved addresses.</p>
+                    <p className="text-sm text-ink-muted">{t.customerDetailPage.noSavedAddresses}</p>
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {customer.addresses.map((address, index) => (
@@ -229,10 +240,8 @@ export default function CustomerDetailPage() {
               </div>
 
               <div className="grid gap-6">
-                <FormSection title="Account access">
-                  <p className="text-sm text-ink-muted">
-                    Suspending blocks this person from signing in or making any authenticated request on their next request - not just future logins.
-                  </p>
+                <FormSection title={t.customerDetailPage.accountAccessSection}>
+                  <p className="text-sm text-ink-muted">{t.customerDetailPage.suspendingBlocksText}</p>
                   {customer.source === "registered" ? (
                     <button
                       type="button"
@@ -241,7 +250,7 @@ export default function CustomerDetailPage() {
                         customer.status === "suspended" ? "border-success/30 text-success hover:bg-success-soft" : "border-danger/30 text-danger hover:bg-danger-soft"
                       }`}
                     >
-                      {customer.status === "suspended" ? "Reactivate account" : "Suspend account"}
+                      {customer.status === "suspended" ? t.customerDetailPage.reactivateAccount : t.customerDetailPage.suspendAccount}
                     </button>
                   ) : null}
                 </FormSection>
@@ -250,12 +259,12 @@ export default function CustomerDetailPage() {
                   title={
                     <span className="flex items-center gap-2">
                       <ShieldCheck size={16} aria-hidden />
-                      Role
+                      {t.customerDetailPage.roleSection}
                     </span>
                   }
                 >
                   <p className="text-sm text-ink-muted">
-                    Current: <span className="font-semibold text-ink">{customer.roles.join(", ")}</span>
+                    {t.customerDetailPage.current} <span className="font-semibold text-ink">{customer.roles.map((role) => roleLabel(t, role)).join(", ")}</span>
                   </p>
                   {customer.source === "registered" ? (
                     <>
@@ -266,7 +275,7 @@ export default function CustomerDetailPage() {
                       >
                         {assignableRoles.map((role) => (
                           <option key={role} value={role}>
-                            {role.replaceAll("_", " ")}
+                            {roleLabel(t, role)}
                           </option>
                         ))}
                       </select>
@@ -276,9 +285,9 @@ export default function CustomerDetailPage() {
                         onClick={() => setRoleConfirming(true)}
                         className="focus-ring min-h-10 justify-self-start rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Save role
+                        {t.customerDetailPage.saveRole}
                       </button>
-                      <p className="text-xs text-ink-subtle">Only super admins can change roles - this action is rejected by the server otherwise.</p>
+                      <p className="text-xs text-ink-subtle">{t.customerDetailPage.onlySuperAdminsCanChangeRoles}</p>
                     </>
                   ) : null}
                 </FormSection>
@@ -287,8 +296,8 @@ export default function CustomerDetailPage() {
 
             <ConfirmDialog
               open={suspendConfirming}
-              title={customer.status === "suspended" ? "Reactivate this account?" : "Suspend this account?"}
-              confirmLabel="Confirm"
+              title={customer.status === "suspended" ? t.customerDetailPage.reactivateThisAccountTitle : t.customerDetailPage.suspendThisAccountTitle}
+              confirmLabel={t.common.confirm}
               tone={customer.status === "suspended" ? "default" : "danger"}
               pending={actionStatus === "pending"}
               onConfirm={() => {
@@ -300,9 +309,9 @@ export default function CustomerDetailPage() {
 
             <ConfirmDialog
               open={roleConfirming}
-              title="Change this person's role?"
-              description={`Change this person's role to "${roleDraft.replaceAll("_", " ")}"? This calls Clerk directly and takes effect on their next request.`}
-              confirmLabel="Confirm"
+              title={t.customerDetailPage.changeRoleTitle}
+              description={t.customerDetailPage.changeRoleDescription.replace("{role}", roleLabel(t, roleDraft))}
+              confirmLabel={t.common.confirm}
               pending={actionStatus === "pending"}
               onConfirm={() => {
                 setRoleConfirming(false);
@@ -317,10 +326,10 @@ export default function CustomerDetailPage() {
   );
 }
 
-function NotFound() {
+function NotFound({ t }: { t: AdminDictionary }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-6">
-      <EmptyState title="Customer not found" description="It may have been deleted, or the link is incorrect." icon={UserRound} />
+      <EmptyState title={t.customerDetailPage.customerNotFoundTitle} description={t.customerDetailPage.customerNotFoundDescription} icon={UserRound} />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { DataTable, type Column } from "../../components/DataTable";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { StatusBadge } from "../../components/StatusBadge";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
 
 type AdminCustomerSummary = {
   id: string;
@@ -44,12 +45,13 @@ function readFiltersFromUrl() {
   };
 }
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
 export default function CustomersListPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
   const [filters, setFilters] = useState(() => readFiltersFromUrl());
   const [searchInput, setSearchInput] = useState(filters.search);
   const [result, setResult] = useState<ListResponse | null>(null);
@@ -98,13 +100,17 @@ export default function CustomersListPage() {
   const hasFilters = Boolean(filters.search || filters.status);
   const chips: FilterChip[] = [];
   if (filters.status) {
-    chips.push({ key: "status", label: `Status: ${filters.status === "active" ? "Active" : "Suspended"}`, onRemove: () => updateFilter("status", "") });
+    chips.push({
+      key: "status",
+      label: t.customersPage.statusChip.replace("{value}", filters.status === "active" ? t.customersPage.statusActive : t.customersPage.statusSuspended),
+      onRemove: () => updateFilter("status", "")
+    });
   }
 
   const columns: Column<AdminCustomerSummary>[] = [
     {
       key: "customer",
-      header: "Customer",
+      header: t.customersPage.colCustomer,
       render: (customer) => (
         <a href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`} className="focus-ring flex items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-hover text-ink-subtle">
@@ -117,39 +123,49 @@ export default function CustomersListPage() {
         </a>
       )
     },
-    { key: "origin", header: "Origin", hideBelow: "sm", render: (customer) => <span className="text-ink-muted">{customer.source === "guest" ? "Guest checkout" : "Registered"}</span> },
-    { key: "status", header: "Status", render: (customer) => <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{customer.status}</StatusBadge> },
-    { key: "orders", header: "Orders", align: "end", hideBelow: "md", render: (customer) => customer.orderCount },
-    { key: "spent", header: "Spent", align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent) },
+    {
+      key: "origin",
+      header: t.customersPage.colOrigin,
+      hideBelow: "sm",
+      render: (customer) => <span className="text-ink-muted">{customer.source === "guest" ? t.dashboard.guestCheckout : t.dashboard.registered}</span>
+    },
+    { key: "status", header: t.customersPage.colStatus, render: (customer) => <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge> },
+    { key: "orders", header: t.customersPage.colOrders, align: "end", hideBelow: "md", render: (customer) => customer.orderCount },
+    { key: "spent", header: t.customersPage.colSpent, align: "end", hideBelow: "md", render: (customer) => money(customer.totalSpent, locale) },
     {
       key: "lastOrder",
-      header: "Last order",
+      header: t.customersPage.colLastOrder,
       hideBelow: "sm",
-      render: (customer) => <span className="text-xs text-ink-subtle">{customer.lastOrderAt ? new Date(customer.lastOrderAt).toLocaleDateString() : "—"}</span>
+      render: (customer) => (
+        <span className="text-xs text-ink-subtle">{customer.lastOrderAt ? new Date(customer.lastOrderAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US") : "—"}</span>
+      )
     }
   ];
 
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <PageHeader title="Customers" description={result ? `${result.pagination.total} customer${result.pagination.total === 1 ? "" : "s"}` : "Loading..."} />
+        <PageHeader
+          title={t.customersPage.title}
+          description={result ? (result.pagination.total === 1 ? t.customersPage.countOne : t.customersPage.countOther).replace("{count}", String(result.pagination.total)) : t.customersPage.loading}
+        />
 
         <TableToolbar
           searchValue={searchInput}
           onSearchChange={setSearchInput}
           onSearchSubmit={submitSearch}
-          searchPlaceholder="Search by name or email"
-          searchLabel="Search customers by name or email"
+          searchPlaceholder={t.customersPage.searchPlaceholder}
+          searchLabel={t.customersPage.searchLabel}
           filters={
             <select
               value={filters.status}
               onChange={(event) => updateFilter("status", event.target.value)}
-              aria-label="Filter by status"
+              aria-label={t.customersPage.filterByStatus}
               className="focus-ring min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-ink"
             >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
+              <option value="">{t.customersPage.allStatuses}</option>
+              <option value="active">{t.customersPage.statusActive}</option>
+              <option value="suspended">{t.customersPage.statusSuspended}</option>
             </select>
           }
         />
@@ -162,11 +178,11 @@ export default function CustomersListPage() {
           getRowId={(customer) => customer.id}
           pagination={result?.pagination ?? null}
           onPageChange={(page) => updateFilter("page", page)}
-          errorState={<ErrorState title="Could not load customers" />}
+          errorState={<ErrorState title={t.customersPage.couldNotLoad} />}
           emptyState={
             <EmptyState
-              title={hasFilters ? "No customers match these filters" : "No customers yet"}
-              description={hasFilters ? "Try adjusting or clearing your filters." : "Registered accounts and guest checkouts will show up here."}
+              title={hasFilters ? t.customersPage.noCustomersMatchFilters : t.customersPage.noCustomersYet}
+              description={hasFilters ? t.customersPage.tryAdjustingFilters : t.customersPage.noCustomersYetDescription}
             />
           }
         />

@@ -8,6 +8,7 @@ import { apiBaseUrl } from "../../components/config";
 import { PageHeader } from "../../components/PageHeader";
 import { FormSection } from "../../components/FormSection";
 import { ErrorState } from "../../components/ErrorState";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
 
 type CheckoutSettings = {
   paymentMode: "stripe" | "whatsapp";
@@ -49,12 +50,13 @@ const defaultCheckout: CheckoutSettings = { paymentMode: "stripe", whatsappNumbe
 const defaultShipping: ShippingSettings = { freeShippingThreshold: 15000, countries: ["US"], options: [] };
 const defaultReservations: ReservationSettings = { ttlMinutes: 15 };
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function money(cents: number, locale: string) {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
 export default function SettingsPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
   const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   const [brandForm, setBrandForm] = useState<BrandSettings>(defaultBrand);
   const [brandSaveStatus, setBrandSaveStatus] = useState<SaveStatus>("idle");
@@ -92,7 +94,7 @@ export default function SettingsPage() {
         error?: { message: string };
       };
       if (!sigPayload.success || !sigPayload.data) {
-        setLogoUploadError(sigPayload.error?.message ?? "Image uploads are not configured.");
+        setLogoUploadError(sigPayload.error?.message ?? t.settingsPage.imageUploadsNotConfigured);
         return;
       }
       const { cloudName, apiKey, timestamp, folder, signature } = sigPayload.data;
@@ -108,12 +110,12 @@ export default function SettingsPage() {
       });
       const uploadPayload = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
       if (!uploadResponse.ok || !uploadPayload.secure_url) {
-        setLogoUploadError(uploadPayload.error?.message ?? "The image upload failed.");
+        setLogoUploadError(uploadPayload.error?.message ?? t.settingsPage.imageUploadFailed);
         return;
       }
       setBrandForm((current) => ({ ...current, logoUrl: uploadPayload.secure_url as string }));
     } catch {
-      setLogoUploadError("Network error - the logo was not uploaded.");
+      setLogoUploadError(t.settingsPage.networkErrorLogoNotUploaded);
     } finally {
       setLogoUploading(false);
     }
@@ -160,7 +162,7 @@ export default function SettingsPage() {
   }
 
   function saveNote(status: SaveStatus, errorMessage: string) {
-    if (status === "saved") return <span className="text-sm text-success">Saved.</span>;
+    if (status === "saved") return <span className="text-sm text-success">{t.settingsPage.saved}</span>;
     if (status === "error") return <span className="text-sm text-danger">{errorMessage}</span>;
     return null;
   }
@@ -168,15 +170,15 @@ export default function SettingsPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <PageHeader title="Settings" description="Branding, checkout method, shipping, and cart reservation hold time." />
+        <PageHeader title={t.settingsPage.title} description={t.settingsPage.description} />
 
         {loadStatus === "error" ? (
-          <ErrorState title="Could not load current settings" />
+          <ErrorState title={t.settingsPage.couldNotLoadSettings} />
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            <FormSection title="Branding" description="Store name, logo and accent color used across the storefront.">
+            <FormSection title={t.settingsPage.brandingSection} description={t.settingsPage.brandingDescription}>
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Store name</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.storeName}</span>
                 <input
                   value={brandForm.name}
                   onChange={(event) => setBrandForm((current) => ({ ...current, name: event.target.value }))}
@@ -184,11 +186,11 @@ export default function SettingsPage() {
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Accent color</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.accentColor}</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    aria-label="Accent color picker"
+                    aria-label={t.settingsPage.accentColorPicker}
                     value={brandForm.primaryColor}
                     onChange={(event) => setBrandForm((current) => ({ ...current, primaryColor: event.target.value }))}
                     className="h-10 w-12 rounded-md border border-border"
@@ -202,7 +204,7 @@ export default function SettingsPage() {
                 </div>
               </label>
               <div className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Logo</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.logo}</span>
                 <div className="flex items-center gap-3">
                   {brandForm.logoUrl ? (
                     <div className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-surface-hover">
@@ -211,7 +213,7 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => setBrandForm((current) => ({ ...current, logoUrl: "" }))}
-                        aria-label="Remove logo"
+                        aria-label={t.settingsPage.removeLogo}
                         className="focus-ring absolute right-0.5 top-0.5 rounded bg-ink/70 p-0.5 text-surface opacity-0 group-hover:opacity-100"
                       >
                         <X size={12} aria-hidden />
@@ -230,7 +232,7 @@ export default function SettingsPage() {
                       className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {logoUploading ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <ImagePlus size={14} aria-hidden />}
-                      {logoUploading ? "Uploading..." : brandForm.logoUrl ? "Replace logo" : "Upload logo"}
+                      {logoUploading ? t.settingsPage.uploading : brandForm.logoUrl ? t.settingsPage.replaceLogo : t.settingsPage.uploadLogo}
                     </button>
                     {logoUploadError ? <p className="text-xs text-danger">{logoUploadError}</p> : null}
                   </div>
@@ -254,7 +256,7 @@ export default function SettingsPage() {
                   onChange={(event) => setBrandForm((current) => ({ ...current, features: { ...current.features, reviews: event.target.checked } }))}
                   className="h-4 w-4 rounded border-border-strong"
                 />
-                <span className="font-medium text-ink-muted">Show product reviews</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.showProductReviews}</span>
               </label>
               <div className="flex items-center gap-3">
                 <button
@@ -263,9 +265,9 @@ export default function SettingsPage() {
                   onClick={() => void saveSettings("brand", brandForm, setBrandSaveStatus)}
                   className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {brandSaveStatus === "saving" ? "Saving..." : "Save"}
+                  {brandSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
                 </button>
-                {saveNote(brandSaveStatus, "Could not save - check the color format and your permissions.")}
+                {saveNote(brandSaveStatus, t.settingsPage.brandSaveError)}
               </div>
             </FormSection>
 
@@ -273,13 +275,13 @@ export default function SettingsPage() {
               title={
                 <>
                   <MessageCircle size={16} aria-hidden />
-                  Checkout method
+                  {t.settingsPage.checkoutMethodSection}
                 </>
               }
-              description="Stripe runs the normal sandbox checkout. WhatsApp sends shoppers to a chat with the sales number instead."
+              description={t.settingsPage.checkoutMethodDescription}
             >
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Payment method</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.paymentMethod}</span>
                 <select
                   value={checkoutForm.paymentMode}
                   onChange={(event) => setCheckoutForm((current) => ({ ...current, paymentMode: event.target.value as "stripe" | "whatsapp" }))}
@@ -291,14 +293,14 @@ export default function SettingsPage() {
               </label>
               {checkoutForm.paymentMode === "whatsapp" ? (
                 <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-ink-muted">Sales WhatsApp number</span>
+                  <span className="font-medium text-ink-muted">{t.settingsPage.salesWhatsappNumber}</span>
                   <input
                     value={checkoutForm.whatsappNumber}
                     onChange={(event) => setCheckoutForm((current) => ({ ...current, whatsappNumber: event.target.value }))}
                     placeholder="573001234567"
                     className="focus-ring min-h-10 rounded-md border border-border bg-surface px-3 text-ink"
                   />
-                  <span className="text-xs text-ink-subtle">Country code + number, digits only - no +, spaces or dashes.</span>
+                  <span className="text-xs text-ink-subtle">{t.settingsPage.whatsappNumberHint}</span>
                 </label>
               ) : null}
               <div className="flex items-center gap-3">
@@ -308,9 +310,9 @@ export default function SettingsPage() {
                   onClick={() => void saveSettings("checkout", checkoutForm, setCheckoutSaveStatus)}
                   className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {checkoutSaveStatus === "saving" ? "Saving..." : "Save"}
+                  {checkoutSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
                 </button>
-                {saveNote(checkoutSaveStatus, "Could not save - check the number format and your permissions.")}
+                {saveNote(checkoutSaveStatus, t.settingsPage.checkoutSaveError)}
               </div>
             </FormSection>
 
@@ -318,19 +320,19 @@ export default function SettingsPage() {
               title={
                 <>
                   <Truck size={16} aria-hidden />
-                  Shipping
+                  {t.settingsPage.shippingSection}
                 </>
               }
-              description="Orders at or above this subtotal get free standard shipping on the storefront."
+              description={t.settingsPage.shippingDescription}
             >
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Free shipping threshold</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.freeShippingThreshold}</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
                     min={0}
                     step={1}
-                    aria-label="Free shipping threshold in dollars"
+                    aria-label={t.settingsPage.freeShippingThresholdLabel}
                     value={shippingForm.freeShippingThreshold / 100}
                     onChange={(event) =>
                       setShippingForm((current) => ({
@@ -340,7 +342,7 @@ export default function SettingsPage() {
                     }
                     className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
                   />
-                  <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.freeShippingThreshold)}</span>
+                  <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.freeShippingThreshold, locale)}</span>
                 </div>
               </label>
               <div className="flex items-center gap-3">
@@ -350,9 +352,9 @@ export default function SettingsPage() {
                   onClick={() => void saveSettings("shipping", shippingForm, setShippingSaveStatus)}
                   className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {shippingSaveStatus === "saving" ? "Saving..." : "Save"}
+                  {shippingSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
                 </button>
-                {saveNote(shippingSaveStatus, "Could not save - check your permissions.")}
+                {saveNote(shippingSaveStatus, t.settingsPage.genericSaveError)}
               </div>
             </FormSection>
 
@@ -360,19 +362,19 @@ export default function SettingsPage() {
               title={
                 <>
                   <Timer size={16} aria-hidden />
-                  Cart reservations
+                  {t.settingsPage.cartReservationsSection}
                 </>
               }
-              description="How long an item stays held for a shopper after being added to their cart, before it's released back to available stock."
+              description={t.settingsPage.cartReservationsDescription}
             >
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">Reservation TTL (minutes)</span>
+                <span className="font-medium text-ink-muted">{t.settingsPage.reservationTtlLabel}</span>
                 <input
                   type="number"
                   min={1}
                   max={1440}
                   step={1}
-                  aria-label="Reservation TTL in minutes"
+                  aria-label={t.settingsPage.reservationTtlAriaLabel}
                   value={reservationsForm.ttlMinutes}
                   onChange={(event) => setReservationsForm({ ttlMinutes: Math.max(1, Math.round(Number(event.target.value))) })}
                   className="focus-ring min-h-10 w-24 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
@@ -385,9 +387,9 @@ export default function SettingsPage() {
                   onClick={() => void saveSettings("reservations", reservationsForm, setReservationsSaveStatus)}
                   className="focus-ring min-h-10 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {reservationsSaveStatus === "saving" ? "Saving..." : "Save"}
+                  {reservationsSaveStatus === "saving" ? t.settingsPage.saving : t.settingsPage.save}
                 </button>
-                {saveNote(reservationsSaveStatus, "Could not save - check your permissions.")}
+                {saveNote(reservationsSaveStatus, t.settingsPage.genericSaveError)}
               </div>
             </FormSection>
           </div>

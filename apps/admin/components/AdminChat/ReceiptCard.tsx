@@ -1,4 +1,7 @@
+"use client";
+
 import { CheckCircle2, XCircle } from "lucide-react";
+import { useAdminLanguage } from "../AdminLanguageProvider";
 
 // Renders only after a real response from the confirm endpoint - never
 // synthesized from what the model said. `succeeded`/`failed` come straight
@@ -14,12 +17,13 @@ export function ReceiptCard({
   summary: string;
   result: Record<string, unknown>;
 }) {
+  const { t } = useAdminLanguage();
   const entries = Object.entries(result).filter(([key]) => key !== "replay");
   return (
     <div className={`grid gap-1.5 rounded-md border p-3 ${status === "succeeded" ? "border-success/40 bg-success-soft/60" : "border-danger/40 bg-danger-soft/60"}`}>
       <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
         {status === "succeeded" ? <CheckCircle2 size={16} className="text-success" aria-hidden /> : <XCircle size={16} className="text-danger" aria-hidden />}
-        {status === "succeeded" ? "Done" : "Failed"}
+        {status === "succeeded" ? t.chat.receiptDone : t.chat.receiptFailed}
       </p>
       <p className="text-sm text-ink-muted">{summary}</p>
       {entries.length > 0 ? (

@@ -1,4 +1,7 @@
+"use client";
+
 import { ChevronRight } from "lucide-react";
+import { useAdminLanguage } from "./AdminLanguageProvider";
 
 export type BreadcrumbItem = { label: string; href?: string };
 
@@ -10,10 +13,11 @@ export type BreadcrumbItem = { label: string; href?: string };
  * in both the last crumb and the <h1>).
  */
 export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
+  const { t } = useAdminLanguage();
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-2">
+    <nav aria-label={t.breadcrumb.navLabel} className="mb-2">
       <ol className="flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
         {items.map((item, index) => (
           <li key={`${item.label}-${index}`} className="flex items-center gap-1.5">

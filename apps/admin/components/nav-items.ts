@@ -1,5 +1,6 @@
 import { Activity, BarChart3, Boxes, ClipboardList, History, Settings, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { AdminDictionary } from "@aether/i18n";
 
 export type NavItem = {
   href: string;
@@ -15,29 +16,31 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-// Ordered by real usage priority (Home > Orders > Products > Inventory >
-// Customers > Settings > Activity), grouped per the requested IA (Summary /
+// A function of the active dictionary (not a static const) so nav labels
+// follow the admin's language toggle - see AdminLanguageProvider. Ordered
+// by real usage priority (Home > Orders > Products > Inventory > Customers
+// > Settings > Activity), grouped per the requested IA (Summary /
 // Operations / Relationships / System). A group with exactly one item never
 // renders its own header - that's Home and Customers today.
-export const navGroups: NavGroup[] = [
-  { label: null, items: [{ href: "/", label: "Home", icon: BarChart3 }] },
-  {
-    label: "Operations",
-    items: [
-      { href: "/orders/", label: "Orders", icon: ClipboardList, countKey: "pendingOrders" },
-      { href: "/products/", label: "Products", icon: Boxes },
-      { href: "/inventory/", label: "Inventory", icon: Warehouse, countKey: "lowStock" }
-    ]
-  },
-  { label: null, items: [{ href: "/customers/", label: "Customers", icon: UsersRound }] },
-  {
-    label: "System",
-    items: [
-      { href: "/settings/", label: "Settings", icon: Settings },
-      { href: "/activity/", label: "Activity", icon: History },
-      { href: "/system-health/", label: "System health", icon: Activity }
-    ]
-  }
-];
-
-export const navItems: NavItem[] = navGroups.flatMap((group) => group.items);
+export function getNavGroups(t: AdminDictionary): NavGroup[] {
+  return [
+    { label: null, items: [{ href: "/", label: t.nav.home, icon: BarChart3 }] },
+    {
+      label: t.nav.operationsGroup,
+      items: [
+        { href: "/orders/", label: t.nav.orders, icon: ClipboardList, countKey: "pendingOrders" },
+        { href: "/products/", label: t.nav.products, icon: Boxes },
+        { href: "/inventory/", label: t.nav.inventory, icon: Warehouse, countKey: "lowStock" }
+      ]
+    },
+    { label: null, items: [{ href: "/customers/", label: t.nav.customers, icon: UsersRound }] },
+    {
+      label: t.nav.systemGroup,
+      items: [
+        { href: "/settings/", label: t.nav.settings, icon: Settings },
+        { href: "/activity/", label: t.nav.activity, icon: History },
+        { href: "/system-health/", label: t.nav.systemHealth, icon: Activity }
+      ]
+    }
+  ];
+}

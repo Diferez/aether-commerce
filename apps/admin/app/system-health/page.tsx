@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle, RefreshCw, Search, ShieldAlert, XCircle } from "lucide-react";
 import { Skeleton } from "@aether/ui";
@@ -11,6 +11,8 @@ import { ErrorState } from "../../components/ErrorState";
 import { money, fulfillmentTone } from "../../components/AdminChat/format";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDurationMinutes } from "@aether/core";
+import { useAdminLanguage } from "../../components/AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 type HealthLevel = "operational" | "degraded" | "critical" | "unknown";
 type ComponentStatus = { level: HealthLevel; reason?: string };
@@ -56,39 +58,51 @@ type SystemHealthData = {
 
 const AUTO_REFRESH_MS = 60_000;
 
-const levelMeta: Record<HealthLevel, { label: string; dot: string; icon: typeof CheckCircle2; text: string }> = {
-  operational: { label: "Operational", dot: "bg-success", icon: CheckCircle2, text: "text-success" },
-  degraded: { label: "Degraded", dot: "bg-warning", icon: AlertTriangle, text: "text-warning" },
-  critical: { label: "Critical", dot: "bg-danger", icon: XCircle, text: "text-danger" },
-  unknown: { label: "No data", dot: "bg-ink-subtle", icon: HelpCircle, text: "text-ink-subtle" }
-};
-
-const componentMeta: Array<{ key: keyof SystemHealthData["components"]; label: string; tooltip: string }> = [
-  { key: "errors", label: "Errors", tooltip: "Unexpected application errors reported to Sentry, counted over the last 24h (an absolute count, not a rate - no request-volume baseline is tracked)." },
-  { key: "latency", label: "Latency", tooltip: "Approximate average response time for admin routes, sampled at a low rate over the last hour. Not a true p95 percentile." },
-  { key: "webhooks", label: "Webhooks", tooltip: "Flags when recent Stripe/Clerk webhook deliveries have failed to process, most recent first." },
-  { key: "orders", label: "Orders", tooltip: "Flags a paid order stuck unfulfilled past the expected window, or (when detectable) a payment with no matching local order." },
-  { key: "inventory", label: "Inventory", tooltip: "Flags any product with negative stock - should never happen; always indicates a real bug if it does." },
-  { key: "security", label: "Security", tooltip: "Flags a burst of failed admin permission checks in the last hour - could be a misconfigured integration or a real intrusion attempt." },
-  { key: "scheduledTasks", label: "Scheduled tasks", tooltip: "Flags when a critical background task (e.g. expiring stale cart reservations) hasn't run within its expected window." }
-];
-
-function StatusDot({ level }: { level: HealthLevel }) {
-  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${levelMeta[level].dot}`} aria-hidden />;
+function getLevelMeta(t: AdminDictionary): Record<HealthLevel, { label: string; dot: string; icon: typeof CheckCircle2; text: string }> {
+  return {
+    operational: { label: t.systemHealthPage.levelOperational, dot: "bg-success", icon: CheckCircle2, text: "text-success" },
+    degraded: { label: t.systemHealthPage.levelDegraded, dot: "bg-warning", icon: AlertTriangle, text: "text-warning" },
+    critical: { label: t.systemHealthPage.levelCritical, dot: "bg-danger", icon: XCircle, text: "text-danger" },
+    unknown: { label: t.systemHealthPage.statNoData, dot: "bg-ink-subtle", icon: HelpCircle, text: "text-ink-subtle" }
+  };
 }
 
-function formatRelativeTime(iso: string): string {
+function getComponentMeta(t: AdminDictionary): Array<{ key: keyof SystemHealthData["components"]; label: string; tooltip: string }> {
+  return [
+    { key: "errors", label: t.systemHealthPage.componentErrors, tooltip: t.systemHealthPage.componentErrorsTooltip },
+    { key: "latency", label: t.systemHealthPage.componentLatency, tooltip: t.systemHealthPage.componentLatencyTooltip },
+    { key: "webhooks", label: t.systemHealthPage.componentWebhooks, tooltip: t.systemHealthPage.componentWebhooksTooltip },
+    { key: "orders", label: t.systemHealthPage.componentOrders, tooltip: t.systemHealthPage.componentOrdersTooltip },
+    { key: "inventory", label: t.systemHealthPage.componentInventory, tooltip: t.systemHealthPage.componentInventoryTooltip },
+    { key: "security", label: t.systemHealthPage.componentSecurity, tooltip: t.systemHealthPage.componentSecurityTooltip },
+    { key: "scheduledTasks", label: t.systemHealthPage.componentScheduledTasks, tooltip: t.systemHealthPage.componentScheduledTasksTooltip }
+  ];
+}
+
+function StatusDot({ dot }: { dot: string }) {
+  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} aria-hidden />;
+}
+
+function formatRelativeTime(iso: string, t: AdminDictionary, locale: string): string {
   const date = new Date(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`);
   const minutes = Math.round((Date.now() - date.getTime()) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return t.systemHealthPage.justNow;
+  if (minutes < 60) return t.systemHealthPage.minAgo.replace("{count}", String(minutes));
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return date.toLocaleString();
+  if (hours < 24) return t.systemHealthPage.hoursAgo.replace("{count}", String(hours));
+  return date.toLocaleString(locale === "es" ? "es-ES" : "en-US");
+}
+
+function statusLabel(t: AdminDictionary, value: string) {
+  const raw = t.orderStatus[value as keyof AdminDictionary["orderStatus"]] ?? value;
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 export default function SystemHealthPage() {
   const { getToken } = useAuth();
+  const { t, locale } = useAdminLanguage();
+  const levelMeta = useMemo(() => getLevelMeta(t), [t]);
+  const componentMeta = useMemo(() => getComponentMeta(t), [t]);
   const [data, setData] = useState<SystemHealthData | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [requestIdSearch, setRequestIdSearch] = useState("");
@@ -136,21 +150,21 @@ export default function SystemHealthPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        <PageHeader title="System health" description="An operational summary - not a copy of Sentry. See below for a link to the full error tracker." />
+        <PageHeader title={t.systemHealthPage.title} description={t.systemHealthPage.description} />
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4">
           {status === "loading" && !data ? (
             <Skeleton className="h-8 w-48" />
           ) : status === "error" && !data ? (
             <p className="flex items-center gap-2 text-sm font-semibold text-danger">
-              <AlertTriangle size={16} aria-hidden /> Could not load system health
+              <AlertTriangle size={16} aria-hidden /> {t.systemHealthPage.couldNotLoad}
             </p>
           ) : data && overall && OverallIcon ? (
             <div className="flex items-center gap-2.5">
               <OverallIcon size={22} aria-hidden className={overall.text} />
               <div>
                 <p className={`text-lg font-semibold ${overall.text}`}>{overall.label}</p>
-                <p className="text-xs text-ink-subtle">Updated {formatRelativeTime(data.timestamp)}</p>
+                <p className="text-xs text-ink-subtle">{t.systemHealthPage.updatedAt.replace("{value}", formatRelativeTime(data.timestamp, t, locale))}</p>
               </div>
             </div>
           ) : null}
@@ -163,23 +177,23 @@ export default function SystemHealthPage() {
                 rel="noreferrer"
                 className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
               >
-                Open Sentry <ExternalLink size={14} aria-hidden />
+                {t.systemHealthPage.openSentry} <ExternalLink size={14} aria-hidden />
               </a>
             ) : null}
             <button
               type="button"
               onClick={refreshNow}
               disabled={status === "loading"}
-              aria-label="Refresh now"
+              aria-label={t.systemHealthPage.refreshNow}
               className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <RefreshCw size={14} aria-hidden className={status === "loading" ? "animate-spin" : ""} /> Refresh
+              <RefreshCw size={14} aria-hidden className={status === "loading" ? "animate-spin" : ""} /> {t.systemHealthPage.refresh}
             </button>
           </div>
         </div>
 
         {status === "error" && !data ? (
-          <ErrorState title="Could not load system health" description="Try refreshing. If this keeps happening, check the API directly." />
+          <ErrorState title={t.systemHealthPage.couldNotLoad} description={t.systemHealthPage.tryRefreshing} />
         ) : !data ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -196,12 +210,12 @@ export default function SystemHealthPage() {
                   <div key={key} className="rounded-lg border border-border bg-surface p-4" title={tooltip}>
                     <div className="flex items-center justify-between gap-2">
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                        <StatusDot level={component.level} />
+                        <StatusDot dot={meta.dot} />
                         {label}
                       </p>
                       <span className={`text-xs font-semibold uppercase tracking-wide ${meta.text}`}>{meta.label}</span>
                     </div>
-                    <p className="mt-2 text-xs text-ink-subtle [overflow-wrap:anywhere]">{component.reason ?? "Nothing to report."}</p>
+                    <p className="mt-2 text-xs text-ink-subtle [overflow-wrap:anywhere]">{component.reason ?? t.systemHealthPage.nothingToReport}</p>
                   </div>
                 );
               })}
@@ -209,35 +223,35 @@ export default function SystemHealthPage() {
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Errors (24h)</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statErrors24h}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.errors24h}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Webhooks failed (24h)</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statWebhooksFailed24h}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.webhooksFailed24h}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Payments failed (24h)</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statPaymentsFailed24h}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.paymentsFailed24h}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Blocked orders</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statBlockedOrders}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.blockedOrdersCount}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Negative inventory</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statNegativeInventory}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.negativeInventoryCount}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Failed admin attempts (1h)</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statFailedAdminAttempts1h}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.adminFailedAttempts1h}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Avg. admin latency</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.avgLatencyMs !== null ? `${Math.round(data.stats.avgLatencyMs)}ms` : "No data"}</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statAvgLatency}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{data.stats.avgLatencyMs !== null ? `${Math.round(data.stats.avgLatencyMs)}ms` : t.systemHealthPage.statNoData}</p>
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">Last critical task</p>
+                <p className="text-xs uppercase tracking-wide text-ink-subtle">{t.systemHealthPage.statLastCriticalTask}</p>
                 {data.stats.lastCriticalTask ? (
                   <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink">
                     {data.stats.lastCriticalTask.status === "ok" ? (
@@ -245,10 +259,10 @@ export default function SystemHealthPage() {
                     ) : (
                       <ShieldAlert size={14} aria-hidden className="text-danger" />
                     )}
-                    {formatRelativeTime(data.stats.lastCriticalTask.lastRunAt)}
+                    {formatRelativeTime(data.stats.lastCriticalTask.lastRunAt, t, locale)}
                   </p>
                 ) : (
-                  <p className="mt-1 text-sm text-ink-subtle">Never run yet</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{t.systemHealthPage.neverRunYet}</p>
                 )}
               </div>
             </div>
@@ -256,7 +270,7 @@ export default function SystemHealthPage() {
             {data.stats.blockedOrders.length > 0 ? (
               <div className="mt-4 rounded-lg border border-border bg-surface p-4">
                 <p className="text-xs uppercase tracking-wide text-ink-subtle">
-                  Blocked order{data.stats.blockedOrders.length === 1 ? "" : "s"} - oldest first
+                  {data.stats.blockedOrders.length === 1 ? t.systemHealthPage.blockedOrdersOne : t.systemHealthPage.blockedOrdersOther}
                 </p>
                 <div className="mt-2 grid gap-1.5">
                   {data.stats.blockedOrders.map((order) => (
@@ -268,12 +282,12 @@ export default function SystemHealthPage() {
                       <span className="min-w-0">
                         <span className="block truncate font-medium text-ink">{order.number}</span>
                         <span className="block text-xs text-ink-subtle">
-                          {order.email} - unfulfilled for {formatDurationMinutes(order.blockedMinutes)}
+                          {t.systemHealthPage.unfulfilledFor.replace("{email}", order.email).replace("{duration}", formatDurationMinutes(order.blockedMinutes))}
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         <span className="tabular-nums text-ink-muted">{money(order.totalCents, order.currency)}</span>
-                        <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{order.fulfillmentStatus}</StatusBadge>
+                        <StatusBadge tone={fulfillmentTone[order.fulfillmentStatus] ?? "neutral"}>{statusLabel(t, order.fulfillmentStatus)}</StatusBadge>
                       </span>
                     </a>
                   ))}
@@ -285,20 +299,20 @@ export default function SystemHealthPage() {
 
         <form onSubmit={jumpToAudit} className="mt-6 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-4">
           <label htmlFor="jump-to-audit" className="text-sm font-semibold text-ink">
-            Investigate a request
+            {t.systemHealthPage.investigateRequest}
           </label>
           <input
             id="jump-to-audit"
             value={requestIdSearch}
             onChange={(event) => setRequestIdSearch(event.target.value)}
-            placeholder="Paste a request ID"
+            placeholder={t.systemHealthPage.requestIdPlaceholder}
             className="focus-ring min-h-10 min-w-[220px] flex-1 rounded-md border border-border bg-bg px-3 text-sm text-ink"
           />
           <button
             type="submit"
             className="focus-ring inline-flex min-h-10 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-semibold text-white hover:bg-accent-hover"
           >
-            <Search size={14} aria-hidden /> Find in Activity
+            <Search size={14} aria-hidden /> {t.systemHealthPage.findInActivity}
           </button>
         </form>
       </main>

@@ -8,6 +8,7 @@ import { apiBaseUrl } from "../../../components/config";
 import { PageHeader } from "../../../components/PageHeader";
 import { EmptyState } from "../../../components/EmptyState";
 import { ErrorState } from "../../../components/ErrorState";
+import { useAdminLanguage } from "../../../components/AdminLanguageProvider";
 
 // admin/next.config.mjs sets output: "export" (static, deployed to Cloudflare
 // Pages) - a dynamic [id] route segment can't work here since product ids
@@ -80,6 +81,7 @@ function toFormValues(row: ProductDetailResponse): ProductFormValues {
 export default function EditProductPage() {
   const id = useProductIdParam();
   const { getToken, isLoaded: authLoaded } = useAuth();
+  const { t } = useAdminLanguage();
   const [state, setState] = useState<"loading" | "ready" | "not-found" | "error">("loading");
   const [initialValues, setInitialValues] = useState<ProductFormValues>(emptyProductForm);
 
@@ -127,16 +129,16 @@ export default function EditProductPage() {
           </div>
         ) : state === "not-found" ? (
           <div className="rounded-lg border border-border bg-surface p-6">
-            <EmptyState title="Product not found" description="It may have been deleted, or the link is incorrect." />
+            <EmptyState title={t.editProductPage.productNotFoundTitle} description={t.editProductPage.productNotFoundDescription} />
           </div>
         ) : state === "error" ? (
-          <ErrorState title="Could not load this product" />
+          <ErrorState title={t.editProductPage.couldNotLoadProduct} />
         ) : (
           <>
             <PageHeader
               title={initialValues.name}
-              description={`SKU ${initialValues.sku}`}
-              breadcrumb={[{ label: "Products", href: "/products/" }]}
+              description={t.editProductPage.skuLabel.replace("{sku}", initialValues.sku)}
+              breadcrumb={[{ label: t.editProductPage.productsBreadcrumb, href: "/products/" }]}
             />
             <ProductForm mode="edit" productId={id ?? undefined} initialValues={initialValues} />
           </>

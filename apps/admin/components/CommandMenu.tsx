@@ -3,23 +3,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Boxes, ClipboardList, CornerDownLeft, Plus, Search, UsersRound } from "lucide-react";
-import { navItems } from "./nav-items";
+import { getNavGroups } from "./nav-items";
 import { apiBaseUrl } from "./config";
+import { useAdminLanguage } from "./AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 
 type Option = { id: string; label: string; sublabel?: string; href: string; group: string; icon: typeof Search };
 
-const quickActions: Option[] = [
-  { id: "action-new-order", label: "New WhatsApp order", href: "/orders/new/", group: "Actions", icon: Plus },
-  { id: "action-new-product", label: "New product", href: "/products/new/", group: "Actions", icon: Plus }
-];
+function getQuickActions(t: AdminDictionary): Option[] {
+  return [
+    { id: "action-new-order", label: t.commandMenu.newWhatsappOrder, href: "/orders/new/", group: t.commandMenu.actions, icon: Plus },
+    { id: "action-new-product", label: t.commandMenu.newProduct, href: "/products/new/", group: t.commandMenu.actions, icon: Plus }
+  ];
+}
 
-const navOptions: Option[] = navItems.map((item) => ({
-  id: `nav-${item.href}`,
-  label: item.label,
-  href: item.href,
-  group: "Go to",
-  icon: item.icon
-}));
+function getNavOptions(t: AdminDictionary): Option[] {
+  return getNavGroups(t)
+    .flatMap((group) => group.items)
+    .map((item) => ({
+      id: `nav-${item.href}`,
+      label: item.label,
+      href: item.href,
+      group: t.commandMenu.goTo,
+      icon: item.icon
+    }));
+}
 
 function useDebouncedValue(value: string, delayMs: number) {
   const [debounced, setDebounced] = useState(value);
@@ -32,6 +40,9 @@ function useDebouncedValue(value: string, delayMs: number) {
 
 export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { getToken } = useAuth();
+  const { t } = useAdminLanguage();
+  const quickActions = useMemo(() => getQuickActions(t), [t]);
+  const navOptions = useMemo(() => getNavOptions(t), [t]);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Option[]>([]);
   const [searching, setSearching] = useState(false);
@@ -90,7 +101,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           label: product.name,
           sublabel: `SKU ${product.sku}`,
           href: `/products/edit/?id=${encodeURIComponent(product.id)}`,
-          group: "Products",
+          group: t.commandMenu.products,
           icon: Boxes
         })),
         ...(ordersPayload?.success ? ordersPayload.data?.data ?? [] : []).map((order) => ({
@@ -98,7 +109,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           label: order.number,
           sublabel: order.email,
           href: `/orders/detail/?id=${encodeURIComponent(order.id)}`,
-          group: "Orders",
+          group: t.commandMenu.orders,
           icon: ClipboardList
         })),
         ...(customersPayload?.success ? customersPayload.data?.data ?? [] : []).map((customer) => ({
@@ -106,7 +117,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           label: customer.name ?? customer.email,
           ...(customer.name ? { sublabel: customer.email } : {}),
           href: `/customers/detail/?id=${encodeURIComponent(customer.id)}`,
-          group: "Customers",
+          group: t.commandMenu.customers,
           icon: UsersRound
         }))
       ];
@@ -116,7 +127,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, open, getToken]);
+  }, [debouncedQuery, open, getToken, t]);
 
   const options = useMemo<Option[]>(() => {
     const trimmed = query.trim().toLowerCase();
@@ -128,7 +139,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       (option) => trimmed.length === 0 || option.label.toLowerCase().includes(trimmed)
     );
     return filteredStatic;
-  }, [query, searchResults]);
+  }, [query, searchResults, navOptions, quickActions]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -182,7 +193,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command menu"
+        aria-label={t.commandMenu.dialogLabel}
         className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-elevate-md"
         onClick={(event) => event.stopPropagation()}
       >
@@ -192,7 +203,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search modules, orders, products, customers..."
+            placeholder={t.commandMenu.searchPlaceholder}
             role="combobox"
             aria-expanded="true"
             aria-controls="command-menu-listbox"
@@ -203,7 +214,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         <ul id="command-menu-listbox" role="listbox" className="max-h-80 overflow-y-auto p-1.5">
           {options.length === 0 ? (
             <li className="px-3 py-6 text-center text-sm text-ink-muted">
-              {searching ? "Searching..." : "No matches. Try a different term."}
+              {searching ? t.commandMenu.searching : t.commandMenu.noMatches}
             </li>
           ) : (
             options.map((option) => {

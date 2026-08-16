@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@aether/ui";
+import { useAdminLanguage } from "../AdminLanguageProvider";
+import type { AdminDictionary } from "@aether/i18n";
 import type { ActionDiff } from "./types";
 
-function DiffRow({ field, before, after }: { field: string; before: unknown; after: unknown }) {
+function DiffRow({ field, before, after, t }: { field: string; before: unknown; after: unknown; t: AdminDictionary }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
       <span className="min-w-0 truncate text-ink-subtle">{field}</span>
       <span className="shrink-0 text-xs text-ink-subtle">-&gt;</span>
       <span className="min-w-0 text-right font-medium text-ink [overflow-wrap:anywhere]">{String(after)}</span>
-      <span className="col-span-3 text-xs text-ink-subtle [overflow-wrap:anywhere]">was: {String(before)}</span>
+      <span className="col-span-3 text-xs text-ink-subtle [overflow-wrap:anywhere]">{t.chat.wasValue.replace("{value}", String(before))}</span>
     </div>
   );
 }
@@ -34,12 +36,13 @@ export function PendingActionCard({
   resolved: boolean;
   onConfirm: (operationId: string) => void;
 }) {
+  const { t } = useAdminLanguage();
   const [dismissed, setDismissed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const expired = new Date(expiresAt).getTime() < Date.now();
 
   if (dismissed) {
-    return <p className="text-xs text-ink-subtle">Cancelled - nothing was changed.</p>;
+    return <p className="text-xs text-ink-subtle">{t.chat.cancelledNothingChanged}</p>;
   }
   if (resolved) {
     return null; // A ReceiptCard for this operationId already shows the outcome.
@@ -55,10 +58,12 @@ export function PendingActionCard({
       <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{diff.summary}</p>
       <div className="grid gap-1.5 rounded-md border border-border bg-surface p-2.5">
         {diff.fields.map((field) => (
-          <DiffRow key={field.field} field={field.field} before={field.before} after={field.after} />
+          <DiffRow key={field.field} field={field.field} before={field.before} after={field.after} t={t} />
         ))}
         {diff.affectedCount !== undefined ? (
-          <p className="text-xs text-ink-muted">{diff.affectedCount} record(s) affected.</p>
+          <p className="text-xs text-ink-muted">
+            {(diff.affectedCount === 1 ? t.chat.recordsAffectedOne : t.chat.recordsAffectedOther).replace("{count}", String(diff.affectedCount))}
+          </p>
         ) : null}
         {diff.sampleAffected && diff.sampleAffected.length > 0 ? (
           <ul className="grid gap-0.5 text-xs text-ink-subtle">
@@ -80,7 +85,7 @@ export function PendingActionCard({
       ) : null}
 
       {expired ? (
-        <p className="text-xs text-danger">This preview expired. Ask again to get a fresh one.</p>
+        <p className="text-xs text-danger">{t.chat.previewExpired}</p>
       ) : (
         <div className="flex justify-end gap-2">
           <button
@@ -89,10 +94,10 @@ export function PendingActionCard({
             disabled={confirming}
             className="focus-ring min-h-9 rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover disabled:opacity-50"
           >
-            Cancel
+            {t.chat.cancel}
           </button>
           <Button type="button" onClick={handleConfirm} disabled={confirming} className="min-h-9 px-3 text-sm">
-            {confirming ? "Confirming..." : "Confirm"}
+            {confirming ? t.chat.confirming : t.chat.confirm}
           </Button>
         </div>
       )}

@@ -486,3 +486,5 @@ export const dictionaries = {
 export function getDictionary(locale: Locale) {
   return dictionaries[locale] ?? dictionaries.en;
 }
+
+export { adminDictionaries, getAdminDictionary, type AdminDictionary } from "./admin";
