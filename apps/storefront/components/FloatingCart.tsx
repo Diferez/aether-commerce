@@ -112,6 +112,7 @@ export function FloatingCart() {
           </div>
           <StorefrontLink
             href="/cart"
+            onClick={() => setIsOpen(false)}
             className="focus-ring mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-chat bg-chat-accent px-4 text-sm font-semibold text-white"
           >
             {locale === "es" ? "Ver carrito" : "View cart"}
