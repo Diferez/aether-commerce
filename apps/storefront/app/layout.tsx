@@ -5,6 +5,8 @@ import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
+import { themeTokensToCssVariables } from "@aether/ui/theme";
+import { aetherThemeTokens } from "../config/theme";
 
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
@@ -40,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <style>{themeTokensToCssVariables(aetherThemeTokens)}</style>
         <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>

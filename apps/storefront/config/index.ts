@@ -6,6 +6,7 @@ import { aetherFeatureConfig } from "./features";
 import { aetherIntegrationConfig } from "./integrations";
 import { aetherNavigationConfig } from "./navigation";
 import { aetherStoreConfig } from "./store";
+export { aetherThemeTokens } from "./theme";
 
 export * from "./agent";
 export * from "./brand";
