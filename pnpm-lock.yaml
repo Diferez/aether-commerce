@@ -105,9 +105,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@aether/api-core':
+        specifier: workspace:*
+        version: link:../../packages/api-core
       '@aether/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@aether/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@aether/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
@@ -213,8 +219,27 @@ importers:
         specifier: ^4.120.0
         version: 4.120.0
 
+  packages/agent-core:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+
   packages/api-client:
     dependencies:
+      '@aether/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+
+  packages/api-core:
+    dependencies:
+      '@aether/core':
+        specifier: workspace:*
+        version: link:../core
       '@aether/schemas':
         specifier: workspace:*
         version: link:../schemas
@@ -254,6 +279,12 @@ importers:
         version: 5.9.2
 
   packages/i18n:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+
+  packages/observability:
     devDependencies:
       typescript:
         specifier: ^5.9.0

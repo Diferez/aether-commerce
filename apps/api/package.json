@@ -22,6 +22,8 @@
   },
   "dependencies": {
     "@aether/core": "workspace:*",
+    "@aether/api-core": "workspace:*",
+    "@aether/observability": "workspace:*",
     "@aether/schemas": "workspace:*",
     "@hono/zod-validator": "^0.8.0",
     "drizzle-orm": "^0.45.2",
