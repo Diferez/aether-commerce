@@ -5,6 +5,7 @@ export const supportedAgentIntents = [
 ] as const;
 
 export * from "./providers/gemini-rest";
+export * from "./runtime";
 
 export type AgentIntentName = (typeof supportedAgentIntents)[number];
 

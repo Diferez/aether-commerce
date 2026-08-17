@@ -4,7 +4,9 @@ import {
   createIntentClassificationPrompt,
   createSearchExtractionPrompt,
   authorizeAgentToolIntent,
+  executeAgentModelText,
   normalizeAgentIntentResult,
+  parseAgentModelJson,
   redactSensitiveText,
   type AgentIntentResult
 } from "@aether/agent-core";
@@ -792,23 +794,23 @@ async function classifyIntent(message: string, env: Env, sessionHash?: string, l
   const fallback = heuristicIntent(message, localeFallback);
   const provider = geminiTextProvider(env, 2500);
   if (!provider) return fallback;
-  try {
-    if (sessionHash) {
-      await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
-      await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
-    }
-    const text = await provider.generate({
+  const text = await executeAgentModelText({
+    provider,
+    request: {
       systemPrompt: createIntentClassificationPrompt("Aether"),
       message,
       temperature: Number(env.GEMINI_TEMPERATURE || 0.1),
       maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 600),
       responseMimeType: "application/json"
-    });
-    const parsed = text ? (JSON.parse(text) as { intent?: string; confidence?: unknown; explanation?: unknown; language?: unknown }) : {};
-    return validateIntentResult(parsed, fallback);
-  } catch {
-    return fallback;
-  }
+    },
+    onAttempt: sessionHash
+      ? async () => {
+          await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
+          await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
+        }
+      : undefined
+  });
+  return validateIntentResult(parseAgentModelJson(text), fallback);
 }
 
 // The heuristic query extractor only strips a fixed list of verbs (busca,
@@ -821,24 +823,25 @@ async function extractSearchQuery(message: string, env: Env, sessionHash?: strin
   const fallback = extractQueryHeuristic(message);
   const provider = geminiTextProvider(env, 2000);
   if (!provider) return fallback;
-  try {
-    if (sessionHash) {
-      await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
-      await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
-    }
-    const text = await provider.generate({
+  const text = await executeAgentModelText({
+    provider,
+    request: {
       systemPrompt: createSearchExtractionPrompt(),
       message,
       temperature: 0,
       maxOutputTokens: 40,
       responseMimeType: "application/json"
-    });
-    const parsed = text ? (JSON.parse(text) as { query?: unknown }) : {};
-    const query = typeof parsed.query === "string" ? parsed.query.trim().slice(0, 80) : "";
-    return query || fallback;
-  } catch {
-    return fallback;
-  }
+    },
+    onAttempt: sessionHash
+      ? async () => {
+          await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
+          await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
+        }
+      : undefined
+  });
+  const parsed = parseAgentModelJson(text);
+  const query = typeof parsed.query === "string" ? parsed.query.trim().slice(0, 80) : "";
+  return query || fallback;
 }
 
 // When a search/lookup genuinely finds nothing (e.g. the store just doesn't
@@ -855,15 +858,20 @@ async function composeEmptyResultReply(env: Env, message: string, spanish: boole
   try {
     const categories = await listCategoryNames(env);
     if (categories.length === 0) return fallback;
-    if (sessionHash) {
-      await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
-      await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
-    }
-    const text = await provider.generate({
-      systemPrompt: createEmptyResultPrompt({ storeName: "Aether", language: spanish ? "Spanish" : "English", categories }),
-      message,
-      temperature: 0.3,
-      maxOutputTokens: 150
+    const text = await executeAgentModelText({
+      provider,
+      request: {
+        systemPrompt: createEmptyResultPrompt({ storeName: "Aether", language: spanish ? "Spanish" : "English", categories }),
+        message,
+        temperature: 0.3,
+        maxOutputTokens: 150
+      },
+      onAttempt: sessionHash
+        ? async () => {
+            await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
+            await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
+          }
+        : undefined
     });
     return text || fallback;
   } catch {
