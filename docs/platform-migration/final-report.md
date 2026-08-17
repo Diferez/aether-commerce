@@ -69,7 +69,7 @@ documented in `docs/platform/upgrading-client.md`.
 
 ## Deliberate remaining debt
 
-- More API services (admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time.
+- More API services (remaining admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time; inventory and order-status administration now have reusable ports.
 - `agent-core` still needs reusable graph/runtime, tool execution, memory and telemetry abstractions; the Worker remains the executable reference adapter.
 - The client template has validated configuration, typed framework-neutral app adapters and migration generation. A client still selects and implements the concrete Next.js/Hono/Worker entrypoints and deployment bindings instead of receiving a copied demo.
 - The Python/container assistant remains as a legacy runtime alongside the Worker; it was not removed because its CI tests and deployment path are still useful.

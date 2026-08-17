@@ -6,6 +6,7 @@ import { ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
 import { createInventoryService } from "../services/inventory";
+import { createOrderManagementService } from "../services/admin-orders";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -155,14 +156,14 @@ adminRoutes.patch(
   requirePermission("orders.write"),
   zValidator("json", z.object({ state: z.string(), reason: z.string().optional() })),
   async (c) => {
-    await c.env.DB.prepare(
-      "insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id) values (?, ?, null, ?, ?, ?, ?)"
-    )
-      .bind(crypto.randomUUID(), c.req.param("id"), c.req.valid("json").state, c.get("actor").userId ?? "admin", c.req.valid("json").reason ?? null, c.get("requestId"))
-      .run();
-    await c.env.DB.prepare("update orders set state = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-      .bind(c.req.valid("json").state, c.req.param("id"))
-      .run();
+    const body = c.req.valid("json");
+    await createOrderManagementService(c.env.DB).updateStatus({
+      orderId: c.req.param("id"),
+      state: body.state,
+      ...(body.reason !== undefined ? { reason: body.reason } : {}),
+      actorId: c.get("actor").userId ?? "admin",
+      requestId: c.get("requestId")
+    });
     return ok(c, { orderId: c.req.param("id"), state: c.req.valid("json").state });
   }
 );

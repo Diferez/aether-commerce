@@ -62,3 +62,31 @@ export function clearPaidCart(cart: Cart): Cart {
     totals: { ...cart.totals, subtotal: 0, discount: 0, tax: 0, total: 0 }
   };
 }
+
+export type OrderStatusUpdate = {
+  orderId: string;
+  state: string;
+  actorId: string;
+  reason?: string;
+  requestId: string;
+};
+
+export type OrderStatusHistoryEntry = OrderStatusUpdate & { id: string };
+
+/** Persistence port for admin order operations, independent of D1 or Hono. */
+export interface OrderManagementRepository {
+  appendStatusHistory(entry: OrderStatusHistoryEntry): Promise<void>;
+  updateOrderState(orderId: string, state: string): Promise<void>;
+}
+
+export class OrderManagementService {
+  constructor(
+    private readonly repository: OrderManagementRepository,
+    private readonly createId: () => string
+  ) {}
+
+  async updateStatus(input: OrderStatusUpdate): Promise<void> {
+    await this.repository.appendStatusHistory({ ...input, id: this.createId() });
+    await this.repository.updateOrderState(input.orderId, input.state);
+  }
+}
