@@ -3,6 +3,7 @@
 import { BarChart3, Boxes, ClipboardList, Mail, Settings, ShieldCheck } from "lucide-react";
 import { useAuth, UserButton } from "@clerk/react";
 import { storefrontUrl } from "./config";
+import { aetherBrandConfig } from "./configuration";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
@@ -20,7 +21,7 @@ export function AdminNav() {
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white">
       <div className="admin-shell flex min-h-16 items-center justify-between gap-4">
         <a href="/" className="font-semibold">
-          Aether Admin
+          {aetherBrandConfig.name} Admin
           <span className="block text-xs font-normal text-zinc-500">Operations console</span>
         </a>
         <nav className="hidden items-center gap-1 md:flex" aria-label="Admin">

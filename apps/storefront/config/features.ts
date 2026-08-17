@@ -1,10 +1,2 @@
-import { featureConfigSchema } from "@aether/config-schema";
-
-export const aetherFeatureConfig = featureConfigSchema.parse({
-  reviews: true,
-  wishlist: true,
-  customerAccounts: true,
-  stripeCheckout: true,
-  aiAssistant: true,
-  inventory: true
-});
+/** @deprecated Import client configuration from config/aether in new shared adapters. */
+export * from "../../../config/aether/features";

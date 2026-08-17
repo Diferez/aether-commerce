@@ -1,6 +1,2 @@
-import { navigationConfigSchema } from "@aether/config-schema";
-
-export const aetherNavigationConfig = navigationConfigSchema.parse({
-  portfolioUrl: "https://portafolio-aether-commerce.pickofwow.workers.dev",
-  portfolioUrlEnv: "NEXT_PUBLIC_PORTFOLIO_URL"
-});
+/** @deprecated Import client configuration from config/aether in new shared adapters. */
+export * from "../../../config/aether/navigation";

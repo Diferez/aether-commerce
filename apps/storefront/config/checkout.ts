@@ -1,7 +1,2 @@
-import { checkoutConfigSchema } from "@aether/config-schema";
-
-export const aetherCheckoutConfig = checkoutConfigSchema.parse({
-  mode: "stripe",
-  successPath: "/checkout/success",
-  cancelPath: "/checkout/cancel"
-});
+/** @deprecated Import client configuration from config/aether in new shared adapters. */
+export * from "../../../config/aether/checkout";

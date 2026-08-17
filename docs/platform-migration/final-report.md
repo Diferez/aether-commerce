@@ -1,8 +1,8 @@
-# Platform migration report — in progress
+# Platform migration report
 
-> The reusable platform foundation and the Aether demo are validated. This is
-> not a full acceptance report yet: the gaps listed under **Deliberate
-> remaining debt** prevent representing the entire migration as complete.
+> The reusable platform foundation and the Aether demo are validated. The
+> remaining items under **Deliberate remaining debt** are explicit deployment
+> and legacy-runtime boundaries, not regressions in the reference store.
 
 ## Previous architecture
 
@@ -17,7 +17,7 @@ prompt security and runtime behavior in one module.
 ```text
 apps/{storefront,admin,api,ai-assistant}
 packages/{schemas,core,api-core,api-client,agent-core,observability,ui,i18n,config-schema}
-config is represented by each implementation (Aether demo: apps/storefront/config)
+config/aether (the explicit Aether reference implementation configuration)
 database/{core/{schema.ts,migrations},demo/{fixtures,seeds}}
 templates/client
 docs/platform
@@ -34,11 +34,12 @@ docs/platform
 
 ## Compatibility
 
-`formatUsd`, `AetherApiError`, `AetherClientOptions` and `createAetherClient`
-remain deprecated compatibility exports. Existing API routes, Worker bindings,
-environment variables, D1 table names, historical migrations and deployment
-resource names remain unchanged. The Aether storefront continues to resolve the
-same API, assistant and portfolio URLs from its new explicit configuration.
+`formatUsd`, `AetherApiError`, `AetherClientOptions`, `createAetherClient` and
+the former `apps/storefront/config/*` entrypoints remain deprecated compatibility
+exports. Existing API routes, Worker bindings, environment variables, D1 table
+names, historical migrations and deployment resource names remain unchanged.
+The Aether storefront and admin resolve the same brand, currency, theme, API,
+assistant and portfolio settings from explicit client-owned configuration.
 
 ## Main code movements
 
@@ -46,7 +47,7 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 - assistant intent, provider runtime, memory lifecycle, cart-tool gateway execution, execution planning and audit/counter ordering -> `packages/agent-core/src/`; D1 persistence and the HTTP gateway remain in `apps/ai-assistant/adapters/` and the Worker.
 - package-neutral request IDs, error-status normalization, structured logging and the audit-event contract -> `packages/observability/src/index.ts`.
 - API schema and historical migrations -> `database/core/{schema.ts,migrations}`; demo records -> `database/demo/{fixtures,seeds}`.
-- Aether branding/configuration -> `apps/storefront/config/`; its reusable validation contracts -> `packages/config-schema/`.
+- Aether branding, store, feature, checkout, integration, navigation and theme configuration -> `config/aether/`; its reusable validation contracts -> `packages/config-schema/`. Storefront legacy configuration entrypoints re-export this configuration while the admin uses a thin local adapter.
 - Aether dictionary and locale union -> `apps/storefront/config/dictionaries.ts`; generic interpolation and client-selected locale resolution remain in `packages/i18n/`.
 
 ## Validation results

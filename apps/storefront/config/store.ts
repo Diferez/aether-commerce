@@ -1,7 +1,2 @@
-import { storeConfigSchema } from "@aether/config-schema";
-
-export const aetherStoreConfig = storeConfigSchema.parse({
-  currency: "USD",
-  locale: "en-US",
-  country: "US"
-});
+/** @deprecated Import client configuration from config/aether in new shared adapters. */
+export * from "../../../config/aether/store";
