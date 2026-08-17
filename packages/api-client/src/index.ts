@@ -9,12 +9,12 @@ import type {
   ProductQuery
 } from "@aether/schemas";
 
-export type AetherClientOptions = {
+export type CommerceClientOptions = {
   baseUrl: string;
   getToken?: () => Promise<string | undefined> | string | undefined;
 };
 
-export class AetherApiError extends Error {
+export class CommerceApiError extends Error {
   constructor(
     message: string,
     public readonly code: string,
@@ -24,7 +24,7 @@ export class AetherApiError extends Error {
   }
 }
 
-export function createAetherClient(options: AetherClientOptions) {
+export function createCommerceClient(options: CommerceClientOptions) {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const token = await options.getToken?.();
     const headers = new Headers(init?.headers);
@@ -45,7 +45,7 @@ export function createAetherClient(options: AetherClientOptions) {
     const payload = (await response.json()) as ApiResponse<T>;
 
     if (!payload.success) {
-      throw new AetherApiError(payload.error.message, payload.error.code, payload.meta.requestId);
+      throw new CommerceApiError(payload.error.message, payload.error.code, payload.meta.requestId);
     }
 
     return payload.data;
@@ -110,3 +110,12 @@ export function createAetherClient(options: AetherClientOptions) {
     }
   };
 }
+
+/** @deprecated Use CommerceClientOptions. */
+export type AetherClientOptions = CommerceClientOptions;
+
+/** @deprecated Use CommerceApiError. */
+export const AetherApiError = CommerceApiError;
+
+/** @deprecated Use createCommerceClient. */
+export const createAetherClient = createCommerceClient;
