@@ -5,6 +5,7 @@ import type { AppBindings } from "../types";
 import { ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
+import { createInventoryService } from "../services/inventory";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -39,16 +40,14 @@ adminRoutes.get("/summary", requirePermission("orders.read"), (c) =>
 );
 
 adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
-  const lowStock = await c.env.DB.prepare("select count(*) as count from inventory where available <= low_stock_threshold").first<{
-    count: number;
-  }>();
+  const lowStock = await createInventoryService(c.env.DB).countLowStock();
   return ok(c, {
     revenue: 1842500,
     orders: 128,
     averageTicket: 14395,
     productsSold: 344,
     conversionRate: 4.8,
-    lowStock: lowStock?.count ?? 7,
+    lowStock,
     orderStates: [
       { state: "paid", count: 18 },
       { state: "processing", count: 22 },
@@ -116,8 +115,7 @@ adminRoutes.post("/products/:id/cache-refresh", requirePermission("products.writ
 });
 
 adminRoutes.get("/inventory", requirePermission("inventory.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select * from inventory order by updated_at desc limit 100").all<Record<string, unknown>>();
-  return ok(c, rows.results);
+  return ok(c, await createInventoryService(c.env.DB).listInventory());
 });
 
 adminRoutes.post(
@@ -126,27 +124,20 @@ adminRoutes.post(
   zValidator("json", z.object({ productId: z.string(), sku: z.string(), quantity: z.number().int(), reason: z.string().optional() })),
   async (c) => {
     const body = c.req.valid("json");
-    await c.env.DB.prepare(
-      "insert into inventory_movements (id, product_id, sku, type, quantity, reason, actor_id, request_id) values (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-      .bind(
-        crypto.randomUUID(),
-        body.productId,
-        body.sku,
-        body.quantity >= 0 ? "adjustment_positive" : "adjustment_negative",
-        Math.abs(body.quantity),
-        body.reason ?? null,
-        c.get("actor").userId ?? "system",
-        c.get("requestId")
-      )
-      .run();
+    await createInventoryService(c.env.DB).adjust({
+      productId: body.productId,
+      sku: body.sku,
+      quantity: body.quantity,
+      ...(body.reason !== undefined ? { reason: body.reason } : {}),
+      actorId: c.get("actor").userId ?? "system",
+      requestId: c.get("requestId")
+    });
     return ok(c, { adjusted: true }, 201);
   }
 );
 
 adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select * from inventory_movements order by created_at desc limit 100").all<Record<string, unknown>>();
-  return ok(c, rows.results);
+  return ok(c, await createInventoryService(c.env.DB).listMovements());
 });
 
 adminRoutes.get("/orders", requirePermission("orders.read"), async (c) => {
