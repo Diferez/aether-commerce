@@ -29,6 +29,7 @@
     "lint": "turbo lint",
     "test": "node --test tests/*.test.mjs",
     "test:unit": "vitest run",
+    "check:boundaries": "node scripts/check-platform-boundaries.mjs",
     "test:e2e": "playwright test",
     "test:e2e:assistant": "playwright test tests/e2e/assistant-widget.spec.ts --project=desktop",
     "db:generate": "pnpm --filter @aether/api db:generate",
@@ -40,7 +41,7 @@
     "changeset": "changeset",
     "version:packages": "changeset version",
     "publish:packages": "changeset publish",
-    "validate": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:client-template && pnpm openapi:check"
+    "validate": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test && pnpm check:boundaries && pnpm test:client-template && pnpm openapi:check"
   },
   "devDependencies": {
     "@aether/agent-core": "workspace:^",

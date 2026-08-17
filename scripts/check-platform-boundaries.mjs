@@ -1,0 +1,44 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const policies = new Map([
+  ["api-client", new Set(["@aether/schemas"])],
+  ["api-core", new Set(["@aether/core", "@aether/schemas"])],
+  ["agent-core", new Set(["@aether/core", "@aether/schemas", "@aether/observability"])],
+  ["config", new Set(["@aether/config-schema"])],
+  ["config-schema", new Set()],
+  ["core", new Set(["@aether/schemas"])],
+  ["i18n", new Set()],
+  ["observability", new Set()],
+  ["schemas", new Set()],
+  ["ui", new Set(["@aether/core", "@aether/schemas"])],
+]);
+
+function files(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = resolve(directory, entry.name);
+    if (entry.isDirectory()) return entry.name === "dist" ? [] : files(target);
+    return /\.(ts|tsx)$/.test(entry.name) ? [target] : [];
+  });
+}
+
+const violations = [];
+for (const [packageName, allowed] of policies) {
+  const source = resolve(root, "packages", packageName, "src");
+  for (const file of files(source)) {
+    const content = readFileSync(file, "utf8");
+    const imports = [...content.matchAll(/(?:from|import)\s*\(?\s*["'](@aether\/[^"']+)["']/g)].map((match) => match[1]);
+    for (const dependency of imports) {
+      if (!allowed.has(dependency)) violations.push(`${file}: ${packageName} may not depend on ${dependency}`);
+    }
+    if (/\.\.\/\.\.\/apps\//.test(content)) violations.push(`${file}: platform packages may not import app internals`);
+  }
+}
+
+if (violations.length) {
+  console.error(violations.join("\n"));
+  process.exit(1);
+}
+console.log("Platform package boundaries are valid.");
