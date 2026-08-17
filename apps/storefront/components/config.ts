@@ -6,6 +6,20 @@ import {
 
 const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
 
+// Next.js only exposes public environment variables to browser bundles when
+// their names are statically analyzable. The allowlist also makes it impossible
+// for implementation config to resolve a server-only variable in the browser.
+function resolvePublicRuntimeValue(name: string | undefined): string | undefined {
+  switch (name) {
+    case "NEXT_PUBLIC_AETHER_AI_URL":
+      return process.env.NEXT_PUBLIC_AETHER_AI_URL;
+    case "NEXT_PUBLIC_PORTFOLIO_URL":
+      return process.env.NEXT_PUBLIC_PORTFOLIO_URL;
+    default:
+      return undefined;
+  }
+}
+
 function resolveApiBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_AETHER_API_URL?.trim();
   if (configured) return configured;
@@ -19,7 +33,7 @@ function resolveApiBaseUrl() {
 
 export const apiBaseUrl = resolveApiBaseUrl();
 
-export const aiAssistantUrl = process.env[aetherAgentConfig.publicUrlEnv]?.trim() || "";
+export const aiAssistantUrl = resolvePublicRuntimeValue(aetherAgentConfig.publicUrlEnv)?.trim() || "";
 
 export const storefrontBasePath = (process.env.NEXT_PUBLIC_AETHER_BASE_PATH || "").replace(/\/$/, "");
 
@@ -38,7 +52,7 @@ export function storefrontPath(path = "/") {
 }
 
 const configuredPortfolioUrl = aetherNavigationConfig.portfolioUrlEnv
-  ? process.env[aetherNavigationConfig.portfolioUrlEnv]?.trim()
+  ? resolvePublicRuntimeValue(aetherNavigationConfig.portfolioUrlEnv)?.trim()
   : undefined;
 
 export const portfolioUrl = configuredPortfolioUrl || aetherNavigationConfig.portfolioUrl;

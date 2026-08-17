@@ -1,4 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function openAssistant(page: Page) {
+  // The Next dev overlay is not part of the application and sits above fixed
+  // controls on the mobile viewport. It is absent from production builds.
+  await page.locator("nextjs-portal").evaluateAll((portals) => portals.forEach((portal) => portal.remove()));
+  const trigger = page.getByRole("button", { name: /assistant|asistente/i });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  return page.getByRole("dialog", { name: /assistant|asistente/i });
+}
 
 test("assistant widget opens and renders structured product results", async ({ page }) => {
   await page.route("**/api/v1/cart/*/token", async (route) => {
@@ -107,8 +117,7 @@ test("assistant widget opens and renders structured product results", async ({ p
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("tenis rojos");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -183,8 +192,7 @@ test("assistant widget sends current product context from detail pages", async (
   });
 
   await page.goto("/products/detail?slug=current-shoes");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame alternativas similares");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -242,8 +250,7 @@ test("assistant widget renders product cards from streaming product events", asy
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame opciones");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -290,8 +297,7 @@ test("assistant widget renders cart summary from streaming cart events", async (
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Agrega el primero");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -304,9 +310,7 @@ test("assistant widget supports keyboard close and returns focus", async ({ page
   await page.goto("/");
 
   const trigger = page.getByRole("button", { name: /assistant|asistente/i });
-  await trigger.click();
-
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await expect(assistant).toBeVisible();
   await expect(assistant.getByPlaceholder(/buscar|search/i)).toBeFocused();
 
@@ -338,8 +342,7 @@ test("assistant widget handles malformed stream events safely", async ({ page })
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Hola");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -383,8 +386,7 @@ test("assistant widget ignores malformed streaming cart summaries", async ({ pag
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Revisa mi carrito");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -451,8 +453,7 @@ test("assistant widget renders unavailable product cards without cart mutation",
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Busca agotados");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -517,8 +518,7 @@ test("assistant widget sends current category context from category pages", asyn
   });
 
   await page.goto("/categories/smartphones");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
-  const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
+  const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame productos similares");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
@@ -529,7 +529,7 @@ test("assistant widget opens as a full screen mobile dialog", async ({ page, isM
   test.skip(!isMobile, "mobile-only assistant layout check");
 
   await page.goto("/");
-  await page.getByRole("button", { name: /assistant|asistente/i }).click();
+  await openAssistant(page);
 
   const assistant = page.getByRole("dialog", { name: /assistant|asistente/i });
   await expect(assistant).toBeVisible();

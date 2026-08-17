@@ -11,7 +11,7 @@
     "dev": "turbo dev --parallel",
     "dev:api": "pnpm --filter @aether/api dev",
     "dev:storefront": "pnpm --filter @aether/storefront dev",
-    "dev:storefront:e2e": "cross-env NEXT_PUBLIC_AETHER_AI_URL=http://localhost:8090 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k NEXT_PUBLIC_PORTFOLIO_URL=https://portfolio.example.com pnpm --filter @aether/storefront exec next dev --port 3010",
+    "dev:storefront:e2e": "cross-env AETHER_E2E_STUB_CLERK=true NEXT_PUBLIC_AETHER_AI_URL=http://localhost:8090 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k NEXT_PUBLIC_PORTFOLIO_URL=https://portfolio.example.com pnpm --filter @aether/storefront exec next dev --webpack --port 3010",
     "dev:admin": "pnpm --filter @aether/admin dev",
     "env:sync": "node scripts/sync-env.mjs",
     "deploy:preflight": "node scripts/check-deploy-config.mjs",
