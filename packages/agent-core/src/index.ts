@@ -4,6 +4,8 @@ export const supportedAgentIntents = [
   "REMOVE_FROM_CART", "CLEAR_CART", "CHECKOUT_REQUEST", "GENERAL_STORE_QUESTION", "UNSUPPORTED"
 ] as const;
 
+export * from "./providers/gemini-rest";
+
 export type AgentIntentName = (typeof supportedAgentIntents)[number];
 
 const mutableAgentIntents: readonly AgentIntentName[] = ["ADD_TO_CART", "UPDATE_CART_ITEM", "REMOVE_FROM_CART", "CLEAR_CART"];

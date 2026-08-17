@@ -1,4 +1,5 @@
 import {
+  createGeminiRestProvider,
   createEmptyResultPrompt,
   createIntentClassificationPrompt,
   createSearchExtractionPrompt,
@@ -802,35 +803,20 @@ async function streamAssistant(request: Request, env: Env): Promise<Response> {
 
 async function classifyIntent(message: string, env: Env, sessionHash?: string, localeFallback = "es-CO"): Promise<IntentResult> {
   const fallback = heuristicIntent(message, localeFallback);
-  if (!env.GEMINI_API_KEY) return fallback;
+  const provider = geminiTextProvider(env, 2500);
+  if (!provider) return fallback;
   try {
     if (sessionHash) {
       await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
       await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
     }
-    const model = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-    const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: createIntentClassificationPrompt("Aether"),
-            },
-          ],
-        },
-        contents: [{ role: "user", parts: [{ text: message }] }],
-        generationConfig: {
-          temperature: Number(env.GEMINI_TEMPERATURE || 0.1),
-          maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 600),
-          responseMimeType: "application/json",
-        },
-      }),
-    }, 2500);
-    if (!response.ok) return fallback;
-    const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+    const text = await provider.generate({
+      systemPrompt: createIntentClassificationPrompt("Aether"),
+      message,
+      temperature: Number(env.GEMINI_TEMPERATURE || 0.1),
+      maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 600),
+      responseMimeType: "application/json"
+    });
     const parsed = text ? (JSON.parse(text) as { intent?: string; confidence?: unknown; explanation?: unknown; language?: unknown }) : {};
     return validateIntentResult(parsed, fallback);
   } catch {
@@ -846,35 +832,20 @@ async function classifyIntent(message: string, env: Env, sessionHash?: string, l
 // instead, falling back to the heuristic if it's unavailable or fails.
 async function extractSearchQuery(message: string, env: Env, sessionHash?: string): Promise<string> {
   const fallback = extractQueryHeuristic(message);
-  if (!env.GEMINI_API_KEY) return fallback;
+  const provider = geminiTextProvider(env, 2000);
+  if (!provider) return fallback;
   try {
     if (sessionHash) {
       await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
       await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
     }
-    const model = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-    const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: createSearchExtractionPrompt(),
-            },
-          ],
-        },
-        contents: [{ role: "user", parts: [{ text: message }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 40,
-          responseMimeType: "application/json",
-        },
-      }),
-    }, 2000);
-    if (!response.ok) return fallback;
-    const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+    const text = await provider.generate({
+      systemPrompt: createSearchExtractionPrompt(),
+      message,
+      temperature: 0,
+      maxOutputTokens: 40,
+      responseMimeType: "application/json"
+    });
     const parsed = text ? (JSON.parse(text) as { query?: unknown }) : {};
     const query = typeof parsed.query === "string" ? parsed.query.trim().slice(0, 80) : "";
     return query || fallback;
@@ -892,7 +863,8 @@ async function composeEmptyResultReply(env: Env, message: string, spanish: boole
   const fallback = spanish
     ? "Puedo ayudarte a buscar productos reales y revisar tu carrito."
     : "I can help you search real products and review your cart.";
-  if (!env.GEMINI_API_KEY) return fallback;
+  const provider = geminiTextProvider(env, 2500);
+  if (!provider) return fallback;
   try {
     const categories = await listCategoryNames(env);
     if (categories.length === 0) return fallback;
@@ -900,28 +872,12 @@ async function composeEmptyResultReply(env: Env, message: string, spanish: boole
       await incrementDailyUsage(env, usageDay(), sessionHash, { llm_call_count: 1 });
       await incrementDailyUsage(env, usageDay(), "project", { llm_call_count: 1 });
     }
-    const model = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-    const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: createEmptyResultPrompt({ storeName: "Aether", language: spanish ? "Spanish" : "English", categories }),
-            },
-          ],
-        },
-        contents: [{ role: "user", parts: [{ text: message }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 150,
-        },
-      }),
-    }, 2500);
-    if (!response.ok) return fallback;
-    const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+    const text = await provider.generate({
+      systemPrompt: createEmptyResultPrompt({ storeName: "Aether", language: spanish ? "Spanish" : "English", categories }),
+      message,
+      temperature: 0.3,
+      maxOutputTokens: 150
+    });
     return text || fallback;
   } catch {
     return fallback;
@@ -1244,6 +1200,14 @@ function matchCategorySynonym(message: string): { key: string; slug: string } | 
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 5000): Promise<Response> {
   return fetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+}
+
+function geminiTextProvider(env: Env, timeoutMs: number) {
+  return createGeminiRestProvider({
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+    fetch: (input, init) => fetchWithTimeout(input, init, timeoutMs)
+  });
 }
 
 // Routes aether-api calls through the AETHER_API service binding when it is
