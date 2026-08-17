@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  authorizeAgentToolIntent,
   classifyAgentIntentHeuristic,
   detectAgentLanguage,
   normalizeAgentIntentResult,
@@ -30,5 +31,18 @@ describe("agent-core guardrails", () => {
     expect(value).not.toContain("4242");
     expect(value).not.toContain("test@example.com");
     expect(value).not.toContain("304 274 9571");
+  });
+
+  it("recognizes accented Spanish actions without a model", () => {
+    expect(classifyAgentIntentHeuristic("añade estos tenis al carrito").intent).toBe("ADD_TO_CART");
+    expect(detectAgentLanguage("¿Tienen ofertas?", "en-US")).toBe("es");
+  });
+
+  it("denies uncertain state-changing intents while allowing read-only intents", () => {
+    expect(authorizeAgentToolIntent({ intent: "ADD_TO_CART", confidence: 0.6, mutationConfidenceThreshold: 0.8 })).toEqual({
+      allowed: false,
+      reason: "low_mutation_confidence"
+    });
+    expect(authorizeAgentToolIntent({ intent: "GET_CART", confidence: 0.1, mutationConfidenceThreshold: 0.8 })).toEqual({ allowed: true });
   });
 });

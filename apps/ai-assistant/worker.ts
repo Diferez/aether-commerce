@@ -3,7 +3,7 @@ import {
   createEmptyResultPrompt,
   createIntentClassificationPrompt,
   createSearchExtractionPrompt,
-  isMutableAgentIntent,
+  authorizeAgentToolIntent,
   normalizeAgentIntentResult,
   redactSensitiveText,
   type AgentIntentResult
@@ -211,8 +211,13 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     ));
   }
 
-  if (isMutableAgentIntent(intent) && intentResult.confidence < mutationConfidenceThreshold(env)) {
-    await audit(intent.toLowerCase(), `intent_confidence:${intentResult.confidence.toFixed(2)}`, null, "denied", "blocked", "low_mutation_confidence");
+  const toolAuthorization = authorizeAgentToolIntent({
+    intent,
+    confidence: intentResult.confidence,
+    mutationConfidenceThreshold: mutationConfidenceThreshold(env)
+  });
+  if (!toolAuthorization.allowed) {
+    await audit(intent.toLowerCase(), `intent_confidence:${intentResult.confidence.toFixed(2)}`, null, "denied", "blocked", toolAuthorization.reason);
     return finish(responsePayload(
       requestId,
       threadId,

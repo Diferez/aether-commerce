@@ -29,6 +29,25 @@ export function isMutableAgentIntent(intent: string): intent is AgentIntentName 
   return mutableAgentIntents.includes(intent as AgentIntentName);
 }
 
+export type AgentToolAuthorization =
+  | { allowed: true }
+  | { allowed: false; reason: "low_mutation_confidence" };
+
+/**
+ * Shared safety gate for state-changing agent intents. App adapters provide
+ * their runtime threshold while the policy remains independent of a store.
+ */
+export function authorizeAgentToolIntent(input: {
+  intent: AgentIntentName;
+  confidence: number;
+  mutationConfidenceThreshold: number;
+}): AgentToolAuthorization {
+  if (isMutableAgentIntent(input.intent) && input.confidence < input.mutationConfidenceThreshold) {
+    return { allowed: false, reason: "low_mutation_confidence" };
+  }
+  return { allowed: true };
+}
+
 export function redactSensitiveText(value: string): string {
   return value
     .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[redacted-card]")
