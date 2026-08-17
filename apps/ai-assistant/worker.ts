@@ -4,9 +4,9 @@ import {
   createIntentClassificationPrompt,
   createSearchExtractionPrompt,
   isMutableAgentIntent,
+  normalizeAgentIntentResult,
   redactSensitiveText,
-  supportedAgentIntents,
-  type AgentIntentName
+  type AgentIntentResult
 } from "@aether/agent-core";
 
 type Fetcher = {
@@ -89,17 +89,9 @@ type AssistantRequest = {
   };
 };
 
-type IntentName = AgentIntentName;
-
-type IntentResult = {
-  intent: IntentName;
-  confidence: number;
-  explanation: string;
-  language: "es" | "en";
-};
+type IntentResult = AgentIntentResult;
 
 const encoder = new TextEncoder();
-const allowedIntents = supportedAgentIntents;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -918,12 +910,7 @@ function mutationConfidenceThreshold(env: Env): number {
 }
 
 function validateIntentResult(parsed: { intent?: string; confidence?: unknown; explanation?: unknown; language?: unknown }, fallback: IntentResult): IntentResult {
-  const intent = allowedIntents.includes(parsed.intent as IntentName) ? (parsed.intent as IntentName) : fallback.intent;
-  const rawConfidence = Number(parsed.confidence);
-  const confidence = Number.isFinite(rawConfidence) ? Math.max(0, Math.min(1, rawConfidence)) : fallback.confidence;
-  const explanation = typeof parsed.explanation === "string" ? parsed.explanation.slice(0, 240) : fallback.explanation;
-  const language = parsed.language === "es" || parsed.language === "en" ? parsed.language : fallback.language;
-  return { intent, confidence, explanation, language };
+  return normalizeAgentIntentResult(parsed, fallback);
 }
 
 // Word-boundary keyword check for the handful of Spanish/English shopping

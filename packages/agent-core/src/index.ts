@@ -8,6 +8,21 @@ export * from "./providers/gemini-rest";
 
 export type AgentIntentName = (typeof supportedAgentIntents)[number];
 
+export type AgentIntentResult = {
+  intent: AgentIntentName;
+  confidence: number;
+  explanation: string;
+  language: "es" | "en";
+};
+
+/** Untrusted provider JSON, intentionally broader than the normalized contract. */
+export type AgentIntentCandidate = {
+  intent?: string;
+  confidence?: unknown;
+  explanation?: unknown;
+  language?: unknown;
+};
+
 const mutableAgentIntents: readonly AgentIntentName[] = ["ADD_TO_CART", "UPDATE_CART_ITEM", "REMOVE_FROM_CART", "CLEAR_CART"];
 
 export function isMutableAgentIntent(intent: string): intent is AgentIntentName {
@@ -19,6 +34,47 @@ export function redactSensitiveText(value: string): string {
     .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[redacted-card]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
     .replace(/(?:\+?\d[\s().-]?){8,}/g, "[redacted-phone]");
+}
+
+export function normalizeAgentIntentResult(candidate: AgentIntentCandidate, fallback: AgentIntentResult): AgentIntentResult {
+  const intent = supportedAgentIntents.includes(candidate.intent as AgentIntentName) ? candidate.intent as AgentIntentName : fallback.intent;
+  const confidenceValue = Number(candidate.confidence);
+  return {
+    intent,
+    confidence: Number.isFinite(confidenceValue) ? Math.max(0, Math.min(1, confidenceValue)) : fallback.confidence,
+    explanation: typeof candidate.explanation === "string" ? candidate.explanation.slice(0, 240) : fallback.explanation,
+    language: candidate.language === "es" || candidate.language === "en" ? candidate.language : fallback.language
+  };
+}
+
+export function detectAgentLanguage(message: string, localeFallback: string): "es" | "en" {
+  const fallback = localeFallback.toLowerCase().startsWith("es") ? "es" : "en";
+  const trimmed = message.trim();
+  if (!trimmed) return fallback;
+  if (/[¿¡ñÑáéíóúÁÉÍÓÚ]/.test(trimmed)) return "es";
+  const value = trimmed.toLowerCase();
+  const spanishHits = (value.match(/\b(hola|gracias|tienen|tienes|quiero|busco|necesito|cuanto|donde|que|comprar|vacia|vaciar|limpia|agrega|anade|elimina|quita|cambia|actualiza|precio|oferta|articulo|producto|carrito|por favor|si|ver|mostrar)\b/g) || []).length;
+  const englishHits = (value.match(/\b(hello|hi|hey|thanks|do|does|want|need|how much|where|what|buy|clear|empty|add|remove|delete|change|update|price|deal|item|product|cart|please|yes|show|view)\b/g) || []).length;
+  return spanishHits === englishHits ? fallback : englishHits > spanishHits ? "en" : "es";
+}
+
+/** Deterministic safety-first fallback used when a model is unavailable. */
+export function classifyAgentIntentHeuristic(message: string, localeFallback = "es-CO"): AgentIntentResult {
+  const value = message.toLowerCase();
+  const language = detectAgentLanguage(message, localeFallback);
+  if (/(ignora|ignore).*(reglas|rules|instrucciones|instructions)|gemini.*key|api key|prompt interno|system prompt|otro usuario|another user|tarjeta\s*\d{4}|4111/.test(value)) return { intent: "UNSUPPORTED", confidence: 0.98, explanation: "Unsafe or unsupported request.", language };
+  if (/(vacia|vaciar|limpia|clear|empty).*(carrito|cart)|elimina todo|quita todo/.test(value)) return { intent: "CLEAR_CART", confidence: 0.94, explanation: "Explicit clear-cart request.", language };
+  if (/(quita|elimina|remueve|remove|delete).*(carrito|cart|producto|item|audifono|zapato|tenis|mouse|shirt|shoe)/.test(value)) return { intent: "REMOVE_FROM_CART", confidence: 0.93, explanation: "Explicit remove-cart-item request.", language };
+  if (/(cambia|actualiza|update).*(cantidad|quantity)|cantidad.*\d+/.test(value)) return { intent: "UPDATE_CART_ITEM", confidence: 0.93, explanation: "Explicit cart quantity update.", language };
+  if (/(pagar|checkout|payment|pay|comprar ahora)/.test(value)) return { intent: "CHECKOUT_REQUEST", confidence: 0.92, explanation: "Checkout guidance request.", language };
+  if (/(agrega|anade|añade|add|pon|mete)/.test(value)) return { intent: "ADD_TO_CART", confidence: 0.91, explanation: "Explicit add-to-cart request.", language };
+  if (/(carrito|cart)/.test(value)) return { intent: "GET_CART", confidence: 0.9, explanation: "Cart read request.", language };
+  if (/(compar|compare|diferencia|difference|versus| vs )/.test(value)) return { intent: "COMPARE_PRODUCTS", confidence: 0.82, explanation: "Product comparison request.", language };
+  if (/(stock|disponib|available|talla|size|color|variante|variant)/.test(value)) return { intent: "CHECK_VARIANT_AVAILABILITY", confidence: 0.8, explanation: "Availability request.", language };
+  if (/(detalle|detail|especific|spec|caracteristica|feature)/.test(value)) return { intent: "GET_PRODUCT_DETAILS", confidence: 0.78, explanation: "Product detail request.", language };
+  if (/(recomienda|recommend|sugiere|suggest)/.test(value)) return { intent: "RECOMMEND_PRODUCTS", confidence: 0.78, explanation: "Recommendation request.", language };
+  if (/(producto|product|busca|search|quiero|need|tienen|have|oferta|deal|precio|price)/.test(value)) return { intent: "SEARCH_PRODUCTS", confidence: 0.7, explanation: "Product search request.", language };
+  return { intent: "GENERAL_STORE_QUESTION", confidence: 0.55, explanation: "General store question.", language };
 }
 
 export function createIntentClassificationPrompt(storeName: string): string {
