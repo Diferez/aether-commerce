@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["config/**/*.ts", "src/**/*.ts"]
+  "include": ["apps/**/*.ts", "config/**/*.ts", "src/**/*.ts"]
 }

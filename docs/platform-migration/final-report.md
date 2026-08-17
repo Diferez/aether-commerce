@@ -62,8 +62,8 @@ GitHub Packages. It is intentionally independent of development/production
 deployment workflows.
 
 Create a client with `pnpm create:client <kebab-case-name>`. It creates a
-sibling repository starter with validated `config/`, `custom/`, app extension
-directories, optional database extensions/seeds and schema-only core D1
+sibling repository starter with validated `config/`, typed app adapter entry
+modules, `custom/`, optional database extensions/seeds and schema-only core D1
 migrations. Client upgrades update package versions and run the checks
 documented in `docs/platform/upgrading-client.md`.
 
@@ -71,6 +71,6 @@ documented in `docs/platform/upgrading-client.md`.
 
 - More API services (admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time.
 - `agent-core` still needs reusable graph/runtime, tool execution, memory and telemetry abstractions; the Worker remains the executable reference adapter.
-- The client template has validated configuration and migration generation, but its app adapters are extension points rather than full independently deployable storefront/admin/API implementations.
+- The client template has validated configuration, typed framework-neutral app adapters and migration generation. A client still selects and implements the concrete Next.js/Hono/Worker entrypoints and deployment bindings instead of receiving a copied demo.
 - The Python/container assistant remains as a legacy runtime alongside the Worker; it was not removed because its CI tests and deployment path are still useful.
 - A production publish requires GitHub Packages permission/registry access; the workflow is prepared but was not executed.

@@ -5,11 +5,10 @@ configuration, extension points and app directories; it intentionally does not
 copy Aether demo data, provider secrets or deployment resources.
 
 1. Create it with `pnpm create:client <kebab-case-name>`.
-2. In the generated repository, add `.npmrc` with
-   `@aether:registry=https://npm.pkg.github.com` and an authenticated GitHub
-   Packages token available to your package manager.
+2. Set `GITHUB_PACKAGES_TOKEN` to a GitHub Packages token with read access;
+   the included `.npmrc` configures the scoped registry without storing a secret.
 3. Run `pnpm install`, `pnpm validate`, then `git init`.
-4. Implement each app adapter under `apps/` using `src/configuration.ts` and
+4. Implement each app adapter under `apps/` using its typed `adapter.ts` and `src/configuration.ts`, then
    the versioned `@aether/*` packages. Store secrets only in the deployment
    platform secret manager.
 
