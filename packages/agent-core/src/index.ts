@@ -8,6 +8,7 @@ export * from "./providers/gemini-rest";
 export * from "./runtime";
 export * from "./memory";
 export * from "./execution";
+export * from "./telemetry";
 
 export type AgentIntentName = (typeof supportedAgentIntents)[number];
 

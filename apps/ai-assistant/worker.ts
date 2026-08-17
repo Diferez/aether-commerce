@@ -13,6 +13,7 @@ import {
 } from "@aether/agent-core";
 import type { AgentAuditEvent } from "@aether/observability";
 import { createD1ConversationMemory } from "./adapters/conversation-memory";
+import { createD1AgentToolTelemetry } from "./adapters/tool-telemetry";
 
 type Fetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
@@ -695,30 +696,7 @@ async function persistAuditEvent(
   event: AgentAuditEvent
 ): Promise<void> {
   if (!env.DB) return;
-  await env.DB
-    .prepare(
-      `insert into ai_action_audit (
-         event_id, request_id, thread_id, user_or_session_hash, tool_name,
-         normalized_arguments, target_entity_id, idempotency_key,
-         authorization_result, execution_status, error_code, created_at
-       ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-    )
-    .bind(
-      crypto.randomUUID(),
-      event.request_id,
-      event.thread_id,
-      event.user_or_session_hash,
-      event.tool_name,
-      event.normalized_arguments,
-      event.target_entity_id,
-      event.idempotency_key,
-      event.authorization_result,
-      event.execution_status,
-      event.error_code
-    )
-    .run();
-  await incrementDailyUsage(env, usageDay(), event.user_or_session_hash, { tool_call_count: 1 });
-  await incrementDailyUsage(env, usageDay(), "project", { tool_call_count: 1 });
+  await createD1AgentToolTelemetry(env.DB, (scope) => incrementDailyUsage(env, usageDay(), scope, { tool_call_count: 1 })).record(event);
 }
 
 async function stableHash(value: string): Promise<string> {

@@ -229,6 +229,10 @@ importers:
         version: 4.120.0
 
   packages/agent-core:
+    dependencies:
+      '@aether/observability':
+        specifier: workspace:*
+        version: link:../observability
     devDependencies:
       typescript:
         specifier: ^5.9.0
