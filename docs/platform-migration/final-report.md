@@ -43,10 +43,11 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 ## Validation results
 
 - `pnpm install --frozen-lockfile`: baseline pass.
-- On commit `e01afce`, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (38 tests), `pnpm openapi:check`, `pnpm validate` and `pnpm build` all pass on the migration branch.
+- On commit `6774b96`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (43 tests), `pnpm openapi:check`, `pnpm validate`, `pnpm build` and `pnpm test:e2e` all pass on the migration branch. `pnpm install --frozen-lockfile` also passed on the branch before the final API-only extractions, which did not change dependencies or the lockfile.
 - API and AI Worker `wrangler deploy --dry-run`: pass; no deploy occurred.
 - `pnpm test:e2e:assistant`: passes (9 desktop checks; one mobile-only case is intentionally excluded from the desktop project).
 - `pnpm test:e2e`: passes (19 checks across desktop and mobile; one mobile-only case is intentionally excluded from the desktop project). The E2E server substitutes Clerk only under `AETHER_E2E_STUB_CLERK=true`; production bundles retain the real Clerk integration.
+- `python tests/run_direct.py` from `apps/ai-assistant`: passes for the preserved Python/LangGraph runtime.
 
 ## Demo status
 
