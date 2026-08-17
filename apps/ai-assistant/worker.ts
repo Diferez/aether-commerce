@@ -1,6 +1,7 @@
 import {
   createGeminiRestProvider,
   createEmptyResultPrompt,
+  createAgentExecutionPlan,
   createIntentClassificationPrompt,
   createSearchExtractionPrompt,
   authorizeAgentToolIntent,
@@ -165,6 +166,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
 
   const intentResult = await classifyIntent(message, env, sessionHash, locale);
   const intent = intentResult.intent;
+  const executionPlan = createAgentExecutionPlan(intent);
   // Reply in whatever language this specific message was written in, not
   // whatever the storefront's UI locale happens to be set to.
   const spanish = intentResult.language === "es";
@@ -234,7 +236,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     ));
   }
 
-  if (intent === "UNSUPPORTED") {
+  if (executionPlan === "unsupported") {
     return finish(responsePayload(
       requestId,
       threadId,
@@ -243,7 +245,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     ));
   }
 
-  if (intent === "GET_CART" || intent === "CHECKOUT_REQUEST") {
+  if (executionPlan === "cart_read") {
     const cart = cartId && cartToken ? await fetchCart(env, cartId, cartToken) : null;
     if (!cart) {
       return finish(responsePayload(
@@ -268,7 +270,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     return finish(responsePayload(requestId, threadId, reply, intent, [], cart, intent === "CHECKOUT_REQUEST" ? "OPEN_CHECKOUT" : "OPEN_CART", "SUCCEEDED"));
   }
 
-  if (intent === "REMOVE_FROM_CART" || intent === "UPDATE_CART_ITEM" || intent === "CLEAR_CART") {
+  if (executionPlan === "cart_mutation" && intent !== "ADD_TO_CART") {
     if (env.AI_MUTATIONS_ENABLED === "false") {
       await audit(intent.toLowerCase(), "mutations_disabled", null, "denied", "blocked", "mutations_disabled");
       return finish(responsePayload(requestId, threadId, spanish ? "Los cambios del carrito estan desactivados temporalmente." : "Cart changes are temporarily disabled.", intent, [], null, "ASK_CLARIFICATION", "PENDING"));
@@ -315,7 +317,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
 
   const contextProduct = await currentContextProduct(env, body);
   const products = contextProduct ? [contextProduct] : await searchProducts(env, message, sessionHash);
-  if (intent === "ADD_TO_CART") {
+  if (executionPlan === "cart_mutation" && intent === "ADD_TO_CART") {
     if (env.AI_MUTATIONS_ENABLED === "false") {
       await audit("add_to_cart", "mutations_disabled", null, "denied", "blocked", "mutations_disabled");
       return finish(responsePayload(requestId, threadId, spanish ? "Los cambios del carrito estan desactivados temporalmente." : "Cart changes are temporarily disabled.", intent, products, null, "ASK_CLARIFICATION", "PENDING"));

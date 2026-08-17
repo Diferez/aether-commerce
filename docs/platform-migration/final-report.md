@@ -27,7 +27,7 @@ docs/platform
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
 - `api-core`: pure cart/catalog (including product overrides)/order (including customer and admin reads), coupon, shipping-settings and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
-- `agent-core`: shared intent list, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution and conversation-memory ownership policy; the Worker remains the Cloudflare/Gemini/D1 adapter.
+- `agent-core`: shared intent list, deterministic execution planning, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution and conversation-memory ownership policy; the Worker remains the Cloudflare/Gemini/D1 adapter.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints.
 - `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Existing demo migrations remain for deployed-D1 compatibility; `pnpm create:client` now materializes the manifest-selected schema migrations without demo records.
@@ -71,7 +71,7 @@ documented in `docs/platform/upgrading-client.md`.
 ## Deliberate remaining debt
 
 - Remaining D1-bound work is explicit: admin settings/audit operations. Customer profile, addresses, customer-scoped order reads, public/customer/admin-review operations, product overrides, coupon, shipping-settings and contact persistence, inventory, order-status administration and idempotent webhook event persistence now have reusable ports. Provider signature verification remains intentionally in the integration adapter.
-- `agent-core` still needs reusable graph orchestration, tool execution and telemetry abstractions; the Worker remains the executable reference adapter. Conversation-memory ownership and lifecycle policy now live in the package, with D1 encoding in the Worker adapter.
+- `agent-core` still needs reusable concrete tool execution and telemetry abstractions; the Worker remains the executable reference adapter. Execution planning and conversation-memory ownership/lifecycle policy now live in the package, with D1 encoding in the Worker adapter.
 - The client template has validated configuration, typed framework-neutral app adapters and migration generation. A client still selects and implements the concrete Next.js/Hono/Worker entrypoints and deployment bindings instead of receiving a copied demo.
 - The Python/LangGraph container assistant remains as a legacy runtime alongside the TypeScript Cloudflare Worker. Its graph, tools, storage and tests cannot be removed or folded into the Worker without a dedicated adapter-by-adapter migration; keeping it is deliberate compatibility, not an indication that LangGraph has been migrated to the TypeScript package.
 - A production publish requires GitHub Packages permission/registry access; the workflow is prepared but was not executed.
