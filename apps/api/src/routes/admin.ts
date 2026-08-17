@@ -8,6 +8,7 @@ import { clearCatalogCache, getCatalogProducts, getProductById } from "../servic
 import { createInventoryService } from "../services/inventory";
 import { createOrderManagementService } from "../services/admin-orders";
 import { createCouponService } from "../services/coupons";
+import { createReviewModerationService } from "../services/review-moderation";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -182,12 +183,9 @@ adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c
   return ok(c, { code: c.req.param("id"), active: false });
 });
 
-adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, (await c.env.DB.prepare("select * from reviews order by created_at desc limit 100").all()).results));
+adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, await createReviewModerationService(c.env.DB).list()));
 adminRoutes.patch("/reviews/:id/moderation", requirePermission("reviews.moderate"), zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })), async (c) => {
-  await c.env.DB.prepare("update reviews set status = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(c.req.valid("json").status, c.req.param("id"))
-    .run();
-  return ok(c, { id: c.req.param("id"), status: c.req.valid("json").status });
+  return ok(c, await createReviewModerationService(c.env.DB).moderate(c.req.param("id"), c.req.valid("json").status));
 });
 
 adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (c) => {

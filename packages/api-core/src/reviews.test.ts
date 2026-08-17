@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   CustomerReviewService,
   PublicReviewService,
+  ReviewModerationService,
   type CustomerReview,
   type CustomerReviewRepository,
-  type PublicReviewRepository
+  type PublicReviewRepository,
+  type ReviewModerationRepository
 } from "./reviews";
 
 describe("customer reviews", () => {
@@ -31,6 +33,23 @@ describe("customer reviews", () => {
       title: "Great",
       body: "A sufficiently detailed review."
     }]);
+  });
+});
+
+describe("review moderation", () => {
+  it("delegates the selected moderation state through a reusable port", async () => {
+    let state: string | undefined;
+    const repository: ReviewModerationRepository = {
+      listAll: () => Promise.resolve([]),
+      setStatus: (_reviewId, status) => {
+        state = status;
+        return Promise.resolve();
+      }
+    };
+
+    await expect(new ReviewModerationService(repository).moderate("review-id", "approved"))
+      .resolves.toEqual({ id: "review-id", status: "approved" });
+    expect(state).toBe("approved");
   });
 });
 

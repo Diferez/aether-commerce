@@ -65,3 +65,25 @@ export class PublicReviewService {
     return this.repository.listApprovedByProductId(productId);
   }
 }
+
+export type ReviewModerationStatus = "pending" | "approved" | "rejected" | "hidden";
+export type AdminReviewRecord = Record<string, unknown>;
+
+export interface ReviewModerationRepository {
+  listAll(): Promise<AdminReviewRecord[]>;
+  setStatus(reviewId: string, status: ReviewModerationStatus): Promise<void>;
+}
+
+/** Reusable moderation operation; application adapters decide who has permission to invoke it. */
+export class ReviewModerationService {
+  constructor(private readonly repository: ReviewModerationRepository) {}
+
+  list(): Promise<AdminReviewRecord[]> {
+    return this.repository.listAll();
+  }
+
+  async moderate(reviewId: string, status: ReviewModerationStatus): Promise<{ id: string; status: ReviewModerationStatus }> {
+    await this.repository.setStatus(reviewId, status);
+    return { id: reviewId, status };
+  }
+}
