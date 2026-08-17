@@ -26,7 +26,7 @@ docs/platform
 ## Packages and moved code
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
-- `api-core`: pure cart/catalog/order, coupon and contact-message operations, customer profile, preferences, addresses, customer-scoped order reads and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
+- `api-core`: pure cart/catalog/order (including customer and admin reads), coupon and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
 - `agent-core`: shared intent list, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution and conversation-memory ownership policy; the Worker remains the Cloudflare/Gemini/D1 adapter.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints.

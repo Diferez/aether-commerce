@@ -6,7 +6,7 @@ import { ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
 import { createInventoryService } from "../services/inventory";
-import { createOrderManagementService } from "../services/admin-orders";
+import { createAdminOrderReadService, createOrderManagementService } from "../services/admin-orders";
 import { createCouponService } from "../services/coupons";
 import { createReviewModerationService } from "../services/review-moderation";
 
@@ -144,13 +144,11 @@ adminRoutes.get("/inventory/movements", requirePermission("inventory.read"), asy
 });
 
 adminRoutes.get("/orders", requirePermission("orders.read"), async (c) => {
-  const rows = await c.env.DB.prepare("select id, number, email, state, total, currency, created_at from orders order by created_at desc limit 100").all();
-  return ok(c, rows.results);
+  return ok(c, await createAdminOrderReadService(c.env.DB).listRecent());
 });
 
 adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
-  const row = await c.env.DB.prepare("select payload_json from orders where id = ?").bind(c.req.param("id")).first<{ payload_json: string }>();
-  return ok(c, row ? JSON.parse(row.payload_json) : null);
+  return ok(c, await createAdminOrderReadService(c.env.DB).find(c.req.param("id")));
 });
 
 adminRoutes.patch(

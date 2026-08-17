@@ -110,3 +110,23 @@ export class CustomerOrderService {
     return this.repository.findByIdForUser(userId, orderId);
   }
 }
+
+export type AdminOrderSummary = Record<string, unknown>;
+export type AdminOrderDetail = Record<string, unknown>;
+
+export interface AdminOrderReadRepository {
+  listRecent(): Promise<AdminOrderSummary[]>;
+  findById(orderId: string): Promise<AdminOrderDetail | null>;
+}
+
+export class AdminOrderReadService {
+  constructor(private readonly repository: AdminOrderReadRepository) {}
+
+  listRecent(): Promise<AdminOrderSummary[]> {
+    return this.repository.listRecent();
+  }
+
+  find(orderId: string): Promise<AdminOrderDetail | null> {
+    return this.repository.findById(orderId);
+  }
+}
