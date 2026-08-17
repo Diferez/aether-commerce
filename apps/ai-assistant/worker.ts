@@ -11,6 +11,7 @@ import {
   type AgentIntentResult
 } from "@aether/agent-core";
 import type { AgentAuditEvent } from "@aether/observability";
+import { createD1ConversationMemory } from "./adapters/conversation-memory";
 
 type Fetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
@@ -355,38 +356,24 @@ type AssistantHttpResult = {
 async function getConversation(request: Request, env: Env, threadId: string): Promise<AssistantHttpResult> {
   if (!env.DB) return { status: 503, payload: { success: false, error: "persistence_unavailable" } };
   const sessionHash = await stableHash(request.headers.get("x-aether-session-id") || request.headers.get("x-aether-cart-id") || "anonymous");
-  const conversation = await env.DB.prepare("select id, session_hash, locale, status, created_at, updated_at from ai_conversations where id = ?").bind(threadId).first<{
-    id: string;
-    session_hash: string;
-    locale: string;
-    status: string;
-    created_at: string;
-    updated_at: string;
-  }>();
-  if (!conversation || conversation.status !== "active") return { status: 404, payload: { success: false, error: "conversation_not_found" } };
-  if (conversation.session_hash !== sessionHash) return { status: 403, payload: { success: false, error: "forbidden" } };
-  const rows = await env.DB.prepare("select id, role, content_redacted, payload_json, created_at from ai_messages where conversation_id = ? order by created_at asc").bind(threadId).all<{
-    id: string;
-    role: string;
-    content_redacted: string | null;
-    payload_json: string;
-    created_at: string;
-  }>();
+  const result = await createD1ConversationMemory(env.DB).read(threadId, sessionHash);
+  if (result.status === "not_found") return { status: 404, payload: { success: false, error: "conversation_not_found" } };
+  if (result.status === "forbidden") return { status: 403, payload: { success: false, error: "forbidden" } };
   return {
     status: 200,
     payload: {
       success: true,
       data: {
-        thread_id: conversation.id,
-        locale: conversation.locale,
-        created_at: conversation.created_at,
-        updated_at: conversation.updated_at,
-        messages: (rows.results || []).map((row) => ({
-          id: row.id,
-          role: row.role,
-          content: row.content_redacted,
-          payload: safeJson(row.payload_json),
-          created_at: row.created_at,
+        thread_id: result.conversation.id,
+        locale: result.conversation.locale,
+        created_at: result.conversation.createdAt,
+        updated_at: result.conversation.updatedAt,
+        messages: result.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          payload: message.payload,
+          created_at: message.createdAt,
         })),
       },
     },
@@ -396,14 +383,9 @@ async function getConversation(request: Request, env: Env, threadId: string): Pr
 async function deleteConversation(request: Request, env: Env, threadId: string): Promise<AssistantHttpResult> {
   if (!env.DB) return { status: 503, payload: { success: false, error: "persistence_unavailable" } };
   const sessionHash = await stableHash(request.headers.get("x-aether-session-id") || request.headers.get("x-aether-cart-id") || "anonymous");
-  const conversation = await env.DB.prepare("select session_hash, status from ai_conversations where id = ?").bind(threadId).first<{
-    session_hash: string;
-    status: string;
-  }>();
-  if (!conversation || conversation.status !== "active") return { status: 404, payload: { success: false, error: "conversation_not_found" } };
-  if (conversation.session_hash !== sessionHash) return { status: 403, payload: { success: false, error: "forbidden" } };
-  await env.DB.prepare("update ai_conversations set status = 'deleted', updated_at = CURRENT_TIMESTAMP where id = ?").bind(threadId).run();
-  await env.DB.prepare("delete from ai_messages where conversation_id = ?").bind(threadId).run();
+  const result = await createD1ConversationMemory(env.DB).delete(threadId, sessionHash);
+  if (result.status === "not_found") return { status: 404, payload: { success: false, error: "conversation_not_found" } };
+  if (result.status === "forbidden") return { status: 403, payload: { success: false, error: "forbidden" } };
   return { status: 200, payload: { success: true, data: { thread_id: threadId, deleted: true } } };
 }
 
@@ -703,18 +685,7 @@ async function persistConversationMessage(
   payload: Record<string, unknown> | AssistantResponse
 ): Promise<void> {
   if (!env.DB) return;
-  await env.DB
-    .prepare(
-      `insert into ai_conversations (id, session_hash, locale, status, metadata_json, expires_at, created_at, updated_at)
-       values (?, ?, ?, 'active', '{}', datetime('now', '+30 days'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       on conflict(id) do update set updated_at = CURRENT_TIMESTAMP, locale = excluded.locale`
-    )
-    .bind(threadId, sessionHash, locale)
-    .run();
-  await env.DB
-    .prepare("insert into ai_messages (id, conversation_id, role, content_redacted, payload_json, created_at) values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)")
-    .bind(crypto.randomUUID(), threadId, role, content.slice(0, 4000), JSON.stringify(payload).slice(0, 12000))
-    .run();
+  await createD1ConversationMemory(env.DB).persist({ threadId, sessionHash, locale, role, content, payload });
 }
 
 async function persistAuditEvent(
@@ -755,14 +726,6 @@ async function stableHash(value: string): Promise<string> {
 
 async function idempotencyKey(requestId: string, toolName: string, normalizedArguments: string): Promise<string> {
   return `ai_${await stableHash(`${requestId}:${toolName}:${normalizedArguments}`)}`;
-}
-
-function safeJson(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
 }
 
 async function streamAssistant(request: Request, env: Env): Promise<Response> {
