@@ -1,4 +1,8 @@
-# Platform migration final report
+# Platform migration report — in progress
+
+> This document is intentionally not a final acceptance report yet. It records
+> verified work and remaining gates so the migration is not represented as
+> complete before the demo and client path meet every requirement.
 
 ## Previous architecture
 
@@ -22,11 +26,11 @@ docs/platform
 ## Packages and moved code
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
-- `api-core`: pure cart item/merge/coupon/quantity operations; `apps/api` remains the D1/catalog adapter.
-- `agent-core`: shared intent list, mutable-tool guardrail, PII redaction and composable Gemini prompts; the Worker remains the Cloudflare/Gemini adapter.
+- `api-core`: pure cart/catalog/order operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
+- `agent-core`: shared intent list, mutable-tool authorization, PII redaction and composable Gemini prompts; the Worker remains the Cloudflare/Gemini adapter.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints.
-- `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Demo fixtures/seeds moved to `database/demo/`.
+- `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Existing demo migrations remain for deployed-D1 compatibility; `pnpm create:client` now materializes the manifest-selected schema migrations without demo records.
 
 ## Compatibility
 
@@ -38,12 +42,11 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 
 ## Validation results
 
-- `pnpm install --frozen-lockfile`: pass.
-- `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm openapi:check`, `pnpm validate` and `pnpm build`: pass after migration.
+- `pnpm install --frozen-lockfile`: baseline pass.
+- `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (27 tests), `pnpm openapi:check`, `pnpm validate` and `pnpm build`: pass on the migration branch.
 - API and AI Worker `wrangler deploy --dry-run`: pass; no deploy occurred.
-- `pnpm test:e2e:assistant`: its baseline passed (9 pass, 1 skipped). A final local rerun timed out while Clerk attempted to load its remote test UI bundle; this is an environment/test-isolation issue, not a TypeScript or Worker bundle regression. CI must rerun it with its configured Node 22/Clerk test setup before merge.
-- `pnpm test:unit` remains the baseline local Vitest/Worker-pool failure under Node 18; no migration test was removed.
-- Full `pnpm test:e2e` remained inconclusive locally due the 120-second tool budget; CI uses Node 22 and remains authoritative.
+- `pnpm test:e2e:assistant`: currently fails locally because its static placeholder Clerk key loads a remote Clerk UI bundle and the client widget never hydrates. This is an unresolved test-isolation gate; it must pass before final acceptance.
+- Full `pnpm test:e2e`: not accepted yet because the assistant suite is a prerequisite.
 
 ## Demo status
 
@@ -59,12 +62,15 @@ GitHub Packages. It is intentionally independent of development/production
 deployment workflows.
 
 Create a client with `pnpm create:client <kebab-case-name>`. It creates a
-sibling repository shell with `config/`, `custom/`, app directories and optional
-database extensions/seeds. Client upgrades update package versions and run the
-checks documented in `docs/platform/upgrading-client.md`.
+sibling repository starter with validated `config/`, `custom/`, app extension
+directories, optional database extensions/seeds and schema-only core D1
+migrations. Client upgrades update package versions and run the checks
+documented in `docs/platform/upgrading-client.md`.
 
 ## Deliberate remaining debt
 
-- More API services (catalog, orders, payments, customers and webhooks) remain thinly coupled to D1/Cloudflare and should be extracted one adapter at a time.
+- More API services (inventory, customers, admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time.
+- `agent-core` still needs reusable graph/runtime, tool execution, memory and telemetry abstractions; the Worker remains the executable reference adapter.
+- The client template has validated configuration and migration generation, but its app adapters are extension points rather than full independently deployable storefront/admin/API implementations.
 - The Python/container assistant remains as a legacy runtime alongside the Worker; it was not removed because its CI tests and deployment path are still useful.
 - A production publish requires GitHub Packages permission/registry access; the workflow is prepared but was not executed.
