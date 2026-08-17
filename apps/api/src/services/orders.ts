@@ -1,4 +1,5 @@
-import type { Cart } from "@aether/schemas";
+import { clearPaidCart, createPaidOrder } from "@aether/api-core";
+import type { Address, Cart } from "@aether/schemas";
 import type { Env } from "../types";
 import { readCart } from "./cart";
 
@@ -18,12 +19,7 @@ type StripeCheckoutSession = {
   payment_intent?: string;
 };
 
-function orderNumber(sessionId: string) {
-  const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
-  return `AETH-${suffix}`;
-}
-
-function demoShippingAddress(email: string) {
+function demoShippingAddress(email: string): Address {
   return {
     fullName: email.split("@")[0] || "Aether Customer",
     line1: "Stripe sandbox checkout",
@@ -42,7 +38,7 @@ async function readOrderBySession(env: Env, sessionId: string) {
 
 async function markCartPaid(env: Env, cart: Cart) {
   await env.DB.prepare("update carts set payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(JSON.stringify({ ...cart, items: [], totals: { ...cart.totals, subtotal: 0, discount: 0, tax: 0, total: 0 } }), cart.id)
+    .bind(JSON.stringify(clearPaidCart(cart)), cart.id)
     .run();
 }
 
@@ -67,29 +63,22 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
   }
 
   const email = session.customer_details?.email ?? session.customer_email ?? "customer@example.com";
-  const now = new Date().toISOString();
-  const total = session.amount_total ?? cart.totals.total;
-  const currency = (session.currency ?? cart.totals.currency).toUpperCase();
-  const order = {
-    id: `ord_${session.id}`,
-    number: orderNumber(session.id),
-    userId: cart.userId ?? session.metadata?.userId,
-    email,
-    state: "paid",
-    items: cart.items,
-    totals: { ...cart.totals, total, currency },
-    shippingAddress: demoShippingAddress(email),
+  const order = createPaidOrder({
+    cart,
     payment: {
-      provider: "stripe",
-      providerSessionId: session.id,
-      providerPaymentIntentId: session.payment_intent,
-      status: "paid",
-      amount: total,
-      currency
+      id: session.id,
+      email,
+      ...(session.amount_total !== undefined ? { amountTotal: session.amount_total } : {}),
+      ...(session.currency ? { currency: session.currency } : {}),
+      ...(session.metadata?.userId ? { userId: session.metadata.userId } : {}),
+      ...(session.payment_intent ? { paymentIntentId: session.payment_intent } : {})
     },
-    createdAt: now,
-    updatedAt: now
-  };
+    paymentProvider: "stripe",
+    orderNumberPrefix: "AETH",
+    shippingAddress: demoShippingAddress(email)
+  });
+  const total = order.totals.total;
+  const currency = order.totals.currency;
 
   await env.DB.batch([
     env.DB.prepare(
