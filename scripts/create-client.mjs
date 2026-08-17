@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,7 @@ const destination = resolve(root, "..", name);
 if (existsSync(destination)) throw new Error(`Refusing to overwrite existing directory: ${destination}`);
 
 cpSync(source, destination, { recursive: true });
+rmSync(resolve(destination, "tsconfig.validation.json"));
 const replaceText = (directory) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const target = resolve(directory, entry.name);
