@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether/schemas";
-import { defaultShippingSettings } from "@aether/core";
+import { aetherDemoShippingSettings } from "../config/aether-demo";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getProductById, getProductBySlug } from "../services/catalog";
@@ -103,5 +103,5 @@ publicRoutes.get("/shipping/options", async (c) => {
   const row = await c.env.DB.prepare("select value_json from application_settings where key = 'shipping'").first<{
     value_json: string;
   }>();
-  return ok(c, row ? JSON.parse(row.value_json) : defaultShippingSettings);
+  return ok(c, row ? JSON.parse(row.value_json) : aetherDemoShippingSettings);
 });

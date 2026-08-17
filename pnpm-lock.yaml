@@ -224,6 +224,10 @@ importers:
         version: 5.9.2
 
   packages/config:
+    dependencies:
+      '@aether/config-schema':
+        specifier: workspace:*
+        version: link:../config-schema
     devDependencies:
       typescript:
         specifier: ^5.9.0

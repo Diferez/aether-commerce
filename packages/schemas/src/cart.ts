@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** ISO 4217 currency code. A reference store may constrain this further in its config. */
+export const currencyCodeSchema = z.string().regex(/^[A-Z]{3}$/, "currency must be an ISO 4217 code");
+
 export const cartItemInputSchema = z.object({
   productId: z.string().min(1),
   variantId: z.string().min(1).optional(),
@@ -13,7 +16,7 @@ export const cartItemSchema = cartItemInputSchema.extend({
   unitPrice: z.number().int().min(0),
   finalUnitPrice: z.number().int().min(0),
   lineTotal: z.number().int().min(0),
-  currency: z.literal("USD")
+  currency: currencyCodeSchema
 });
 
 export const couponSchema = z.object({
@@ -32,7 +35,7 @@ export const cartTotalsSchema = z.object({
   shipping: z.number().int().min(0),
   tax: z.number().int().min(0),
   total: z.number().int().min(0),
-  currency: z.literal("USD")
+  currency: currencyCodeSchema
 });
 
 export const cartSchema = z.object({
