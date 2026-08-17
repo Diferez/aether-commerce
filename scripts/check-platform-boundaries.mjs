@@ -25,15 +25,36 @@ function files(directory) {
 }
 
 const violations = [];
+const normalizePackageImport = (value) => value.match(/^@aether\/[^/]+/)?.[0] ?? value;
 for (const [packageName, allowed] of policies) {
   const source = resolve(root, "packages", packageName, "src");
   for (const file of files(source)) {
     const content = readFileSync(file, "utf8");
     const imports = [...content.matchAll(/(?:from|import)\s*\(?\s*["'](@aether\/[^"']+)["']/g)].map((match) => match[1]);
-    for (const dependency of imports) {
+    for (const importedPath of imports) {
+      const dependency = normalizePackageImport(importedPath);
       if (!allowed.has(dependency)) violations.push(`${file}: ${packageName} may not depend on ${dependency}`);
+      if (importedPath !== dependency && importedPath !== "@aether/ui/theme") {
+        violations.push(`${file}: platform packages must not import non-public subpaths (${importedPath})`);
+      }
     }
     if (/\.\.\/\.\.\/apps\//.test(content)) violations.push(`${file}: platform packages may not import app internals`);
+  }
+}
+
+for (const appName of ["admin", "api", "ai-assistant", "storefront"]) {
+  const source = resolve(root, "apps", appName);
+  for (const file of files(source)) {
+    const content = readFileSync(file, "utf8");
+    if (/from\s*["'][^"']*\.\.\/\.\.\/packages\//.test(content)) {
+      violations.push(`${file}: apps must consume a package public entrypoint instead of packages/ source`);
+    }
+    if (/@aether\/[^"'\/]+\/src(?:\/|["'])/.test(content)) {
+      violations.push(`${file}: apps must not import a package src internal path`);
+    }
+    if (/from\s*["'][^"']*\.\.\/[^"']*apps\//.test(content)) {
+      violations.push(`${file}: apps must not import another app's internals`);
+    }
   }
 }
 
