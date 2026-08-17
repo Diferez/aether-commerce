@@ -1,6 +1,7 @@
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { materializeClientMigrations } from "./export-core-migrations.mjs";
 
 const name = process.argv[2];
 if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
@@ -14,6 +15,7 @@ if (existsSync(destination)) throw new Error(`Refusing to overwrite existing dir
 
 cpSync(source, destination, { recursive: true });
 rmSync(resolve(destination, "tsconfig.validation.json"));
+materializeClientMigrations(resolve(destination, "database/migrations"));
 const replaceText = (directory) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const target = resolve(directory, entry.name);

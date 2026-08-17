@@ -35,6 +35,7 @@
     "db:generate": "pnpm --filter @aether/api db:generate",
     "db:migrate:local": "pnpm --filter @aether/api db:migrate:local",
     "db:seed": "pnpm --filter @aether/api db:seed",
+    "db:export:core": "node scripts/export-core-migrations.mjs",
     "openapi:check": "node scripts/check-openapi.mjs",
     "test:client-template": "node scripts/validate-client-template.mjs",
     "create:client": "node scripts/create-client.mjs",

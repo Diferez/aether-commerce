@@ -15,7 +15,9 @@ copy Aether demo data, provider secrets or deployment resources.
 
 `config/` is public configuration; `custom/` contains client-only pages,
 components, styling, animations and assets; `database/` contains only
-client-specific extensions and optional seeds.
+client-specific extensions and optional seeds. The generator also creates
+`database/migrations/` from the reusable Aether schema migrations; it excludes
+the Aether demo's historical data migrations.
 
 Never put provider secrets in `config/`; runtime secrets belong in the chosen
 deployment platform's secret manager.
