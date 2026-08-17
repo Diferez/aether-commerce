@@ -6,6 +6,7 @@ import { addressSchema, cartItemInputSchema, contactMessageSchema } from "@aethe
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from "../services/cart";
+import { createCustomerPreferencesService } from "../services/customer-preferences";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -98,66 +99,40 @@ userRoutes.post(
 userRoutes.get("/favorites", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your favorites.");
-  const rows = await c.env.DB.prepare("select product_id from favorites where user_id = ? order by created_at desc")
-    .bind(userId)
-    .all<{ product_id: string }>();
-  return ok(c, rows.results.map((row) => row.product_id));
+  return ok(c, await createCustomerPreferencesService(c.env.DB).listFavorites(userId));
 });
 
 userRoutes.post("/favorites/:productId", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to save favorites.");
-  await c.env.DB.prepare("insert or ignore into favorites (id, user_id, product_id) values (?, ?, ?)")
-    .bind(crypto.randomUUID(), userId, c.req.param("productId"))
-    .run();
+  await createCustomerPreferencesService(c.env.DB).saveFavorite(userId, c.req.param("productId"));
   return ok(c, { productId: c.req.param("productId"), saved: true }, 201);
 });
 
 userRoutes.delete("/favorites/:productId", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your favorites.");
-  await c.env.DB.prepare("delete from favorites where user_id = ? and product_id = ?").bind(userId, c.req.param("productId")).run();
+  await createCustomerPreferencesService(c.env.DB).removeFavorite(userId, c.req.param("productId"));
   return ok(c, { productId: c.req.param("productId"), saved: false });
 });
 
 userRoutes.get("/compare", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your comparison list.");
-  const row = await c.env.DB.prepare("select product_ids_json from product_comparisons where id = ?")
-    .bind(userId)
-    .first<{ product_ids_json: string }>();
-  return ok(c, row ? JSON.parse(row.product_ids_json) : []);
+  return ok(c, await createCustomerPreferencesService(c.env.DB).readComparison(userId));
 });
 
 userRoutes.post("/compare/:productId", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your comparison list.");
-  const row = await c.env.DB.prepare("select product_ids_json from product_comparisons where id = ?")
-    .bind(userId)
-    .first<{ product_ids_json: string }>();
-  const ids = new Set<string>(row ? (JSON.parse(row.product_ids_json) as string[]) : []);
-  ids.add(c.req.param("productId"));
-  const next = [...ids].slice(0, 4);
-  await c.env.DB.prepare(
-    `insert into product_comparisons (id, user_id, anonymous_id, product_ids_json, created_at, updated_at)
-     values (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     on conflict(id) do update set product_ids_json = excluded.product_ids_json, updated_at = CURRENT_TIMESTAMP`
-  )
-    .bind(userId, userId, null, JSON.stringify(next))
-    .run();
+  const next = await createCustomerPreferencesService(c.env.DB).addComparison(userId, c.req.param("productId"));
   return ok(c, next, 201);
 });
 
 userRoutes.delete("/compare/:productId", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your comparison list.");
-  const row = await c.env.DB.prepare("select product_ids_json from product_comparisons where id = ?")
-    .bind(userId)
-    .first<{ product_ids_json: string }>();
-  const next = (row ? (JSON.parse(row.product_ids_json) as string[]) : []).filter((id) => id !== c.req.param("productId"));
-  await c.env.DB.prepare("update product_comparisons set product_ids_json = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(JSON.stringify(next), userId)
-    .run();
+  const next = await createCustomerPreferencesService(c.env.DB).removeComparison(userId, c.req.param("productId"));
   return ok(c, next);
 });
 
