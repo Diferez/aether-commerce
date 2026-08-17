@@ -11,9 +11,9 @@ function read(path) {
 
 function readMigrations() {
   return [
-    read("apps/api/migrations/0001_initial.sql"),
-    read("apps/api/migrations/0003_required_commerce_schema.sql"),
-    read("apps/api/migrations/0004_demo_operational_data.sql")
+    read("database/core/migrations/0001_initial.sql"),
+    read("database/core/migrations/0003_required_commerce_schema.sql"),
+    read("database/core/migrations/0004_demo_operational_data.sql")
   ].join("\n");
 }
 

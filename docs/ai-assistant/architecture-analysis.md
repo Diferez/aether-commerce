@@ -7,7 +7,7 @@ Aether vive en su propio repositorio y se organiza como workspace pnpm.
 - Storefront: Next.js exportado como sitio estatico en `apps/storefront`. No usa API routes ni Server Actions para comercio.
 - Admin: Next.js estatico en `apps/admin`.
 - API: Cloudflare Worker con Hono en `apps/api`, expuesto bajo `/api/v1`.
-- Base de datos: Cloudflare D1 con migraciones SQL en `apps/api/migrations`.
+- Base de datos: Cloudflare D1 con migraciones SQL en `database/core/migrations`.
 - Catalogo: adaptador DummyJSON en `apps/api/src/services/catalog.ts`, normalizado con Zod y tipos compartidos.
 - Carrito: servicio `apps/api/src/services/cart.ts`, persistido en D1 como JSON en `carts`.
 - Checkout: Worker API con Stripe sandbox.

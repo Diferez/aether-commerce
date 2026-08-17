@@ -16,9 +16,9 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local --config ./wrangler.jsonc",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config ./wrangler.production.json",
     "db:seed": "pnpm db:seed:base && pnpm db:seed:demo",
-    "db:seed:base": "wrangler d1 execute DB --local --file ./migrations/0002_seed_demo.sql --config ./wrangler.jsonc",
-    "db:seed:demo": "wrangler d1 execute DB --local --file ./migrations/0004_demo_operational_data.sql --config ./wrangler.jsonc",
-    "db:seed:remote": "wrangler d1 execute DB --remote --file ./migrations/0002_seed_demo.sql --config ./wrangler.production.json && wrangler d1 execute DB --remote --file ./migrations/0004_demo_operational_data.sql --config ./wrangler.production.json"
+    "db:seed:base": "wrangler d1 execute DB --local --file ../../database/core/migrations/0002_seed_demo.sql --config ./wrangler.jsonc",
+    "db:seed:demo": "wrangler d1 execute DB --local --file ../../database/core/migrations/0004_demo_operational_data.sql --config ./wrangler.jsonc",
+    "db:seed:remote": "wrangler d1 execute DB --remote --file ../../database/core/migrations/0002_seed_demo.sql --config ./wrangler.production.json && wrangler d1 execute DB --remote --file ../../database/core/migrations/0004_demo_operational_data.sql --config ./wrangler.production.json"
   },
   "dependencies": {
     "@aether/core": "workspace:*",

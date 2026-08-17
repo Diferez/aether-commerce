@@ -46,7 +46,7 @@ Usa únicamente Stripe test mode en esta demo.
 
 ## D1
 
-Las migraciones versionadas están en `apps/api/migrations`. El workflow genera configuraciones de producción ignoradas por Git y ejecuta:
+Las migraciones versionadas están en `database/core/migrations`. El workflow genera configuraciones de producción ignoradas por Git y ejecuta:
 
 ```bash
 pnpm --filter @aether/api db:migrate:remote

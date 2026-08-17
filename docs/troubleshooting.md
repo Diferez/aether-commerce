@@ -22,5 +22,5 @@ Public demo admin intentionally blocks persistence. Use a Clerk user with the
 
 ## D1 migration fails
 
-Apply migrations in order from `apps/api/migrations`. D1 uses SQLite syntax, so
+Apply migrations in order from `database/core/migrations`. D1 uses SQLite syntax, so
 foreign keys and indexes should match the checked-in SQL files.
