@@ -3,6 +3,8 @@ import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { verifyStripeSignature } from "../services/stripe";
 import { createOrderFromStripeSession } from "../services/orders";
+import { createWebhookEventService } from "../services/webhook-events";
+import { parseStripeWebhookPayload } from "@aether/api-core";
 
 export const webhookRoutes = new Hono<AppBindings>();
 
@@ -19,30 +21,8 @@ webhookRoutes.post("/stripe", async (c) => {
     return fail(c, 401, "INVALID_SIGNATURE", "Invalid Stripe webhook signature.");
   }
 
-  const payload = JSON.parse(body) as {
-    id: string;
-    type: string;
-    data?: {
-      object?: {
-        id: string;
-        payment_status?: string;
-        amount_total?: number;
-        currency?: string;
-        customer_details?: { email?: string };
-        customer_email?: string;
-        metadata?: { cartId?: string; userId?: string };
-        payment_intent?: string;
-      };
-    };
-  };
-  await c.env.DB.prepare(
-    `insert into webhook_events
-      (id, provider, provider_event_id, payload_json, processed_at, created_at, updated_at)
-     values (?, 'stripe', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     on conflict(provider_event_id) do nothing`
-  )
-    .bind(crypto.randomUUID(), payload.id, body)
-    .run();
+  const payload = parseStripeWebhookPayload(body);
+  await createWebhookEventService(c.env.DB).record("stripe", payload.id, body);
 
   let orderCreated = false;
   if (payload.type === "checkout.session.completed" && payload.data?.object) {
