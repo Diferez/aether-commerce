@@ -93,3 +93,24 @@ export class CustomerAddressService {
     return this.repository.softDelete(userId, addressId);
   }
 }
+
+export type CustomerProfileUpdate = {
+  userId: string;
+  email: string;
+  roles: readonly string[];
+  name?: string | undefined;
+  locale?: "en" | "es" | undefined;
+};
+
+export interface CustomerProfileRepository {
+  upsert(input: CustomerProfileUpdate): Promise<void>;
+}
+
+export class CustomerProfileService {
+  constructor(private readonly repository: CustomerProfileRepository) {}
+
+  async update(input: CustomerProfileUpdate): Promise<{ id: string; name?: string | undefined; locale?: "en" | "es" | undefined }> {
+    await this.repository.upsert(input);
+    return { id: input.userId, ...(input.name !== undefined ? { name: input.name } : {}), ...(input.locale !== undefined ? { locale: input.locale } : {}) };
+  }
+}

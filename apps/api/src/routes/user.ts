@@ -10,6 +10,7 @@ import { createCustomerPreferencesService } from "../services/customer-preferenc
 import { createCustomerAddressService } from "../services/customer-addresses";
 import { createCustomerOrderService } from "../services/customer-orders";
 import { createCustomerReviewService } from "../services/customer-reviews";
+import { createCustomerProfileService } from "../services/customer-profile";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -37,14 +38,12 @@ userRoutes.get("/me", (c) => ok(c, c.get("actor")));
 userRoutes.patch("/me", zValidator("json", profileSchema), async (c) => {
   const actor = c.get("actor");
   if (!actor.userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your profile.");
-  await c.env.DB.prepare(
-    `insert into users (id, clerk_id, email, name, roles_json, created_at, updated_at)
-     values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     on conflict(id) do update set name = excluded.name, updated_at = CURRENT_TIMESTAMP`
-  )
-    .bind(actor.userId, actor.userId, actor.email ?? "user@example.com", c.req.valid("json").name ?? null, JSON.stringify(actor.roles))
-    .run();
-  return ok(c, { id: actor.userId, ...c.req.valid("json") });
+  return ok(c, await createCustomerProfileService(c.env.DB).update({
+    userId: actor.userId,
+    email: actor.email ?? "user@example.com",
+    roles: actor.roles,
+    ...c.req.valid("json")
+  }));
 });
 
 userRoutes.get("/cart", async (c) => {
