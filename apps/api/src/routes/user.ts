@@ -7,6 +7,7 @@ import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from "../services/cart";
 import { createCustomerPreferencesService } from "../services/customer-preferences";
+import { createCustomerAddressService } from "../services/customer-addresses";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -139,46 +140,33 @@ userRoutes.delete("/compare/:productId", async (c) => {
 userRoutes.get("/addresses", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your addresses.");
-  const rows = await c.env.DB.prepare("select payload_json from user_addresses where user_id = ? and deleted_at is null")
-    .bind(userId)
-    .all<{ payload_json: string }>();
-  return collection(c, rows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>), {
+  const addresses = await createCustomerAddressService(c.env.DB).list(userId);
+  return collection(c, addresses, {
     page: 1,
-    pageSize: rows.results.length,
-    total: rows.results.length,
-    pageCount: rows.results.length > 0 ? 1 : 0
+    pageSize: addresses.length,
+    total: addresses.length,
+    pageCount: addresses.length > 0 ? 1 : 0
   });
 });
 
 userRoutes.post("/addresses", zValidator("json", addressSchema), async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to save an address.");
-  const id = crypto.randomUUID();
-  const address = { id, ...c.req.valid("json") };
-  await c.env.DB.prepare(
-    `insert into user_addresses (id, user_id, label, full_name, country, payload_json, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-  )
-    .bind(id, userId, "Default", address.fullName, address.country, JSON.stringify(address))
-    .run();
+  const address = await createCustomerAddressService(c.env.DB).create(userId, c.req.valid("json"));
   return ok(c, address, 201);
 });
 
 userRoutes.patch("/addresses/:id", zValidator("json", addressSchema.partial()), async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your address.");
-  await c.env.DB.prepare("update user_addresses set payload_json = json_patch(payload_json, ?), updated_at = CURRENT_TIMESTAMP where id = ? and user_id = ?")
-    .bind(JSON.stringify(c.req.valid("json")), c.req.param("id"), userId)
-    .run();
+  await createCustomerAddressService(c.env.DB).update(userId, c.req.param("id"), c.req.valid("json"));
   return ok(c, { id: c.req.param("id"), updated: true });
 });
 
 userRoutes.delete("/addresses/:id", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your address.");
-  await c.env.DB.prepare("update user_addresses set deleted_at = CURRENT_TIMESTAMP where id = ? and user_id = ?")
-    .bind(c.req.param("id"), userId)
-    .run();
+  await createCustomerAddressService(c.env.DB).softDelete(userId, c.req.param("id"));
   return ok(c, { id: c.req.param("id"), deleted: true });
 });
 

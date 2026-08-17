@@ -58,3 +58,38 @@ export class CustomerPreferencesService {
     return next;
   }
 }
+
+export type CustomerAddress = Record<string, unknown> & { id: string };
+
+export interface CustomerAddressRepository {
+  list(userId: string): Promise<CustomerAddress[]>;
+  create(userId: string, address: CustomerAddress): Promise<void>;
+  update(userId: string, addressId: string, patch: Record<string, unknown>): Promise<void>;
+  softDelete(userId: string, addressId: string): Promise<void>;
+}
+
+/** Customer address operations with persistence abstracted from the API runtime. */
+export class CustomerAddressService {
+  constructor(
+    private readonly repository: CustomerAddressRepository,
+    private readonly createId: CustomerPreferencesIdFactory
+  ) {}
+
+  list(userId: string): Promise<CustomerAddress[]> {
+    return this.repository.list(userId);
+  }
+
+  async create(userId: string, input: Record<string, unknown>): Promise<CustomerAddress> {
+    const address = { ...input, id: this.createId() };
+    await this.repository.create(userId, address);
+    return address;
+  }
+
+  update(userId: string, addressId: string, patch: Record<string, unknown>): Promise<void> {
+    return this.repository.update(userId, addressId, patch);
+  }
+
+  softDelete(userId: string, addressId: string): Promise<void> {
+    return this.repository.softDelete(userId, addressId);
+  }
+}
