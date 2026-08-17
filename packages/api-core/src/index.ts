@@ -8,3 +8,4 @@ export * from "./webhooks";
 export * from "./reviews";
 export * from "./contact";
 export * from "./coupons";
+export * from "./shipping";

@@ -7,6 +7,7 @@ import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getProductById, getProductBySlug } from "../services/catalog";
 import { createPublicReviewService } from "../services/public-reviews";
+import { createShippingSettingsService } from "../services/shipping-settings";
 
 export const publicRoutes = new Hono<AppBindings>();
 
@@ -105,8 +106,5 @@ publicRoutes.get("/products/:id/reviews", async (c) => {
 });
 
 publicRoutes.get("/shipping/options", async (c) => {
-  const row = await c.env.DB.prepare("select value_json from application_settings where key = 'shipping'").first<{
-    value_json: string;
-  }>();
-  return ok(c, row ? JSON.parse(row.value_json) : aetherDemoShippingSettings);
+  return ok(c, await createShippingSettingsService(c.env.DB).get(aetherDemoShippingSettings));
 });
