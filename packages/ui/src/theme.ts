@@ -27,7 +27,7 @@ export function themeTokensToCssVariables(tokens: ThemeTokens): string {
     `  --color-ink-muted: ${tokens.muted};`,
     `  --color-border: ${tokens.border};`,
     `  --radius-chat: ${tokens.radius};`,
-    `  --aether-font-family: ${tokens.font};`,
+    `  --commerce-font-family: ${tokens.font};`,
     "}"
   ].join("\n");
 }
