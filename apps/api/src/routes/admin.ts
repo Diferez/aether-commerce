@@ -7,6 +7,7 @@ import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
 import { createInventoryService } from "../services/inventory";
 import { createOrderManagementService } from "../services/admin-orders";
+import { createCouponService } from "../services/coupons";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -171,17 +172,13 @@ adminRoutes.patch(
 adminRoutes.get("/users", requirePermission("users.read"), async (c) => ok(c, (await c.env.DB.prepare("select id, name, roles_json, created_at from users limit 100").all()).results));
 adminRoutes.patch("/users/:id/status", requirePermission("users.read"), (c) => ok(c, { userId: c.req.param("id"), status: "local_status_updated" }));
 
-adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from coupons").all()).results));
+adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, await createCouponService(c.env.DB).list()));
 adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {
-  const body = c.req.valid("json");
-  await c.env.DB.prepare("insert or replace into coupons (code, type, value, active, minimum_subtotal) values (?, ?, ?, 1, 0)")
-    .bind(body.code.toUpperCase(), body.type, body.value)
-    .run();
-  return ok(c, { code: body.code.toUpperCase() }, 201);
+  return ok(c, await createCouponService(c.env.DB).create(c.req.valid("json")), 201);
 });
 adminRoutes.patch("/coupons/:id", requirePermission("coupons.manage"), (c) => ok(c, { code: c.req.param("id"), updated: true }));
 adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c) => {
-  await c.env.DB.prepare("update coupons set active = 0 where code = ?").bind(c.req.param("id").toUpperCase()).run();
+  await createCouponService(c.env.DB).deactivate(c.req.param("id"));
   return ok(c, { code: c.req.param("id"), active: false });
 });
 
