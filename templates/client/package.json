@@ -1,0 +1,17 @@
+{
+  "name": "client-store",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": {
+    "@aether/agent-core": "^0.1.0",
+    "@aether/api-client": "^0.1.0",
+    "@aether/api-core": "^0.1.0",
+    "@aether/config-schema": "^0.1.0",
+    "@aether/core": "^0.1.0",
+    "@aether/observability": "^0.1.0",
+    "@aether/schemas": "^0.1.0",
+    "@aether/ui": "^0.1.0"
+  },
+  "devDependencies": { "typescript": "^5.9.0" }
+}

@@ -37,6 +37,8 @@ jobs:
           ! grep -R "sk_live_\|rk_live_\|whsec_[A-Za-z0-9]" -n apps packages docs || exit 1
       - name: Typecheck, lint, unit and contract tests, and OpenAPI
         run: pnpm validate
+      - name: Verify release metadata
+        run: pnpm changeset status
       - name: Validate AI assistant
         working-directory: apps/ai-assistant
         env:

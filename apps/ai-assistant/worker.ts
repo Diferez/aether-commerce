@@ -6,7 +6,7 @@ import {
   redactSensitiveText,
   supportedAgentIntents,
   type AgentIntentName
-} from "../../packages/agent-core/src/index";
+} from "@aether/agent-core";
 
 type Fetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
