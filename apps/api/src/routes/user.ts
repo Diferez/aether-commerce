@@ -9,6 +9,7 @@ import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from ".
 import { createCustomerPreferencesService } from "../services/customer-preferences";
 import { createCustomerAddressService } from "../services/customer-addresses";
 import { createCustomerOrderService } from "../services/customer-orders";
+import { createCustomerReviewService } from "../services/customer-reviews";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -201,30 +202,20 @@ for (const action of ["cancel", "return", "refund-request"] as const) {
 userRoutes.post("/products/:id/reviews", zValidator("json", reviewSchema), async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to leave a review.");
-  const id = crypto.randomUUID();
-  await c.env.DB.prepare(
-    "insert into reviews (id, user_id, product_id, rating, title, body, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-  )
-    .bind(id, userId, c.req.param("id"), c.req.valid("json").rating, c.req.valid("json").title, c.req.valid("json").body)
-    .run();
-  return ok(c, { id, status: "pending" }, 201);
+  return ok(c, await createCustomerReviewService(c.env.DB).create(userId, c.req.param("id"), c.req.valid("json")), 201);
 });
 
 userRoutes.patch("/reviews/:id", zValidator("json", reviewSchema.partial()), async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your review.");
-  await c.env.DB.prepare("update reviews set title = coalesce(?, title), body = coalesce(?, body), updated_at = CURRENT_TIMESTAMP where id = ? and user_id = ?")
-    .bind(c.req.valid("json").title ?? null, c.req.valid("json").body ?? null, c.req.param("id"), userId)
-    .run();
+  await createCustomerReviewService(c.env.DB).update(userId, c.req.param("id"), c.req.valid("json"));
   return ok(c, { id: c.req.param("id"), updated: true });
 });
 
 userRoutes.delete("/reviews/:id", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your review.");
-  await c.env.DB.prepare("update reviews set status = 'hidden', updated_at = CURRENT_TIMESTAMP where id = ? and user_id = ?")
-    .bind(c.req.param("id"), userId)
-    .run();
+  await createCustomerReviewService(c.env.DB).softDelete(userId, c.req.param("id"));
   return ok(c, { id: c.req.param("id"), deleted: true });
 });
 
