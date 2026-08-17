@@ -43,7 +43,7 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 ## Validation results
 
 - `pnpm install --frozen-lockfile`: baseline pass.
-- `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (28 tests), `pnpm openapi:check`, `pnpm validate` and `pnpm build`: pass on the migration branch.
+- `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (37 tests), `pnpm openapi:check`, `pnpm validate` and `pnpm build`: pass on the migration branch.
 - API and AI Worker `wrangler deploy --dry-run`: pass; no deploy occurred.
 - `pnpm test:e2e:assistant`: passes (9 desktop checks; one mobile-only case is intentionally excluded from the desktop project).
 - `pnpm test:e2e`: passes (19 checks across desktop and mobile; one mobile-only case is intentionally excluded from the desktop project). The E2E server substitutes Clerk only under `AETHER_E2E_STUB_CLERK=true`; production bundles retain the real Clerk integration.
