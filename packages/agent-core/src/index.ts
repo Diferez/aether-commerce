@@ -9,6 +9,7 @@ export * from "./runtime";
 export * from "./memory";
 export * from "./execution";
 export * from "./telemetry";
+export * from "./tools";
 
 export type AgentIntentName = (typeof supportedAgentIntents)[number];
 

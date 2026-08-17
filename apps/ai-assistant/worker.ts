@@ -1,5 +1,6 @@
 import {
   createGeminiRestProvider,
+  AgentCartToolExecutor,
   createEmptyResultPrompt,
   createAgentExecutionPlan,
   createIntentClassificationPrompt,
@@ -168,6 +169,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
   const intentResult = await classifyIntent(message, env, sessionHash, locale);
   const intent = intentResult.intent;
   const executionPlan = createAgentExecutionPlan(intent);
+  const cartTools = createCartToolExecutor(env);
   // Reply in whatever language this specific message was written in, not
   // whatever the storefront's UI locale happens to be set to.
   const spanish = intentResult.language === "es";
@@ -287,7 +289,14 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     }
     if (intent === "CLEAR_CART") {
       const idem = await idempotencyKey(requestId, "clear_cart", `cart:${cartId}`);
-      const updated = await clearCart(env, cartId, cartToken, cart, idem);
+      const updated = await cartTools.clear({
+        cartId,
+        cartToken,
+        idempotencyKey: idem,
+        cart,
+        items: Array.isArray(cart.items) ? cart.items as Record<string, unknown>[] : [],
+        getItemId: (item) => String(item.slug || item.variantId || item.productId || "")
+      });
       await audit("clear_cart", `cart:${cartId}`, cartId, "allowed", updated ? "succeeded" : "failed", updated ? null : "cart_update_failed");
       return finish(responsePayload(requestId, threadId, spanish ? "Listo. Vacie el carrito." : "Done. I cleared the cart.", intent, [], updated || cart, updated ? "CART_CLEARED" : "ASK_CLARIFICATION", updated ? "SUCCEEDED" : "FAILED"));
     }
@@ -300,7 +309,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     if (intent === "REMOVE_FROM_CART") {
       const normalizedArguments = `cart:${cartId}:item:${itemId}`;
       const idem = await idempotencyKey(requestId, "remove_from_cart", normalizedArguments);
-      const updated = await removeCartItem(env, cartId, cartToken, itemId, idem);
+      const updated = await cartTools.remove({ cartId, cartToken, idempotencyKey: idem, itemId });
       await audit("remove_from_cart", normalizedArguments, itemId, "allowed", updated ? "succeeded" : "failed", updated ? null : "cart_update_failed");
       return finish(responsePayload(requestId, threadId, spanish ? "Listo. Quite el producto del carrito." : "Done. I removed the item from your cart.", intent, [], updated || cart, updated ? "CART_ITEM_REMOVED" : "ASK_CLARIFICATION", updated ? "SUCCEEDED" : "FAILED"));
     }
@@ -311,7 +320,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
     }
     const normalizedArguments = `cart:${cartId}:item:${itemId}:quantity:${quantity}`;
     const idem = await idempotencyKey(requestId, "update_cart_item", normalizedArguments);
-    const updated = await updateCartItem(env, cartId, cartToken, itemId, quantity, idem);
+    const updated = await cartTools.update({ cartId, cartToken, idempotencyKey: idem, itemId, quantity });
     await audit("update_cart_item", normalizedArguments, itemId, "allowed", updated ? "succeeded" : "failed", updated ? null : "cart_update_failed");
     return finish(responsePayload(requestId, threadId, spanish ? `Listo. Actualice la cantidad a ${quantity}.` : `Done. I updated the quantity to ${quantity}.`, intent, [], updated || cart, updated ? "CART_ITEM_UPDATED" : "ASK_CLARIFICATION", updated ? "SUCCEEDED" : "FAILED"));
   }
@@ -336,7 +345,7 @@ async function handleAssistant(request: Request, env: Env): Promise<AssistantRes
       const quantity = extractQuantity(message) || 1;
       const normalizedArguments = `cart:${cartId}:product:${product.product_id}:variant:${product.variant_id || ""}:quantity:${quantity}`;
       const idem = await idempotencyKey(requestId, "add_to_cart", normalizedArguments);
-      const cart = await addToCart(env, cartId, cartToken, product, quantity, idem);
+      const cart = await cartTools.add({ cartId, cartToken, idempotencyKey: idem, product, quantity });
       await audit("add_to_cart", normalizedArguments, product.product_id, "allowed", cart ? "succeeded" : "failed", cart ? null : "cart_update_failed");
       if (cart) {
         return finish(responsePayload(requestId, threadId, spanish ? "Listo. Agregue el producto al carrito." : "Done. I added the product to your cart.", intent, [product], cart, "CART_ITEM_ADDED", "SUCCEEDED"));
@@ -983,15 +992,12 @@ async function updateCartItem(env: Env, cartId: string, cartToken: string, itemI
   return toCartSummary(await response.json());
 }
 
-async function clearCart(env: Env, cartId: string, cartToken: string, cart: Record<string, unknown>, idempotencyKeyValue: string): Promise<Record<string, unknown> | null> {
-  const items = Array.isArray(cart.items) ? cart.items : [];
-  let latest: Record<string, unknown> | null = cart;
-  for (const entry of items) {
-    const item = entry as Record<string, unknown>;
-    const itemId = String(item.slug || item.variantId || item.productId || "");
-    if (itemId) latest = await removeCartItem(env, cartId, cartToken, itemId, idempotencyKeyValue);
-  }
-  return latest;
+function createCartToolExecutor(env: Env): AgentCartToolExecutor<Record<string, unknown>, AssistantProduct, Record<string, unknown>> {
+  return new AgentCartToolExecutor({
+    add: ({ cartId, cartToken, product, quantity, idempotencyKey }) => addToCart(env, cartId, cartToken, product, quantity, idempotencyKey),
+    remove: ({ cartId, cartToken, itemId, idempotencyKey }) => removeCartItem(env, cartId, cartToken, itemId, idempotencyKey),
+    update: ({ cartId, cartToken, itemId, quantity, idempotencyKey }) => updateCartItem(env, cartId, cartToken, itemId, quantity, idempotencyKey)
+  });
 }
 
 function toCartSummary(payload: unknown): Record<string, unknown> | null {
