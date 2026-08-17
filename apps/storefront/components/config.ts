@@ -1,5 +1,10 @@
-const productionApiBaseUrl = "https://aether-api.pickofwow.workers.dev";
-const productionPortfolioUrl = "https://portafolio-aether-commerce.pickofwow.workers.dev";
+import {
+  aetherAgentConfig,
+  aetherIntegrationConfig,
+  aetherNavigationConfig
+} from "../config";
+
+const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
 
 function resolveApiBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_AETHER_API_URL?.trim();
@@ -9,12 +14,12 @@ function resolveApiBaseUrl() {
     return productionApiBaseUrl;
   }
 
-  return "http://localhost:8787";
+  return aetherIntegrationConfig.api.localBaseUrl;
 }
 
 export const apiBaseUrl = resolveApiBaseUrl();
 
-export const aiAssistantUrl = process.env.NEXT_PUBLIC_AETHER_AI_URL?.trim() || "";
+export const aiAssistantUrl = process.env[aetherAgentConfig.publicUrlEnv]?.trim() || "";
 
 export const storefrontBasePath = (process.env.NEXT_PUBLIC_AETHER_BASE_PATH || "").replace(/\/$/, "");
 
@@ -32,6 +37,8 @@ export function storefrontPath(path = "/") {
   return `${storefrontBasePath}${pathnameWithSlash}${suffix}` || "/";
 }
 
-const configuredPortfolioUrl = process.env.NEXT_PUBLIC_PORTFOLIO_URL?.trim();
+const configuredPortfolioUrl = aetherNavigationConfig.portfolioUrlEnv
+  ? process.env[aetherNavigationConfig.portfolioUrlEnv]?.trim()
+  : undefined;
 
-export const portfolioUrl = configuredPortfolioUrl || productionPortfolioUrl;
+export const portfolioUrl = configuredPortfolioUrl || aetherNavigationConfig.portfolioUrl;

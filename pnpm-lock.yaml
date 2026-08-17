@@ -142,6 +142,9 @@ importers:
       '@aether/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@aether/config-schema':
+        specifier: workspace:*
+        version: link:../../packages/config-schema
       '@aether/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -221,6 +224,16 @@ importers:
         version: 5.9.2
 
   packages/config:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+
+  packages/config-schema:
+    dependencies:
+      zod:
+        specifier: ^4.2.0
+        version: 4.2.0
     devDependencies:
       typescript:
         specifier: ^5.9.0
