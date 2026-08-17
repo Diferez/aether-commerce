@@ -29,7 +29,7 @@ docs/platform
 - `api-core`: pure cart/catalog (including product overrides)/order (including customer and admin reads), administration users/audit/settings reads, coupon, shipping-settings and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
 - `agent-core`: shared intent list, deterministic execution planning, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution, conversation-memory ownership, client-gateway cart tool execution and tool-telemetry policy; the Worker remains the Cloudflare/Gemini/D1 adapter.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
-- `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints.
+- `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints. `i18n` provides generic locale/interpolation helpers; the Aether copy is owned by the demo storefront configuration.
 - `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Existing demo migrations remain for deployed-D1 compatibility; `pnpm create:client` now materializes the manifest-selected schema migrations without demo records.
 
 ## Compatibility
@@ -47,11 +47,12 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 - package-neutral request IDs, error-status normalization, structured logging and the audit-event contract -> `packages/observability/src/index.ts`.
 - API schema and historical migrations -> `database/core/{schema.ts,migrations}`; demo records -> `database/demo/{fixtures,seeds}`.
 - Aether branding/configuration -> `apps/storefront/config/`; its reusable validation contracts -> `packages/config-schema/`.
+- Aether dictionary and locale union -> `apps/storefront/config/dictionaries.ts`; generic interpolation and client-selected locale resolution remain in `packages/i18n/`.
 
 ## Validation results
 
 - `pnpm install --frozen-lockfile`: passes on the current migration branch.
-- On the current validation checkpoint, `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (54 tests), `pnpm openapi:check`, `pnpm validate`, `pnpm build`, `pnpm check:boundaries`, `pnpm test:client-template`, `pnpm test:e2e` and `pnpm test:e2e:assistant` all pass.
+- On the current validation checkpoint, `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (56 tests), `pnpm openapi:check`, `pnpm validate`, `pnpm build`, `pnpm check:boundaries`, `pnpm test:client-template`, `pnpm test:e2e` and `pnpm test:e2e:assistant` all pass.
 - `pnpm test:client-template` packages all nine distributable modules, installs them into a generated temporary client through local tarballs, then runs that client's TypeScript validation. This proves package resolution independently of the monorepo aliases and without publishing packages.
 - API and AI Worker `wrangler deploy --dry-run`: pass; no deploy occurred. `python tests/run_direct.py` also passes for the preserved Python/LangGraph runtime.
 - `pnpm test:e2e:assistant`: passes (9 desktop checks; one mobile-only case is intentionally excluded from the desktop project).

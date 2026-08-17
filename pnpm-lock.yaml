@@ -65,9 +65,6 @@ importers:
       '@aether/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
-      '@aether/i18n':
-        specifier: workspace:*
-        version: link:../../packages/i18n
       '@aether/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
@@ -163,9 +160,6 @@ importers:
       '@aether/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@aether/i18n':
-        specifier: workspace:*
-        version: link:../../packages/i18n
       '@aether/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
