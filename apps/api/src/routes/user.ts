@@ -8,6 +8,7 @@ import { collection, fail, ok } from "../http";
 import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from "../services/cart";
 import { createCustomerPreferencesService } from "../services/customer-preferences";
 import { createCustomerAddressService } from "../services/customer-addresses";
+import { createCustomerOrderService } from "../services/customer-orders";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -173,24 +174,20 @@ userRoutes.delete("/addresses/:id", async (c) => {
 userRoutes.get("/orders", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your orders.");
-  const rows = await c.env.DB.prepare("select payload_json from orders where user_id = ? order by created_at desc")
-    .bind(userId)
-    .all<{ payload_json: string }>();
-  return collection(c, rows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>), {
+  const orders = await createCustomerOrderService(c.env.DB).list(userId);
+  return collection(c, orders, {
     page: 1,
-    pageSize: rows.results.length,
-    total: rows.results.length,
-    pageCount: rows.results.length > 0 ? 1 : 0
+    pageSize: orders.length,
+    total: orders.length,
+    pageCount: orders.length > 0 ? 1 : 0
   });
 });
 
 userRoutes.get("/orders/:id", async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view this order.");
-  const row = await c.env.DB.prepare("select payload_json from orders where id = ? and user_id = ?")
-    .bind(c.req.param("id"), userId)
-    .first<{ payload_json: string }>();
-  return row ? ok(c, JSON.parse(row.payload_json)) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+  const order = await createCustomerOrderService(c.env.DB).find(userId, c.req.param("id"));
+  return order ? ok(c, order) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 });
 
 for (const action of ["cancel", "return", "refund-request"] as const) {

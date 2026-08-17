@@ -90,3 +90,23 @@ export class OrderManagementService {
     await this.repository.updateOrderState(input.orderId, input.state);
   }
 }
+
+export type CustomerOrder = Record<string, unknown>;
+
+/** Read port scoped to the authenticated customer, independent of database implementation. */
+export interface CustomerOrderRepository {
+  listByUserId(userId: string): Promise<CustomerOrder[]>;
+  findByIdForUser(userId: string, orderId: string): Promise<CustomerOrder | null>;
+}
+
+export class CustomerOrderService {
+  constructor(private readonly repository: CustomerOrderRepository) {}
+
+  list(userId: string): Promise<CustomerOrder[]> {
+    return this.repository.listByUserId(userId);
+  }
+
+  find(userId: string, orderId: string): Promise<CustomerOrder | null> {
+    return this.repository.findByIdForUser(userId, orderId);
+  }
+}
