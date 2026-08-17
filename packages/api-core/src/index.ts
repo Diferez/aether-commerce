@@ -6,3 +6,4 @@ export * from "./customers";
 export * from "./inventory";
 export * from "./webhooks";
 export * from "./reviews";
+export * from "./contact";

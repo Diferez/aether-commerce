@@ -4,6 +4,7 @@ import { contactMessageSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { ok } from "../http";
 import { sendContactEmail } from "../services/email";
+import { createContactMessageService } from "../services/contact-messages";
 
 export const contactRoutes = new Hono<AppBindings>();
 
@@ -33,24 +34,8 @@ contactRoutes.post("/", zValidator("json", contactMessageSchema), async (c) => {
     subject: sanitize(rawMessage.subject),
     message: sanitize(rawMessage.message)
   };
-  const id = crypto.randomUUID();
   const delivery = await sendContactEmail(c.env, message);
-
-  await c.env.DB.prepare(
-    `insert into contact_messages
-      (id, name, email, subject, message, locale, email_status, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-  )
-    .bind(
-      id,
-      message.name,
-      message.email,
-      message.subject,
-      message.message,
-      message.locale,
-      JSON.stringify(delivery)
-    )
-    .run();
+  const id = await createContactMessageService(c.env.DB).store(message, delivery);
 
   return ok(c, { id, emailQueued: delivery.queued }, 201);
 });
