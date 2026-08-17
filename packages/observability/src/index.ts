@@ -12,6 +12,20 @@ export type StructuredLogger = {
   error(event: string, attributes: Record<string, unknown>): void;
 };
 
+/** Portable audit contract shared by runtime adapters and storage backends. */
+export type AgentAuditEvent = {
+  request_id: string;
+  thread_id: string;
+  user_or_session_hash: string;
+  tool_name: string;
+  normalized_arguments: string;
+  target_entity_id: string | null;
+  idempotency_key: string;
+  authorization_result: "allowed" | "denied";
+  execution_status: "succeeded" | "failed" | "blocked";
+  error_code: string | null;
+};
+
 export function createConsoleLogger(): StructuredLogger {
   return {
     error(event, attributes) {

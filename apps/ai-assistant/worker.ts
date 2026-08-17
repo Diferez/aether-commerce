@@ -8,6 +8,7 @@ import {
   redactSensitiveText,
   type AgentIntentResult
 } from "@aether/agent-core";
+import type { AgentAuditEvent } from "@aether/observability";
 
 type Fetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
@@ -716,18 +717,7 @@ async function persistConversationMessage(
 
 async function persistAuditEvent(
   env: Env,
-  event: {
-    request_id: string;
-    thread_id: string;
-    user_or_session_hash: string;
-    tool_name: string;
-    normalized_arguments: string;
-    target_entity_id: string | null;
-    idempotency_key: string;
-    authorization_result: string;
-    execution_status: string;
-    error_code: string | null;
-  }
+  event: AgentAuditEvent
 ): Promise<void> {
   if (!env.DB) return;
   await env.DB

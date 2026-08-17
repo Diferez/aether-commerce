@@ -46,6 +46,7 @@
   },
   "devDependencies": {
     "@aether/agent-core": "workspace:^",
+    "@aether/observability": "workspace:^",
     "@changesets/cli": "^2.29.0",
     "@playwright/test": "^1.57.0",
     "@types/node": "^22.19.0",
