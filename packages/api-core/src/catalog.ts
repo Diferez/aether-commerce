@@ -60,3 +60,40 @@ export function queryCatalog(products: readonly Product[], query: ProductQuery):
     pagination: { page: query.page, pageSize, total, pageCount: Math.ceil(total / pageSize) }
   };
 }
+
+export type ProductOverrideInput = {
+  name?: string | undefined;
+  visibility?: "visible" | "hidden" | "draft" | undefined;
+  flags?: Array<"featured" | "new" | "deal" | "limited" | "hidden"> | undefined;
+};
+
+export interface ProductOverrideRepository {
+  insert(input: { id: string; productId: string; override: ProductOverrideInput }): Promise<void>;
+  upsert(input: { id: string; productId: string; override: ProductOverrideInput }): Promise<void>;
+  remove(productId: string): Promise<void>;
+}
+
+/** Reusable lifecycle for store-specific catalog overrides. */
+export class ProductOverrideService {
+  constructor(
+    private readonly repository: ProductOverrideRepository,
+    private readonly createId: () => string
+  ) {}
+
+  async create(productId: string, override: ProductOverrideInput): Promise<{ id: string; productId: string }> {
+    const id = this.createId();
+    await this.repository.insert({ id, productId, override });
+    return { id, productId };
+  }
+
+  async save(productId: string, override: ProductOverrideInput): Promise<{ id: string; productId: string; saved: true }> {
+    const id = `override_${productId}`;
+    await this.repository.upsert({ id, productId, override });
+    return { id, productId, saved: true };
+  }
+
+  async restore(productId: string): Promise<{ productId: string; restored: true }> {
+    await this.repository.remove(productId);
+    return { productId, restored: true };
+  }
+}

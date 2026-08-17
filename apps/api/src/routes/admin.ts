@@ -9,6 +9,7 @@ import { createInventoryService } from "../services/inventory";
 import { createAdminOrderReadService, createOrderManagementService } from "../services/admin-orders";
 import { createCouponService } from "../services/coupons";
 import { createReviewModerationService } from "../services/review-moderation";
+import { createProductOverrideService } from "../services/product-overrides";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -78,15 +79,7 @@ adminRoutes.patch(
   requirePermission("products.write"),
   zValidator("json", productOverrideSchema),
   async (c) => {
-    const id = crypto.randomUUID();
-    await c.env.DB.prepare(
-      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
-       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    )
-      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
-      .run();
-
-    return ok(c, { id, productId: c.req.param("id") });
+    return ok(c, await createProductOverrideService(c.env.DB).create(c.req.param("id"), c.req.valid("json")));
   }
 );
 
@@ -95,21 +88,12 @@ adminRoutes.put(
   requirePermission("products.write"),
   zValidator("json", productOverrideSchema),
   async (c) => {
-    const id = `override_${c.req.param("id")}`;
-    await c.env.DB.prepare(
-      `insert into product_overrides (id, product_id, payload_json, created_at, updated_at)
-       values (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       on conflict(id) do update set payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP`
-    )
-      .bind(id, c.req.param("id"), JSON.stringify(c.req.valid("json")))
-      .run();
-    return ok(c, { id, productId: c.req.param("id"), saved: true });
+    return ok(c, await createProductOverrideService(c.env.DB).save(c.req.param("id"), c.req.valid("json")));
   }
 );
 
 adminRoutes.delete("/products/:id/override", requirePermission("products.write"), async (c) => {
-  await c.env.DB.prepare("delete from product_overrides where product_id = ?").bind(c.req.param("id")).run();
-  return ok(c, { productId: c.req.param("id"), restored: true });
+  return ok(c, await createProductOverrideService(c.env.DB).restore(c.req.param("id")));
 });
 
 adminRoutes.post("/products/:id/cache-refresh", requirePermission("products.write"), async (c) => {
