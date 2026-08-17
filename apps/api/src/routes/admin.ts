@@ -10,6 +10,7 @@ import { createAdminOrderReadService, createOrderManagementService } from "../se
 import { createCouponService } from "../services/coupons";
 import { createReviewModerationService } from "../services/review-moderation";
 import { createProductOverrideService } from "../services/product-overrides";
+import { createAdministrationService } from "../services/administration";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
@@ -152,7 +153,7 @@ adminRoutes.patch(
   }
 );
 
-adminRoutes.get("/users", requirePermission("users.read"), async (c) => ok(c, (await c.env.DB.prepare("select id, name, roles_json, created_at from users limit 100").all()).results));
+adminRoutes.get("/users", requirePermission("users.read"), async (c) => ok(c, await createAdministrationService(c.env.DB).listUsers()));
 adminRoutes.patch("/users/:id/status", requirePermission("users.read"), (c) => ok(c, { userId: c.req.param("id"), status: "local_status_updated" }));
 
 adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, await createCouponService(c.env.DB).list()));
@@ -178,7 +179,7 @@ adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (
 });
 
 adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, { simulated: true, provider: "stripe_sandbox" }, 201));
-adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, (await c.env.DB.prepare("select * from audit_logs order by created_at desc limit 100").all()).results));
-adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from application_settings").all()).results));
+adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, await createAdministrationService(c.env.DB).listAuditLogs()));
+adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, await createAdministrationService(c.env.DB).listApplicationSettings()));
 adminRoutes.patch("/settings", requirePermission("settings.manage"), (c) => ok(c, { updated: true }));
 adminRoutes.get("/export/orders", requirePermission("exports.create"), (c) => ok(c, { format: "csv", simulated: true, rows: 0 }));
