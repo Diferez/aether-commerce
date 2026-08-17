@@ -26,8 +26,8 @@ docs/platform
 ## Packages and moved code
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
-- `api-core`: pure cart/catalog/order operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
-- `agent-core`: shared intent list, mutable-tool authorization, PII redaction and composable Gemini prompts; the Worker remains the Cloudflare/Gemini adapter.
+- `api-core`: pure cart/catalog/order operations, customer preferences, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
+- `agent-core`: shared intent list, mutable-tool authorization, PII redaction, composable Gemini prompts and provider-neutral model execution; the Worker remains the Cloudflare/Gemini adapter.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints.
 - `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Existing demo migrations remain for deployed-D1 compatibility; `pnpm create:client` now materializes the manifest-selected schema migrations without demo records.
@@ -69,7 +69,7 @@ documented in `docs/platform/upgrading-client.md`.
 
 ## Deliberate remaining debt
 
-- More API services (inventory, customers, admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time.
+- More API services (admin operations and webhooks) remain coupled to D1/Cloudflare and should be extracted one adapter at a time.
 - `agent-core` still needs reusable graph/runtime, tool execution, memory and telemetry abstractions; the Worker remains the executable reference adapter.
 - The client template has validated configuration and migration generation, but its app adapters are extension points rather than full independently deployable storefront/admin/API implementations.
 - The Python/container assistant remains as a legacy runtime alongside the Worker; it was not removed because its CI tests and deployment path are still useful.
