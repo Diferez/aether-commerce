@@ -6,6 +6,7 @@ import { aetherDemoShippingSettings } from "../config/aether-demo";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getProductById, getProductBySlug } from "../services/catalog";
+import { createPublicReviewService } from "../services/public-reviews";
 
 export const publicRoutes = new Hono<AppBindings>();
 
@@ -86,16 +87,20 @@ publicRoutes.get("/new-arrivals", async (c) => {
 });
 
 publicRoutes.get("/products/:id/reviews", async (c) => {
-  const rows = await c.env.DB.prepare(
-    "select id, rating, title, body, status, created_at from reviews where product_id = ? and status = 'approved' order by created_at desc"
-  )
-    .bind(c.req.param("id"))
-    .all<Record<string, unknown>>();
-  return collection(c, rows.results, {
+  const reviews = await createPublicReviewService(c.env.DB).listApproved(c.req.param("id"));
+  const data = reviews.map((review) => ({
+    id: review.id,
+    rating: review.rating,
+    title: review.title,
+    body: review.body,
+    status: review.status,
+    created_at: review.createdAt
+  }));
+  return collection(c, data, {
     page: 1,
-    pageSize: rows.results.length,
-    total: rows.results.length,
-    pageCount: rows.results.length > 0 ? 1 : 0
+    pageSize: data.length,
+    total: data.length,
+    pageCount: data.length > 0 ? 1 : 0
   });
 });
 

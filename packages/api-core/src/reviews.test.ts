@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CustomerReviewService, type CustomerReview, type CustomerReviewRepository } from "./reviews";
+import {
+  CustomerReviewService,
+  PublicReviewService,
+  type CustomerReview,
+  type CustomerReviewRepository,
+  type PublicReviewRepository
+} from "./reviews";
 
 describe("customer reviews", () => {
   it("assigns generated identifiers and keeps new reviews pending before persistence", async () => {
@@ -25,5 +31,22 @@ describe("customer reviews", () => {
       title: "Great",
       body: "A sufficiently detailed review."
     }]);
+  });
+});
+
+describe("public reviews", () => {
+  it("only exposes repository results that the moderation adapter marks as approved", async () => {
+    const repository: PublicReviewRepository = {
+      listApprovedByProductId: () => Promise.resolve([{
+        id: "review-id",
+        rating: 5,
+        title: "Great",
+        body: "A sufficiently detailed review.",
+        status: "approved",
+        createdAt: "2026-01-01"
+      }])
+    };
+
+    await expect(new PublicReviewService(repository).listApproved("product-id")).resolves.toHaveLength(1);
   });
 });

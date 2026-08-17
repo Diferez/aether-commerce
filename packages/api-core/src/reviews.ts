@@ -43,3 +43,25 @@ export class CustomerReviewService {
     return this.repository.softDelete(userId, reviewId);
   }
 }
+
+export type PublicProductReview = {
+  id: string;
+  rating: number;
+  title: string;
+  body: string;
+  status: "approved";
+  createdAt: string;
+};
+
+export interface PublicReviewRepository {
+  listApprovedByProductId(productId: string): Promise<PublicProductReview[]>;
+}
+
+/** Read service exposing only already moderated reviews to storefronts. */
+export class PublicReviewService {
+  constructor(private readonly repository: PublicReviewRepository) {}
+
+  listApproved(productId: string): Promise<PublicProductReview[]> {
+    return this.repository.listApprovedByProductId(productId);
+  }
+}
