@@ -1,5 +1,5 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createClient } from "./create-client.mjs";
@@ -12,6 +12,17 @@ const required = [
   "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", "README.md", "package.json", "tsconfig.json", "tsconfig.validation.json"
 ];
 const template = resolve(root, "templates/client");
+const distributablePackages = [
+  ["@aether/core", "packages/core"],
+  ["@aether/schemas", "packages/schemas"],
+  ["@aether/api-client", "packages/api-client"],
+  ["@aether/ui", "packages/ui"],
+  ["@aether/i18n", "packages/i18n"],
+  ["@aether/config-schema", "packages/config-schema"],
+  ["@aether/api-core", "packages/api-core"],
+  ["@aether/agent-core", "packages/agent-core"],
+  ["@aether/observability", "packages/observability"]
+];
 for (const entry of required) if (!existsSync(resolve(template, entry))) throw new Error(`Client template is missing ${entry}`);
 execFileSync("pnpm", ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
 
@@ -25,6 +36,41 @@ try {
     if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
   }
   if (existsSync(resolve(generated, "tsconfig.validation.json"))) throw new Error("Generated client retained monorepo-only validation config");
+  const archivesDirectory = resolve(temporaryParent, "archives");
+  const archives = new Map();
+  for (const [name, packageDirectory] of distributablePackages) {
+    const existingArchives = new Set(existsSync(archivesDirectory) ? readdirSync(archivesDirectory) : []);
+    execFileSync("pnpm", ["pack", "--pack-destination", archivesDirectory], {
+      cwd: resolve(root, packageDirectory),
+      stdio: "inherit",
+      shell: process.platform === "win32"
+    });
+    const archive = readdirSync(archivesDirectory).find((entry) => entry.endsWith(".tgz") && !existingArchives.has(entry));
+    if (!archive) throw new Error(`Could not pack ${name}`);
+    archives.set(name, resolve(archivesDirectory, archive));
+  }
+  const manifestPath = resolve(generated, "package.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const archiveOverrides = {};
+  for (const [name, archive] of archives) {
+    const localArchive = `file:${relative(generated, archive).split(sep).join("/")}`;
+    manifest.dependencies[name] = localArchive;
+    archiveOverrides[name] = localArchive;
+  }
+  manifest.pnpm = { ...manifest.pnpm, overrides: { ...manifest.pnpm?.overrides, ...archiveOverrides } };
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  execFileSync("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], {
+    cwd: generated,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
+  execFileSync("pnpm", ["validate"], {
+    cwd: generated,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
 } finally {
   rmSync(temporaryParent, { recursive: true, force: true });
 }

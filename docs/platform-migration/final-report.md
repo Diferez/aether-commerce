@@ -52,6 +52,7 @@ same API, assistant and portfolio URLs from its new explicit configuration.
 
 - `pnpm install --frozen-lockfile`: passes on the current migration branch.
 - On the current validation checkpoint, `pnpm typecheck`, `pnpm lint`, `pnpm test` (10 tests), `pnpm test:unit` (54 tests), `pnpm openapi:check`, `pnpm validate`, `pnpm build`, `pnpm check:boundaries`, `pnpm test:client-template`, `pnpm test:e2e` and `pnpm test:e2e:assistant` all pass.
+- `pnpm test:client-template` packages all nine distributable modules, installs them into a generated temporary client through local tarballs, then runs that client's TypeScript validation. This proves package resolution independently of the monorepo aliases and without publishing packages.
 - API and AI Worker `wrangler deploy --dry-run`: pass; no deploy occurred. `python tests/run_direct.py` also passes for the preserved Python/LangGraph runtime.
 - `pnpm test:e2e:assistant`: passes (9 desktop checks; one mobile-only case is intentionally excluded from the desktop project).
 - `pnpm test:e2e`: passes (19 checks across desktop and mobile; one mobile-only case is intentionally excluded from the desktop project). The E2E server substitutes Clerk only under `AETHER_E2E_STUB_CLERK=true`; production bundles retain the real Clerk integration.
@@ -73,7 +74,8 @@ deployment workflows.
 Create a client with `pnpm create:client <kebab-case-name>`. It creates a
 sibling repository starter with validated `config/`, typed app adapter entry
 modules, `custom/`, optional database extensions/seeds and schema-only core D1
-migrations. Client upgrades update package versions and run the checks
+migrations. The generated package contract is validated against packed package
+artifacts before publication. Client upgrades update package versions and run the checks
 documented in `docs/platform/upgrading-client.md`.
 
 ## Deliberate remaining debt
