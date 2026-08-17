@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { isCheckoutSessionPaid } from "@aether/api-core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { readCart } from "../services/cart";
-import { createCheckoutSession, retrieveCheckoutSession } from "../services/stripe";
+import { createStripeCheckoutProvider } from "../services/stripe";
 import { createOrderFromStripeSession } from "../services/orders";
 
 export const checkoutRoutes = new Hono<AppBindings>();
@@ -19,7 +20,7 @@ checkoutRoutes.post(
     }
 
     try {
-      return ok(c, await createCheckoutSession(c.env, cart), 201);
+      return ok(c, await createStripeCheckoutProvider(c.env).createCheckoutSession(cart), 201);
     } catch {
       return fail(
         c,
@@ -36,8 +37,8 @@ checkoutRoutes.post(
   zValidator("json", z.object({ sessionId: z.string().min(1) })),
   async (c) => {
     try {
-      const session = await retrieveCheckoutSession(c.env, c.req.valid("json").sessionId);
-      if (session.payment_status !== "paid") {
+      const session = await createStripeCheckoutProvider(c.env).retrieveCheckoutSession(c.req.valid("json").sessionId);
+      if (!isCheckoutSessionPaid(session)) {
         return fail(c, 422, "PAYMENT_NOT_PAID", "Stripe checkout session is not paid yet.");
       }
 

@@ -1,4 +1,5 @@
 import type { Cart } from "@aether/schemas";
+import { type CheckoutProvider, type PaidCheckoutSession } from "@aether/api-core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 
@@ -10,16 +11,7 @@ type StripeErrorLog = {
   message?: string;
 };
 
-export type StripeCheckoutSession = {
-  id: string;
-  payment_status?: string;
-  amount_total?: number;
-  currency?: string;
-  customer_details?: { email?: string };
-  customer_email?: string;
-  metadata?: { cartId?: string; userId?: string };
-  payment_intent?: string;
-};
+export type StripeCheckoutSession = PaidCheckoutSession;
 
 export function getStripeSecretKeyStatus(secretKey?: string) {
   if (!secretKey) {
@@ -71,7 +63,7 @@ function storefrontUrl(origin: string, basePath: string | undefined, path: strin
   return `${normalizedOrigin}${normalizedBasePath === "/" ? "" : normalizedBasePath}${normalizedPath}`;
 }
 
-export async function createCheckoutSession(env: Env, cart: Cart) {
+async function createStripeCheckoutSession(env: Env, cart: Cart) {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
     checkoutUrl: storefrontUrl(
@@ -158,7 +150,7 @@ export async function createCheckoutSession(env: Env, cart: Cart) {
   return { checkoutUrl };
 }
 
-export async function retrieveCheckoutSession(env: Env, sessionId: string): Promise<StripeCheckoutSession> {
+async function retrieveStripeCheckoutSession(env: Env, sessionId: string): Promise<StripeCheckoutSession> {
   if (!env.STRIPE_SECRET_KEY) {
     throw new Error("Stripe secret key is not configured");
   }
@@ -180,6 +172,24 @@ export async function retrieveCheckoutSession(env: Env, sessionId: string): Prom
   }
 
   return response.json();
+}
+
+/** Cloudflare/Stripe adapter for the provider-neutral checkout port. */
+export function createStripeCheckoutProvider(env: Env): CheckoutProvider<StripeCheckoutSession> {
+  return {
+    createCheckoutSession: (cart) => createStripeCheckoutSession(env, cart),
+    retrieveCheckoutSession: (sessionId) => retrieveStripeCheckoutSession(env, sessionId)
+  };
+}
+
+/** @deprecated Use createStripeCheckoutProvider(env).createCheckoutSession(cart). */
+export function createCheckoutSession(env: Env, cart: Cart) {
+  return createStripeCheckoutProvider(env).createCheckoutSession(cart);
+}
+
+/** @deprecated Use createStripeCheckoutProvider(env).retrieveCheckoutSession(sessionId). */
+export function retrieveCheckoutSession(env: Env, sessionId: string) {
+  return createStripeCheckoutProvider(env).retrieveCheckoutSession(sessionId);
 }
 
 export async function verifyStripeSignature(secret: string, body: string, signatureHeader: string) {
