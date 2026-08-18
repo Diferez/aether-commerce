@@ -27,7 +27,7 @@ docs/platform
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
 - `api-core`: pure cart/catalog (including product overrides)/order (including customer and admin reads), administration users/audit/settings reads, coupon, shipping-settings and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
-- `agent-core`: shared intent list, deterministic execution planning, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution, conversation-memory ownership, client-gateway cart tool execution and tool-telemetry policy; the Worker remains the Cloudflare/Gemini/D1 adapter.
+- `agent-core`: shared intent list, deterministic execution planning, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution, conversation-memory ownership, client-gateway cart tool execution, tool-telemetry policy and a Python/LangGraph graph-assembly primitive; Workers and Python container adapters retain their Cloudflare/Gemini/D1/FastAPI bindings.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints. `i18n` provides generic locale/interpolation helpers; the Aether copy is owned by the demo storefront configuration.
 - `apps/api/migrations` and `apps/api/src/db/schema.ts` moved to `database/core/` without changing migration filenames or contents. Existing demo migrations remain for deployed-D1 compatibility; `pnpm create:client` now materializes the manifest-selected schema migrations without demo records.
@@ -44,7 +44,7 @@ assistant and portfolio settings from explicit client-owned configuration.
 ## Main code movements
 
 - `apps/api/src/services/*` -> `packages/api-core/src/{cart,catalog,orders,customers,inventory,webhooks,reviews,contact,coupons,shipping,administration}.ts`, leaving D1, Clerk, Stripe and provider-signature adapters in the API app.
-- assistant intent, provider runtime, memory lifecycle, cart-tool gateway execution, execution planning and audit/counter ordering -> `packages/agent-core/src/`; D1 persistence and the HTTP gateway remain in `apps/ai-assistant/adapters/` and the Worker.
+- assistant intent, provider runtime, memory lifecycle, cart-tool gateway execution, execution planning and audit/counter ordering -> `packages/agent-core/src/`; reusable Python LangGraph assembly -> `packages/agent-core/python/`; D1 persistence and the HTTP gateway remain in `apps/ai-assistant/adapters/` and the Worker.
 - package-neutral request IDs, error-status normalization, structured logging and the audit-event contract -> `packages/observability/src/index.ts`.
 - API schema and historical migrations -> `database/core/{schema.ts,migrations}`; demo records -> `database/demo/{fixtures,seeds}`.
 - Aether branding, store, feature, checkout, integration, navigation and theme configuration -> `config/aether/`; its reusable validation contracts -> `packages/config-schema/`. Storefront legacy configuration entrypoints re-export this configuration while the admin uses a thin local adapter.
@@ -59,6 +59,10 @@ assistant and portfolio settings from explicit client-owned configuration.
 - `pnpm test:e2e:assistant`: passes (9 desktop checks; one mobile-only case is intentionally excluded from the desktop project).
 - `pnpm test:e2e`: passes (19 checks across desktop and mobile; one mobile-only case is intentionally excluded from the desktop project). The E2E server substitutes Clerk only under `AETHER_E2E_STUB_CLERK=true`; production bundles retain the real Clerk integration.
 - `python tests/run_direct.py` from `apps/ai-assistant`: passes for the preserved Python/LangGraph runtime.
+- Re-validated end-to-end after the Python `agent-core` extraction: `pnpm install --frozen-lockfile`, `pnpm validate`, `pnpm build`, `pnpm test:e2e`, `pnpm test:e2e:assistant` (9/9 desktop, 19/19 desktop+mobile), API and AI Worker `wrangler deploy --dry-run`, and the AI assistant's full CI-mirroring chain (`compileall`, `security_scan.py`, `app.evaluation`, `acceptance_audit.py`, `pytest` at 125/125, `run_direct.py`) all pass with `packages/agent-core/python` wired through `PYTHONPATH`, Docker build context and CI.
+- `apps/ai-assistant/scripts/security_scan.py` was hardened to prune skipped directories (`node_modules`, caches) during traversal via `os.walk` instead of filtering after `Path.rglob`, which previously could raise on a dangling `node_modules` symlink/junction unrelated to any scanned source file. Its own dedicated test file continues to cover `scan_file`/`SECRET_PATTERNS` behavior unchanged.
+- `.gitignore` gained `apps/storefront/wrangler.production.json` (the other two apps' generated production configs were already ignored; storefront's was missing, leaving it to show up as untracked after each local `wrangler`-config generation) and `.dev.vars`/`.dev.vars.*` (local secret files were previously uncovered by any ignore pattern).
+- The AI assistant Docker image build (`docker build -f apps/ai-assistant/Dockerfile .` from the repository root) was not exercised in this validation pass because no local Docker daemon was available; the Dockerfile/compose/CI wiring was reviewed and the CI workflow builds and smoke-tests it on every change under `apps/ai-assistant/**` or `packages/agent-core/python/**`.
 
 ## Demo status
 
@@ -84,5 +88,5 @@ documented in `docs/platform/upgrading-client.md`.
 
 - Customer profile, addresses, customer-scoped order reads, public/customer/admin-review operations, product overrides, coupon, shipping-settings and contact persistence, inventory, order-status administration, administration reads and idempotent webhook event persistence now have reusable ports. Provider signature verification remains intentionally in the integration adapter.
 - The client template has validated configuration, typed framework-neutral app adapters and migration generation. A client still selects and implements the concrete Next.js/Hono/Worker entrypoints and deployment bindings instead of receiving a copied demo.
-- The Python/LangGraph container assistant remains as a legacy runtime alongside the TypeScript Cloudflare Worker. Its graph, tools, storage and tests cannot be removed or folded into the Worker without a dedicated adapter-by-adapter migration; keeping it is deliberate compatibility, not an indication that LangGraph has been migrated to the TypeScript package.
+- The Python/LangGraph container remains a supported adapter alongside the TypeScript Cloudflare Worker. It now consumes the reusable graph-assembly primitive, but its concrete tools, store context, persistence and FastAPI deployment remain client/runtime adapters by design.
 - A production publish requires GitHub Packages permission/registry access; the workflow is prepared but was not executed.
