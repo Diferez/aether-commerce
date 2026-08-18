@@ -2,6 +2,7 @@ import logging
 from typing import Any, TypedDict
 from uuid import uuid4
 
+from aether_agent_core import ConditionalEdge, compile_agent_graph
 from app.observability import metrics
 
 from app.clients.aether import AetherApiClient
@@ -18,13 +19,6 @@ from app.schemas import (
 from app.security import idempotency_key, redact_pii, request_id, stable_hash
 from app.storage import AssistantStorage
 from app.tools import AetherAssistantTools, CLEAR_CART_CONFIRMATION_TOKEN, ToolExecution
-
-try:
-    from langgraph.graph import END, START, StateGraph
-except ModuleNotFoundError:
-    END = "__end__"
-    START = "__start__"
-    StateGraph = None
 
 logger = logging.getLogger("aether.ai_assistant.graph")
 
@@ -84,6 +78,10 @@ class LocalAssistantWorkflow:
 
     def __init__(self, assistant: "AssistantGraph") -> None:
         self.assistant = assistant
+
+    def compile(self) -> "LocalAssistantWorkflow":
+        """Match LangGraph's compile contract for environments without it."""
+        return self
 
     async def ainvoke(self, state: AssistantState, config: dict[str, Any] | None = None) -> AssistantState:
         state = await self.assistant._validate_request(state)
@@ -218,56 +216,59 @@ class AssistantGraph:
         )
 
     def _build_graph(self):
-        if StateGraph is None:
-            return LocalAssistantWorkflow(self)
-
-        graph = StateGraph(AssistantState)
-        graph.add_node("validate_request", self._validate_request)
-        graph.add_node("load_conversation_context", self._load_context)
-        graph.add_node("detect_intent", self._detect_intent)
-        graph.add_node("extract_constraints", self._extract_constraints)
-        graph.add_node("route_intent", self._route_intent)
-        graph.add_node("product_search", self._product_search)
-        graph.add_node("product_details", self._product_details)
-        graph.add_node("product_comparison", self._product_comparison)
-        graph.add_node("cart_read", self._cart_read)
-        graph.add_node("cart_mutation_precheck", self._cart_mutation_precheck)
-        graph.add_node("clarification", self._clarification)
-        graph.add_node("general_store_help", self._general_store_help)
-        graph.add_node("unsupported_request", self._unsupported)
-        graph.add_node("execute_authorized_tool", self._execute_authorized_tool)
-        graph.add_node("validate_tool_result", self._validate_tool_result)
-        graph.add_node("compose_response", self._compose_response)
-        graph.add_node("persist_audit_event", self._persist_audit_event)
-
-        graph.add_edge(START, "validate_request")
-        graph.add_edge("validate_request", "load_conversation_context")
-        graph.add_edge("load_conversation_context", "detect_intent")
-        graph.add_edge("detect_intent", "extract_constraints")
-        graph.add_edge("extract_constraints", "route_intent")
-        graph.add_conditional_edges(
-            "route_intent",
-            lambda state: state.get("pending_action", {}).get("node", "unsupported_request"),
-            {
-                "product_search": "product_search",
-                "product_details": "product_details",
-                "product_comparison": "product_comparison",
-                "cart_read": "cart_read",
-                "cart_mutation_precheck": "cart_mutation_precheck",
-                "clarification": "clarification",
-                "general_store_help": "general_store_help",
-                "unsupported_request": "unsupported_request",
+        routes = {
+            "product_search": "product_search",
+            "product_details": "product_details",
+            "product_comparison": "product_comparison",
+            "cart_read": "cart_read",
+            "cart_mutation_precheck": "cart_mutation_precheck",
+            "clarification": "clarification",
+            "general_store_help": "general_store_help",
+            "unsupported_request": "unsupported_request",
+        }
+        return compile_agent_graph(
+            state_schema=AssistantState,
+            nodes={
+                "validate_request": self._validate_request,
+                "load_conversation_context": self._load_context,
+                "detect_intent": self._detect_intent,
+                "extract_constraints": self._extract_constraints,
+                "route_intent": self._route_intent,
+                "product_search": self._product_search,
+                "product_details": self._product_details,
+                "product_comparison": self._product_comparison,
+                "cart_read": self._cart_read,
+                "cart_mutation_precheck": self._cart_mutation_precheck,
+                "clarification": self._clarification,
+                "general_store_help": self._general_store_help,
+                "unsupported_request": self._unsupported,
+                "execute_authorized_tool": self._execute_authorized_tool,
+                "validate_tool_result": self._validate_tool_result,
+                "compose_response": self._compose_response,
+                "persist_audit_event": self._persist_audit_event,
             },
+            start_node="validate_request",
+            edges=(
+                ("validate_request", "load_conversation_context"),
+                ("load_conversation_context", "detect_intent"),
+                ("detect_intent", "extract_constraints"),
+                ("extract_constraints", "route_intent"),
+                *( (node, "execute_authorized_tool") for node in ("product_search", "product_details", "product_comparison", "cart_read", "cart_mutation_precheck") ),
+                *( (node, "compose_response") for node in ("clarification", "general_store_help", "unsupported_request") ),
+                ("execute_authorized_tool", "validate_tool_result"),
+                ("validate_tool_result", "compose_response"),
+                ("compose_response", "persist_audit_event"),
+            ),
+            conditional_edges=(
+                ConditionalEdge(
+                    source="route_intent",
+                    route=lambda state: state.get("pending_action", {}).get("node", "unsupported_request"),
+                    destinations=routes,
+                ),
+            ),
+            terminal_node="persist_audit_event",
+            fallback=lambda: LocalAssistantWorkflow(self),
         )
-        for node in ["product_search", "product_details", "product_comparison", "cart_read", "cart_mutation_precheck"]:
-            graph.add_edge(node, "execute_authorized_tool")
-        for node in ["clarification", "general_store_help", "unsupported_request"]:
-            graph.add_edge(node, "compose_response")
-        graph.add_edge("execute_authorized_tool", "validate_tool_result")
-        graph.add_edge("validate_tool_result", "compose_response")
-        graph.add_edge("compose_response", "persist_audit_event")
-        graph.add_edge("persist_audit_event", END)
-        return graph
 
     async def _validate_request(self, state: AssistantState) -> AssistantState:
         if not self.settings.ai_assistant_enabled:

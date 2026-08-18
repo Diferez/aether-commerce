@@ -31,4 +31,4 @@ aether-ai-migrate = "app.migrate:run_migrations"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "../../packages/agent-core/python/src"]

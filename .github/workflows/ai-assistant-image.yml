@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/ai-assistant/**"
+      - "packages/agent-core/python/**"
       - ".github/workflows/ai-assistant-image.yml"
   workflow_dispatch:
 
@@ -21,10 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        working-directory: apps/ai-assistant
-        run: docker build -t aether-ai-assistant:test .
+        run: docker build -f apps/ai-assistant/Dockerfile -t aether-ai-assistant:test .
       - name: Smoke image
-        working-directory: apps/ai-assistant
         run: |
           docker run --rm -d --name aether-ai-assistant-smoke -p 8090:8090 \
             -e AETHER_API_BASE_URL=https://preview-api.invalid \
@@ -33,7 +32,7 @@ jobs:
             -e REDIS_URL= \
             aether-ai-assistant:test
           trap 'docker stop aether-ai-assistant-smoke || true' EXIT
-          python scripts/smoke.py
+          python apps/ai-assistant/scripts/smoke.py
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io

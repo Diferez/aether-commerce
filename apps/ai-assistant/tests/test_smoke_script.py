@@ -19,6 +19,19 @@ def test_dockerfile_keeps_runtime_non_root_and_healthchecked() -> None:
     assert "/healthz" in dockerfile
 
 
+def test_docker_runtime_includes_reusable_langgraph_core_from_repository_context() -> None:
+    root = Path(__file__).resolve().parents[3]
+    assistant = root / "apps" / "ai-assistant"
+    dockerfile = (assistant / "Dockerfile").read_text(encoding="utf-8")
+    compose = (assistant / "docker-compose.yml").read_text(encoding="utf-8")
+    ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "COPY packages/agent-core/python/src" in dockerfile
+    assert "PYTHONPATH=\"/app/agent-core-python/src\"" in dockerfile
+    assert "context: ../.." in compose
+    assert "docker build -f apps/ai-assistant/Dockerfile" in ci
+
+
 def test_compose_exposes_local_dependencies_and_healthcheck() -> None:
     compose = (Path(__file__).resolve().parents[1] / "docker-compose.yml").read_text(encoding="utf-8")
     assert "postgres:16-alpine" in compose

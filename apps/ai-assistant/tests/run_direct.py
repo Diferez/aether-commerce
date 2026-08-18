@@ -5,8 +5,11 @@ import tempfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+PYTHON_AGENT_CORE = ROOT.parents[1] / "packages" / "agent-core" / "python" / "src"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(PYTHON_AGENT_CORE) not in sys.path:
+    sys.path.insert(0, str(PYTHON_AGENT_CORE))
 
 
 def load_module(name: str, path: str):

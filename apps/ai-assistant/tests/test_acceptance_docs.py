@@ -145,7 +145,7 @@ def test_ai_assistant_image_workflow_builds_smokes_and_publishes() -> None:
     for required_phrase in [
         "ghcr.io",
         "docker build",
-        "python scripts/smoke.py",
+        "python apps/ai-assistant/scripts/smoke.py",
         "docker/login-action",
         "docker push",
         "${github_sha}",

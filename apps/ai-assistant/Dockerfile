@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY requirements-docker.txt .
+COPY apps/ai-assistant/requirements-docker.txt ./requirements-docker.txt
 RUN python -m venv /opt/aether-venv \
   && /opt/aether-venv/bin/pip install --no-cache-dir --upgrade pip \
   && /opt/aether-venv/bin/pip install --no-cache-dir -r requirements-docker.txt
@@ -22,8 +22,11 @@ RUN addgroup --system aether && adduser --system --ingroup aether aether
 
 COPY --from=builder /opt/aether-venv /opt/aether-venv
 
-COPY app ./app
-COPY migrations ./migrations
+COPY packages/agent-core/python/src ./agent-core-python/src
+COPY apps/ai-assistant/app ./app
+COPY apps/ai-assistant/migrations ./migrations
+
+ENV PYTHONPATH="/app/agent-core-python/src"
 
 USER aether
 
