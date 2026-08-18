@@ -20,4 +20,8 @@ apps/api/wrangler.development.json
 apps/ai-assistant/wrangler.production.json
 apps/ai-assistant/wrangler.development.json
 apps/storefront/wrangler.development.json
+apps/storefront/wrangler.production.json
 apps/api/src/worker-configuration.d.ts
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
