@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from pathlib import Path
@@ -26,14 +27,15 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 
 def iter_scannable_files(root: Path) -> list[Path]:
     files: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        if path.suffix in SKIP_SUFFIXES:
-            continue
-        files.append(path)
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune SKIP_DIRS before os.walk descends into them, so a broken
+        # symlink/junction inside e.g. node_modules never gets scanned into.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for filename in filenames:
+            path = Path(dirpath) / filename
+            if path.suffix in SKIP_SUFFIXES:
+                continue
+            files.append(path)
     return files
 
 
