@@ -11,6 +11,7 @@ import { createCustomerAddressService } from "../services/customer-addresses";
 import { createCustomerReviewService } from "../services/customer-reviews";
 import { createCustomerProfileService } from "../services/customer-profile";
 import { resolveActorEmail } from "../services/clerk";
+import { readBrandSettings } from "../services/brand-settings";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -222,6 +223,12 @@ for (const action of ["cancel", "return", "refund-request"] as const) {
 userRoutes.post("/products/:id/reviews", zValidator("json", reviewSchema), async (c) => {
   const userId = requireUserId(c);
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to leave a review.");
+  // Blocks new submissions into a queue nobody intends to moderate while the
+  // storefront's own review UI is hidden (features.reviews off) - the admin
+  // panel's toggle only controlled a display flag before this, never
+  // actually stopped reviews from accumulating.
+  const brand = await readBrandSettings(c.env);
+  if (!brand.features.reviews) return fail(c, 403, "REVIEWS_DISABLED", "Reviews are currently disabled for this store.");
   return ok(c, await createCustomerReviewService(c.env.DB).create(userId, c.req.param("id"), c.req.valid("json")), 201);
 });
 

@@ -162,6 +162,70 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     expect(auditStatement?.args).toContain("settings.updated");
   });
 
+  it("lists reviews joined with product/reviewer names for an actor with reviews.moderate", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      {
+        all: [
+          {
+            id: "rev_1",
+            status: "pending",
+            rating: 4,
+            title: "Great fit",
+            body: "Works well.",
+            created_at: "2026-08-19T10:00:00Z",
+            updated_at: "2026-08-19T10:00:00Z",
+            product_id: "prd_1",
+            product_name: "Funda Slim Grip",
+            user_id: "user_abc",
+            user_email: "buyer@example.com",
+            user_name: "Maria Gomez"
+          }
+        ]
+      }
+    ]);
+
+    const response = await worker.fetch(adminRequest("/reviews", { token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(200);
+    const body = await response.json<{ success: boolean; data: Array<{ product_name: string; user_email: string }> }>();
+    expect(body.data[0]).toMatchObject({ product_name: "Funda Slim Grip", user_email: "buyer@example.com" });
+    expect(statements.some((s) => s.sql.includes("left join products") && s.sql.includes("left join users"))).toBe(true);
+  });
+
+  it("returns 403 for an actor without reviews.moderate (e.g. catalog_manager)", async () => {
+    await mockVerifiedActor(["catalog_manager"]);
+    const { env } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/reviews", { token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("approves a review and persists the new status through the real HTTP path", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      {} // reviews update
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/reviews/rev_1/moderation", {
+        method: "PATCH",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "approved" })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(200);
+    const updateStatement = statements.find((s) => s.sql.includes("update reviews set status"));
+    expect(updateStatement?.args).toEqual(["approved", "rev_1"]);
+  });
+
   it("blocks a mutation for an actor in demo mode via the real requirePermission middleware", async () => {
     // No registered admin route today has a literal /admin/demo/* mutation
     // path (the only /demo route is the public GET /demo/summary), so this

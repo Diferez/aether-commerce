@@ -887,7 +887,13 @@ adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c
   return ok(c, { code, active: false });
 });
 
-adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, await createReviewModerationService(c.env.DB).list()));
+const reviewListQuerySchema = z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]).optional() });
+adminRoutes.get(
+  "/reviews",
+  requirePermission("reviews.moderate"),
+  zValidator("query", reviewListQuerySchema),
+  async (c) => ok(c, await createReviewModerationService(c.env.DB).list(c.req.valid("query").status))
+);
 adminRoutes.patch("/reviews/:id/moderation", requirePermission("reviews.moderate"), zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })), async (c) => {
   return ok(c, await createReviewModerationService(c.env.DB).moderate(c.req.param("id"), c.req.valid("json").status));
 });

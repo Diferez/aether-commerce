@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, ClipboardList, History, Settings, UsersRound, Warehouse } from "lucide-react";
+import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Settings, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { AdminDictionary } from "@aether/i18n";
 
@@ -7,7 +7,7 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   /** Read client-side against real data by AdminSidebar - never a fabricated count. */
-  countKey?: "pendingOrders" | "lowStock";
+  countKey?: "pendingOrders" | "lowStock" | "pendingReviews";
 };
 
 export type NavGroup = {
@@ -30,7 +30,8 @@ export function getNavGroups(t: AdminDictionary): NavGroup[] {
       items: [
         { href: "/orders/", label: t.nav.orders, icon: ClipboardList, countKey: "pendingOrders" },
         { href: "/products/", label: t.nav.products, icon: Boxes },
-        { href: "/inventory/", label: t.nav.inventory, icon: Warehouse, countKey: "lowStock" }
+        { href: "/inventory/", label: t.nav.inventory, icon: Warehouse, countKey: "lowStock" },
+        { href: "/reviews/", label: t.nav.reviews, icon: MessageSquareText, countKey: "pendingReviews" }
       ]
     },
     { label: null, items: [{ href: "/customers/", label: t.nav.customers, icon: UsersRound }] },
