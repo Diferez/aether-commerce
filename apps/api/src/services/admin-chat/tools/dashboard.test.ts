@@ -82,4 +82,14 @@ describe("getRecentActivityTool", () => {
     expect(result.artifact).toEqual({ type: "activity_list", items: [] });
     expect(result.message).toMatch(/no recent activity/i);
   });
+
+  it("builds the caption in Spanish when the operator's conversation is in Spanish, not just the card below it", async () => {
+    const { env } = fakeEnv([{ all: [{ id: "log_1", actor_id: "usr_admin", actor_role: null, action: "settings.updated", target_type: "settings", target_id: "checkout", created_at: "2026-08-16T17:35:37Z" }] }]);
+    const ctx = fakeContext(env, {}, { language: "es" });
+
+    const result = await getRecentActivityTool.run({ limit: 20 }, ctx);
+
+    expect(result.message).toBe("1 cambio(s) reciente(s), el más reciente primero.");
+    expect(result.message).not.toMatch(/recent change/i);
+  });
 });

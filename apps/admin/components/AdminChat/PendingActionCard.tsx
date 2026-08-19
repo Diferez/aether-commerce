@@ -4,13 +4,14 @@ import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@aether/ui";
 import { useAdminLanguage } from "../AdminLanguageProvider";
+import { fieldLabel } from "./format";
 import type { AdminDictionary } from "@aether/i18n";
 import type { ActionDiff } from "./types";
 
 function DiffRow({ field, before, after, t }: { field: string; before: unknown; after: unknown; t: AdminDictionary }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
-      <span className="min-w-0 truncate text-ink-subtle">{field}</span>
+      <span className="min-w-0 truncate text-ink-subtle">{fieldLabel(t, field)}</span>
       <span className="shrink-0 text-xs text-ink-subtle">-&gt;</span>
       <span className="min-w-0 text-right font-medium text-ink [overflow-wrap:anywhere]">{String(after)}</span>
       <span className="col-span-3 text-xs text-ink-subtle [overflow-wrap:anywhere]">{t.chat.wasValue.replace("{value}", String(before))}</span>

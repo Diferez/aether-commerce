@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineAdminChatTool } from "../define-tool";
 import { getProductRow, listProductsForAdmin } from "../../products-admin";
+import { pick } from "../language";
 import type { ProductDetailArtifact, ProductSummaryArtifact } from "../artifacts";
 import type { AdminProductSummary } from "../../products-admin";
 
@@ -20,6 +21,9 @@ function toSummaryArtifact(row: AdminProductSummary): ProductSummaryArtifact {
 // See orders.ts's summarizeOrdersForModel for why this exists: the model
 // only ever reads `message` back, never the artifact, so a bare count
 // leaves it unable to reference a specific product for a follow-up call.
+// Kept in English regardless of operator language, same reasoning as
+// summarizeOrdersForModel - this half of `message` is model-facing
+// reasoning context, never shown to the operator verbatim.
 function summarizeProductsForModel(products: ProductSummaryArtifact[]): string {
   return products
     .map((product) => `- ${product.name} (SKU ${product.sku}): ${product.stock} in stock, ${product.visibility}`)
@@ -48,9 +52,13 @@ export const searchProductsTool = defineAdminChatTool({
     });
     const products = result.data.map(toSummaryArtifact);
     if (products.length === 0) {
-      return { message: "No products matched that search.", artifact: { type: "product_list", products: [] } };
+      return { message: pick(ctx.language, "No products matched that search.", "Ningún producto coincidió con esa búsqueda."), artifact: { type: "product_list", products: [] } };
     }
-    const shortMessage = `Found ${result.pagination.total} product(s)${result.pagination.total > products.length ? `, showing the first ${products.length}` : ""}.`;
+    const shortMessage = pick(
+      ctx.language,
+      `Found ${result.pagination.total} product(s)${result.pagination.total > products.length ? `, showing the first ${products.length}` : ""}.`,
+      `Se encontraron ${result.pagination.total} producto(s)${result.pagination.total > products.length ? `, mostrando los primeros ${products.length}` : ""}.`
+    );
     return {
       message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
       artifact: { type: "product_list", products, displayMessage: shortMessage }
@@ -65,7 +73,12 @@ export const getProductDetailsTool = defineAdminChatTool({
   requires: { permission: "products.read" },
   run: async (args, ctx) => {
     const row = await getProductRow(ctx.env, args.productId);
-    if (!row) return { message: "I could not find that product.", artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." } };
+    if (!row) {
+      return {
+        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
+        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: pick(ctx.language, "Product not found.", "Producto no encontrado.") }
+      };
+    }
     const product: ProductDetailArtifact = {
       id: row.id,
       name: row.name,
@@ -79,7 +92,10 @@ export const getProductDetailsTool = defineAdminChatTool({
       brand: row.brand,
       href: `/products/edit/?id=${encodeURIComponent(row.id)}`
     };
-    return { message: `${row.name} - ${row.stock} in stock, ${row.visibility}.`, artifact: { type: "product_detail", product } };
+    return {
+      message: pick(ctx.language, `${row.name} - ${row.stock} in stock, ${row.visibility}.`, `${row.name} - ${row.stock} en stock, ${row.visibility}.`),
+      artifact: { type: "product_detail", product }
+    };
   }
 });
 
@@ -92,9 +108,9 @@ export const getLowStockProductsTool = defineAdminChatTool({
     const result = await listProductsForAdmin(ctx.env, { stockFilter: "low", page: 1, pageSize: args.pageSize, sort: "stock", sortDirection: "asc" });
     const products = result.data.map(toSummaryArtifact);
     if (products.length === 0) {
-      return { message: "No products are currently low on stock.", artifact: { type: "product_list", products: [] } };
+      return { message: pick(ctx.language, "No products are currently low on stock.", "Ningún producto tiene poco stock actualmente."), artifact: { type: "product_list", products: [] } };
     }
-    const shortMessage = `${result.pagination.total} product(s) are low on stock.`;
+    const shortMessage = pick(ctx.language, `${result.pagination.total} product(s) are low on stock.`, `${result.pagination.total} producto(s) tienen poco stock.`);
     return {
       message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
       artifact: { type: "product_list", products, displayMessage: shortMessage }
@@ -111,9 +127,9 @@ export const getOutOfStockProductsTool = defineAdminChatTool({
     const result = await listProductsForAdmin(ctx.env, { stockFilter: "out", page: 1, pageSize: args.pageSize });
     const products = result.data.map(toSummaryArtifact);
     if (products.length === 0) {
-      return { message: "No products are out of stock.", artifact: { type: "product_list", products: [] } };
+      return { message: pick(ctx.language, "No products are out of stock.", "Ningún producto está agotado."), artifact: { type: "product_list", products: [] } };
     }
-    const shortMessage = `${result.pagination.total} product(s) are out of stock.`;
+    const shortMessage = pick(ctx.language, `${result.pagination.total} product(s) are out of stock.`, `${result.pagination.total} producto(s) están agotados.`);
     return {
       message: `${shortMessage}\n${summarizeProductsForModel(products)}`,
       artifact: { type: "product_list", products, displayMessage: shortMessage }

@@ -2,6 +2,7 @@
 
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useAdminLanguage } from "../AdminLanguageProvider";
+import { fieldLabel } from "./format";
 
 // Renders only after a real response from the confirm endpoint - never
 // synthesized from what the model said. `succeeded`/`failed` come straight
@@ -30,7 +31,7 @@ export function ReceiptCard({
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-ink-subtle">
           {entries.map(([key, value]) => (
             <div key={key} className="contents">
-              <dt className="shrink-0">{key}</dt>
+              <dt className="shrink-0">{fieldLabel(t, key)}</dt>
               <dd className="min-w-0 break-all text-right text-ink">{String(value)}</dd>
             </div>
           ))}

@@ -2,6 +2,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useAdminChatStream } from "./useAdminChatStream";
+import { AdminLanguageProvider } from "../AdminLanguageProvider";
+
+// Every render needs the provider - useAdminChatStream now reads the
+// operator's locale (useAdminLanguage) to send it with each request and to
+// localize its own fallback copy. Same wrapper apps/admin/test/render.tsx
+// uses for full-component tests.
+function renderChatStream() {
+  return renderHook(() => useAdminChatStream(), { wrapper: AdminLanguageProvider });
+}
 
 const getTokenMock = vi.fn(() => Promise.resolve(null));
 vi.mock("@clerk/react", () => ({
@@ -43,7 +52,7 @@ describe("useAdminChatStream", () => {
       ])
     );
 
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.sendMessage("Show pending orders");
@@ -59,7 +68,7 @@ describe("useAdminChatStream", () => {
   });
 
   it("does not send an empty or whitespace-only message", async () => {
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.sendMessage("   ");
@@ -71,7 +80,7 @@ describe("useAdminChatStream", () => {
 
   it("shows a system error message when the stream response is not ok", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }));
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.sendMessage("Hello");
@@ -86,7 +95,7 @@ describe("useAdminChatStream", () => {
       json: () => Promise.resolve({ success: true, data: { operationId: "pact_1", orderId: "ord_1", fulfillmentStatus: "shipped" } })
     } as Response);
 
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.confirmPendingAction("pact_1");
@@ -103,7 +112,7 @@ describe("useAdminChatStream", () => {
       json: () => Promise.resolve({ success: false, error: { message: "The order changed." } })
     } as Response);
 
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.confirmPendingAction("pact_2");
@@ -129,7 +138,7 @@ describe("useAdminChatStream", () => {
         })
     } as Response);
 
-    const { result } = renderHook(() => useAdminChatStream());
+    const { result } = renderChatStream();
 
     await act(async () => {
       await result.current.hydrate();

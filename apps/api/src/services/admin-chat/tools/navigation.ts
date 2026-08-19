@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineAdminChatTool } from "../define-tool";
 import { getProductRow } from "../../products-admin";
 import { getCustomerDetail } from "../../customers";
+import { pick } from "../language";
 
 type NavModule = "home" | "orders" | "products" | "inventory" | "customers" | "settings" | "activity";
 
@@ -27,12 +28,16 @@ export const navigateToTool = defineAdminChatTool({
     // "Unknown name \"propertyNames\"... Cannot find field").
     filters: z.array(z.object({ key: z.string(), value: z.string() })).optional()
   }),
-  run: (args) => {
+  run: (args, ctx) => {
     const base = KNOWN_MODULES[args.module];
     const query = args.filters && args.filters.length > 0 ? new URLSearchParams(args.filters.map((f) => [f.key, f.value])).toString() : "";
     const href = query ? `${base}?${query}` : base;
     return Promise.resolve({
-      message: `Here's ${args.module}${query ? " with those filters applied" : ""}.`,
+      message: pick(
+        ctx.language,
+        `Here's ${args.module}${query ? " with those filters applied" : ""}.`,
+        `Aquí está ${args.module}${query ? " con esos filtros aplicados" : ""}.`
+      ),
       artifact: { type: "navigate" as const, href, label: args.module }
     });
   }
@@ -45,9 +50,14 @@ export const openProductTool = defineAdminChatTool({
   requires: { permission: "products.read" },
   run: async (args, ctx) => {
     const row = await getProductRow(ctx.env, args.productId);
-    if (!row) return { message: "I could not find that product.", artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." } };
+    if (!row) {
+      return {
+        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
+        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: pick(ctx.language, "Product not found.", "Producto no encontrado.") }
+      };
+    }
     const href = `/products/edit/?id=${encodeURIComponent(row.id)}`;
-    return { message: `Opening ${row.name}.`, artifact: { type: "navigate", href, label: row.name } };
+    return { message: pick(ctx.language, `Opening ${row.name}.`, `Abriendo ${row.name}.`), artifact: { type: "navigate", href, label: row.name } };
   }
 });
 
@@ -61,9 +71,14 @@ export const openOrderTool = defineAdminChatTool({
     const row = await ctx.env.DB.prepare("select id, number from orders where id = ? or upper(number) = upper(?)")
       .bind(args.orderId, args.orderId)
       .first<{ id: string; number: string }>();
-    if (!row) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };
+    if (!row) {
+      return {
+        message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."),
+        artifact: { type: "error", code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") }
+      };
+    }
     const href = `/orders/detail/?id=${encodeURIComponent(row.id)}`;
-    return { message: `Opening order ${row.number}.`, artifact: { type: "navigate", href, label: row.number } };
+    return { message: pick(ctx.language, `Opening order ${row.number}.`, `Abriendo el pedido ${row.number}.`), artifact: { type: "navigate", href, label: row.number } };
   }
 });
 
@@ -74,9 +89,17 @@ export const openCustomerTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) return { message: "I could not find that customer.", artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: "Customer not found." } };
+    if (!detail) {
+      return {
+        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
+        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
+      };
+    }
     const href = `/customers/detail/?id=${encodeURIComponent(detail.id)}`;
-    return { message: `Opening ${detail.name ?? detail.email}.`, artifact: { type: "navigate", href, label: detail.name ?? detail.email } };
+    return {
+      message: pick(ctx.language, `Opening ${detail.name ?? detail.email}.`, `Abriendo ${detail.name ?? detail.email}.`),
+      artifact: { type: "navigate", href, label: detail.name ?? detail.email }
+    };
   }
 });
 
@@ -84,8 +107,9 @@ export const focusFormFieldTool = defineAdminChatTool({
   name: "focus_form_field",
   description: "Highlights and focuses a specific field on the form currently open in the admin panel, to help the operator complete it.",
   schema: z.object({ fieldName: z.string().min(1).max(80) }),
-  run: (args) => Promise.resolve({
-    message: `Focusing the ${args.fieldName} field.`,
-    artifact: { type: "navigate" as const, href: `#field-${encodeURIComponent(args.fieldName)}`, label: args.fieldName }
-  })
+  run: (args, ctx) =>
+    Promise.resolve({
+      message: pick(ctx.language, `Focusing the ${args.fieldName} field.`, `Enfocando el campo ${args.fieldName}.`),
+      artifact: { type: "navigate" as const, href: `#field-${encodeURIComponent(args.fieldName)}`, label: args.fieldName }
+    })
 });

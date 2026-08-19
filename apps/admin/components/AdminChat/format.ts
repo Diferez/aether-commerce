@@ -78,6 +78,34 @@ export function formatStatValue(t: AdminDictionary, key: string, value: number |
   return value === null ? "-" : String(value);
 }
 
+// PendingActionCard's diff.fields and ReceiptCard's result entries both key
+// off whatever camelCase field name a tool used internally (orderId,
+// fulfillmentStatus, priceCents, ...) - readable to the engineer who wrote
+// the tool, not to the operator confirming or reading the outcome of a
+// mutation. Same fallback shape as statFieldLabel: a known key gets a real
+// translated label, anything else still reads as spaced-out words instead
+// of bare camelCase.
+function getFieldLabelMeta(t: AdminDictionary): Record<string, string> {
+  return {
+    orderId: t.chat.fieldOrderId,
+    productId: t.chat.fieldProductId,
+    previousFulfillmentStatus: t.chat.fieldPreviousFulfillmentStatus,
+    fulfillmentStatus: t.chat.fieldFulfillmentStatus,
+    name: t.chat.fieldName,
+    sku: t.chat.fieldSku,
+    category: t.chat.fieldCategory,
+    percent: t.chat.fieldPercent,
+    changed: t.chat.fieldChanged,
+    visibility: t.chat.fieldVisibility,
+    priceCents: t.chat.fieldPriceCents,
+    stock: t.chat.fieldStock
+  };
+}
+
+export function fieldLabel(t: AdminDictionary, key: string): string {
+  return getFieldLabelMeta(t)[key] ?? humanizeKey(key);
+}
+
 // get_recent_activity (the "what happened today" tool) reads straight off
 // audit_logs, whose `action` is a dotted event code meant for engineers
 // (e.g. "order.fulfillment_changed") and whose `target_id` is often an

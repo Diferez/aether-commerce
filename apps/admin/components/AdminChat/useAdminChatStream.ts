@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/react";
 import { apiBaseUrl } from "../config";
 import { parseSseFrames } from "./parseSseFrames";
 import { buildChatRequestContext } from "./useAdminChatContext";
+import { useAdminLanguage } from "../AdminLanguageProvider";
 import type { ChatArtifact, ChatMessage, ChatStatusPhase } from "./types";
 
 const conversationStorageKey = "aether.admin.chat.conversationId.v1";
@@ -28,6 +29,7 @@ function storeConversationId(id: string) {
 
 export function useAdminChatStream() {
   const { getToken } = useAuth();
+  const { locale, t } = useAdminLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatusPhase | "idle">("idle");
   const [sending, setSending] = useState(false);
@@ -91,12 +93,13 @@ export function useAdminChatStream() {
           body: JSON.stringify({
             conversationId: conversationIdRef.current ?? undefined,
             message: trimmed,
-            context: buildChatRequestContext()
+            context: buildChatRequestContext(),
+            language: locale
           })
         });
 
         if (!response.ok || !response.body) {
-          setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: "Aether Chat could not respond right now." }]);
+          setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: t.chat.couldNotRespond }]);
           setStatus("idle");
           setSending(false);
           return;
@@ -147,37 +150,33 @@ export function useAdminChatStream() {
           }
         }
       } catch {
-        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: "The connection to Aether Chat was interrupted." }]);
+        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: t.chat.connectionInterrupted }]);
       } finally {
         setStatus("idle");
         setSending(false);
       }
     },
-    [getToken, sending]
+    [getToken, sending, locale, t]
   );
 
   const confirmPendingAction = useCallback(
     async (operationId: string) => {
       setStatus("executing");
       try {
-        const headers = await authHeaders();
+        const headers = { ...(await authHeaders()), "content-type": "application/json" };
         const response = await fetch(`${apiBaseUrl}/api/v1/admin/chat/actions/${encodeURIComponent(operationId)}/confirm`, {
           method: "POST",
-          headers
+          headers,
+          body: JSON.stringify({ language: locale })
         });
         const payload = (await response.json()) as { success: boolean; data?: Record<string, unknown>; error?: { message?: string } };
         setResolvedOperationIds((current) => new Set(current).add(operationId));
 
         if (!payload.success || !payload.data) {
+          const summary = payload.error?.message ?? t.chat.actionCouldNotComplete;
           setMessages((current) => [
             ...current,
-            {
-              id: crypto.randomUUID(),
-              role: "tool",
-              toolName: "confirm_action",
-              content: payload.error?.message ?? "That action could not be completed.",
-              artifact: { type: "receipt", operationId, status: "failed", summary: payload.error?.message ?? "That action could not be completed.", result: {} }
-            }
+            { id: crypto.randomUUID(), role: "tool", toolName: "confirm_action", content: summary, artifact: { type: "receipt", operationId, status: "failed", summary, result: {} } }
           ]);
           return;
         }
@@ -190,17 +189,17 @@ export function useAdminChatStream() {
             id: crypto.randomUUID(),
             role: "tool",
             toolName: "confirm_action",
-            content: "Done.",
-            artifact: { type: "receipt", operationId, status: "succeeded", summary: "Done.", result: result as Record<string, unknown> }
+            content: t.chat.actionCompleted,
+            artifact: { type: "receipt", operationId, status: "succeeded", summary: t.chat.actionCompleted, result: result as Record<string, unknown> }
           }
         ]);
       } catch {
-        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: "Could not reach the server to confirm this action." }]);
+        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "system-error", content: t.chat.couldNotReachServer }]);
       } finally {
         setStatus("idle");
       }
     },
-    [getToken]
+    [getToken, locale, t]
   );
 
   return { messages, status, sending, resolvedOperationIds, hydrate, sendMessage, confirmPendingAction };

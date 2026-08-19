@@ -45,6 +45,21 @@ describe("prepareOrderStatusChangeTool", () => {
 
     expect(result.artifact).toMatchObject({ type: "pending_action", operationId: "pact_1", toolName: "prepare_order_status_change" });
   });
+
+  it("builds the confirmation preview's summary/message in Spanish when the operator's conversation is in Spanish", async () => {
+    const { env } = fakeEnv([
+      { first: { id: "ord_1", number: "AETH-1", fulfillment_status: "processing", stock_restored_at: null } },
+      { first: null },
+      {},
+      { first: { id: "pact_1", expires_at: new Date(Date.now() + 300_000).toISOString() } }
+    ]);
+    const ctx = fakeContext(env, {}, { language: "es" });
+
+    const result = await prepareOrderStatusChangeTool.run({ orderId: "ord_1", fulfillmentStatus: "shipped" }, ctx);
+
+    expect(result.message).toBe('Listo para marcar el pedido AETH-1 como "shipped". Por favor confirma.');
+    expect(result.artifact).toMatchObject({ diff: { summary: 'Marcar el pedido AETH-1 como "shipped"' } });
+  });
 });
 
 describe("executeOrderStatusChange", () => {

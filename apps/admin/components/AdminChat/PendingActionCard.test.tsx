@@ -44,4 +44,11 @@ describe("PendingActionCard", () => {
     const { container } = render(<PendingActionCard operationId="pact_1" diff={diff} expiresAt={new Date(Date.now() + 300_000).toISOString()} resolved={true} onConfirm={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("shows a plain-language field label, never the raw camelCase key a tool used internally", () => {
+    render(<PendingActionCard operationId="pact_1" diff={diff} expiresAt={new Date(Date.now() + 300_000).toISOString()} resolved={false} onConfirm={vi.fn()} />);
+
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.queryByText("fulfillmentStatus")).not.toBeInTheDocument();
+  });
 });
