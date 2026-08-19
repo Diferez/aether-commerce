@@ -98,16 +98,16 @@ describe("checkout settings service", () => {
 
   it("summarizes without ever exposing the plaintext secret", async () => {
     const service = new CheckoutSettingsService(
-      fakeRepository({ mode: "stripe", stripe: { secretKey: "sk_test_1234567890abcdef", webhookSecret: "whsec_x" }, wompi: {} })
+      fakeRepository({ mode: "stripe", stripe: { secretKey: "sk_test_abc12345", webhookSecret: "whsec_x" }, wompi: {} })
     );
 
     const summary = await service.summarize(envFallback);
 
     expect(summary).toEqual({
       mode: "stripe",
-      stripe: { configured: true, secretKeyPreview: "sk_tes••••cdef", webhookConfigured: true },
+      stripe: { configured: true, secretKeyPreview: "sk_tes••••2345", webhookConfigured: true },
       wompi: { configured: false, secretKeyPreview: null, webhookConfigured: false }
     });
-    expect(JSON.stringify(summary)).not.toContain("sk_test_1234567890abcdef");
+    expect(JSON.stringify(summary)).not.toContain("sk_test_abc12345");
   });
 });
