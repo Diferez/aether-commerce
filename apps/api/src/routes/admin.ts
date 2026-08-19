@@ -123,17 +123,26 @@ const integrationSecretsUpdateSchema = z.object({
     .optional()
 });
 
-/** Same exactOptionalPropertyTypes stripping as sanitizeCheckoutSettingsUpdate/sanitizeCredentials above. */
+/** Same single-key-if-defined stripping sanitizeCredentials above does for checkout, just for a { apiKey } shape. */
+function sanitizeApiKey(value: { apiKey?: string | undefined } | undefined) {
+  if (!value) return undefined;
+  return { ...(value.apiKey !== undefined ? { apiKey: value.apiKey } : {}) };
+}
+
+function sanitizeCloudinaryUpdate(value: z.infer<typeof integrationSecretsUpdateSchema>["cloudinary"]) {
+  if (!value) return undefined;
+  return {
+    ...(value.cloudName !== undefined ? { cloudName: value.cloudName } : {}),
+    ...(value.apiKey !== undefined ? { apiKey: value.apiKey } : {}),
+    ...(value.apiSecret !== undefined ? { apiSecret: value.apiSecret } : {})
+  };
+}
+
+/** Same exactOptionalPropertyTypes stripping as sanitizeCheckoutSettingsUpdate above. */
 function sanitizeIntegrationSecretsUpdate(input: z.infer<typeof integrationSecretsUpdateSchema>) {
-  const resend = input.resend ? { ...(input.resend.apiKey !== undefined ? { apiKey: input.resend.apiKey } : {}) } : undefined;
-  const gemini = input.gemini ? { ...(input.gemini.apiKey !== undefined ? { apiKey: input.gemini.apiKey } : {}) } : undefined;
-  const cloudinary = input.cloudinary
-    ? {
-        ...(input.cloudinary.cloudName !== undefined ? { cloudName: input.cloudinary.cloudName } : {}),
-        ...(input.cloudinary.apiKey !== undefined ? { apiKey: input.cloudinary.apiKey } : {}),
-        ...(input.cloudinary.apiSecret !== undefined ? { apiSecret: input.cloudinary.apiSecret } : {})
-      }
-    : undefined;
+  const resend = sanitizeApiKey(input.resend);
+  const gemini = sanitizeApiKey(input.gemini);
+  const cloudinary = sanitizeCloudinaryUpdate(input.cloudinary);
   return {
     ...(resend !== undefined ? { resend } : {}),
     ...(gemini !== undefined ? { gemini } : {}),
