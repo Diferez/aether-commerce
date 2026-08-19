@@ -34,8 +34,20 @@ adminChatRoutes.use("*", requireAdminChatAccess);
 const chatMessageSchema = z.object({
   conversationId: z.string().min(1).optional(),
   message: z.string().min(1),
-  context: z.unknown().optional()
+  context: z.unknown().optional(),
+  // The admin panel's active locale (AdminLanguageProvider) - tools use this
+  // to build their own user-facing text in the operator's language (see
+  // services/admin-chat/language.ts). Defaults to "en" for any older client
+  // that hasn't been updated to send it yet.
+  language: z.enum(["en", "es"]).default("en")
 });
+
+// Confirming a prepared action has no other body today - just enough to
+// carry the same locale signal the original prepare turn had, so a failed
+// mutation's error message (see routes/admin-chat.ts's confirm handler)
+// comes back in the operator's language instead of silently reverting to
+// English for this one endpoint.
+const confirmActionSchema = z.object({ language: z.enum(["en", "es"]).default("en") });
 
 type ConversationRow = { id: string; actor_id: string; status: string; system_prompt_version: string };
 type MessageRow = { role: "user" | "assistant" | "tool"; content: string | null; tool_calls_json: string | null };
@@ -114,7 +126,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
   const history = await loadHistory(c.env, conversation.id);
   await insertMessage(c.env, conversation.id, "user", body.message);
 
-  const ctx: AdminChatContext = { env: c.env, actor, requestId: c.get("requestId"), conversationId: conversation.id, visible };
+  const ctx: AdminChatContext = { env: c.env, actor, requestId: c.get("requestId"), conversationId: conversation.id, visible, language: body.language };
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -173,7 +185,7 @@ adminChatRoutes.post("/messages", zValidator("json", chatMessageSchema), async (
   const history = await loadHistory(c.env, conversation.id);
   await insertMessage(c.env, conversation.id, "user", body.message);
 
-  const ctx: AdminChatContext = { env: c.env, actor, requestId: c.get("requestId"), conversationId: conversation.id, visible };
+  const ctx: AdminChatContext = { env: c.env, actor, requestId: c.get("requestId"), conversationId: conversation.id, visible, language: body.language };
 
   const toolResults: LoopEvent[] = [];
   let finalMessage = "";
@@ -254,6 +266,10 @@ adminChatRoutes.post("/actions/:operationId/confirm", async (c) => {
   const operationId = c.req.param("operationId");
   const actor = c.get("actor");
   const actorId = actor.userId!;
+  // Optional JSON body - older clients (or a request with no body at all)
+  // fall back to "en", same default as chatMessageSchema.
+  const rawBody: unknown = await c.req.json().catch(() => ({}));
+  const language = confirmActionSchema.parse(rawBody).language;
 
   const claim = await claimPendingAction(c.env, operationId, actorId);
 
@@ -291,7 +307,8 @@ adminChatRoutes.post("/actions/:operationId/confirm", async (c) => {
     actor,
     requestId: c.get("requestId"),
     conversationId: row.conversation_id,
-    visible: {}
+    visible: {},
+    language
   };
   const params = JSON.parse(row.params_json) as Record<string, unknown>;
   const outcome = await executor(ctx, params);

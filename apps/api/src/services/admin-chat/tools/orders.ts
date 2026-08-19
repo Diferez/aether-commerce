@@ -2,6 +2,7 @@ import { z } from "zod";
 import { canTransitionFulfillment } from "@aether/core";
 import type { FulfillmentStatus } from "@aether/schemas";
 import { defineAdminChatTool } from "../define-tool";
+import { pick } from "../language";
 import type { OrderSummaryArtifact } from "../artifacts";
 
 type OrderRow = {
@@ -84,9 +85,13 @@ export const searchOrdersTool = defineAdminChatTool({
     });
     const orders = rows.map(toSummaryArtifact);
     if (orders.length === 0) {
-      return { message: "No orders matched that search.", artifact: { type: "order_list", orders: [] } };
+      return { message: pick(ctx.language, "No orders matched that search.", "Ningún pedido coincidió con esa búsqueda."), artifact: { type: "order_list", orders: [] } };
     }
-    const shortMessage = `Found ${total} order(s)${total > orders.length ? `, showing the first ${orders.length}` : ""}.`;
+    const shortMessage = pick(
+      ctx.language,
+      `Found ${total} order(s)${total > orders.length ? `, showing the first ${orders.length}` : ""}.`,
+      `Se encontraron ${total} pedido(s)${total > orders.length ? `, mostrando los primeros ${orders.length}` : ""}.`
+    );
     return {
       message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
       artifact: { type: "order_list", orders, displayMessage: shortMessage }
@@ -106,9 +111,12 @@ export const getOrdersByStatusTool = defineAdminChatTool({
     const { rows, total } = await queryOrders(ctx.env.DB, { fulfillmentStatus: args.fulfillmentStatus, pageSize: args.pageSize });
     const orders = rows.map(toSummaryArtifact);
     if (orders.length === 0) {
-      return { message: `No orders are currently ${args.fulfillmentStatus}.`, artifact: { type: "order_list", orders: [] } };
+      return {
+        message: pick(ctx.language, `No orders are currently ${args.fulfillmentStatus}.`, `Ningún pedido está actualmente en estado "${args.fulfillmentStatus}".`),
+        artifact: { type: "order_list", orders: [] }
+      };
     }
-    const shortMessage = `${total} order(s) are ${args.fulfillmentStatus}.`;
+    const shortMessage = pick(ctx.language, `${total} order(s) are ${args.fulfillmentStatus}.`, `${total} pedido(s) están en estado "${args.fulfillmentStatus}".`);
     return {
       message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
       artifact: { type: "order_list", orders, displayMessage: shortMessage }
@@ -125,9 +133,9 @@ export const getPendingOrdersTool = defineAdminChatTool({
     const { rows, total } = await queryOrders(ctx.env.DB, { fulfillmentStatus: "unfulfilled", pageSize: args.pageSize });
     const orders = rows.map(toSummaryArtifact);
     if (orders.length === 0) {
-      return { message: "There are no pending orders right now.", artifact: { type: "order_list", orders: [] } };
+      return { message: pick(ctx.language, "There are no pending orders right now.", "No hay pedidos pendientes en este momento."), artifact: { type: "order_list", orders: [] } };
     }
-    const shortMessage = `${total} order(s) are pending fulfillment.`;
+    const shortMessage = pick(ctx.language, `${total} order(s) are pending fulfillment.`, `${total} pedido(s) están pendientes de surtir.`);
     return {
       message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
       artifact: { type: "order_list", orders, displayMessage: shortMessage }
@@ -144,7 +152,9 @@ export const getPendingOrdersTool = defineAdminChatTool({
 // whole turn fell back to "I could not finish that request" despite the
 // order having already been found. Enumerating numbers here (and keeping
 // the short count as displayMessage, unchanged in the UI) is the fix -
-// same pattern get_system_health already uses for blocked orders.
+// same pattern get_system_health already uses for blocked orders. Kept in
+// English regardless of operator language - this half of `message` is
+// model-facing reasoning context, never shown to the operator verbatim.
 export function summarizeOrdersForModel(orders: OrderSummaryArtifact[]): string {
   return orders
     .map((order) => `- ${order.number}: ${order.fulfillmentStatus}, payment ${order.paymentStatus}, ${(order.totalCents / 100).toFixed(2)} ${order.currency}, ${order.email}`)
@@ -169,6 +179,10 @@ async function loadOrderRow(db: D1Database, orderIdOrNumber: string) {
     .first<OrderRow & { internal_notes: string | null }>();
 }
 
+function orderNotFoundResult(ctx: { language: "en" | "es" }) {
+  return { message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."), artifact: { type: "error" as const, code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") } };
+}
+
 export const getOrderDetailsTool = defineAdminChatTool({
   name: "get_order_details",
   description: "Gets full details for one order by id or order number.",
@@ -176,12 +190,16 @@ export const getOrderDetailsTool = defineAdminChatTool({
   requires: { permission: "orders.read" },
   run: async (args, ctx) => {
     const row = await loadOrderRow(ctx.env.DB, args.orderId);
-    if (!row) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };
+    if (!row) return orderNotFoundResult(ctx);
     const itemCount = await ctx.env.DB.prepare("select count(*) as count from order_items where order_id = ?")
       .bind(row.id)
       .first<{ count: number }>();
     return {
-      message: `Order ${row.number}: ${row.fulfillment_status}, payment ${row.payment_status}.`,
+      message: pick(
+        ctx.language,
+        `Order ${row.number}: ${row.fulfillment_status}, payment ${row.payment_status}.`,
+        `Pedido ${row.number}: ${row.fulfillment_status}, pago ${row.payment_status}.`
+      ),
       artifact: {
         type: "order_detail",
         order: { ...toSummaryArtifact(row), internalNotes: row.internal_notes, itemCount: itemCount?.count ?? 0 }
@@ -197,7 +215,7 @@ export const getOrderTimelineTool = defineAdminChatTool({
   requires: { permission: "orders.read" },
   run: async (args, ctx) => {
     const row = await loadOrderRow(ctx.env.DB, args.orderId);
-    if (!row) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };
+    if (!row) return orderNotFoundResult(ctx);
     const history = await ctx.env.DB.prepare(
       "select id, previous_state, new_state, actor_id, reason, created_at from order_status_history where order_id = ? order by created_at asc"
     )
@@ -209,10 +227,17 @@ export const getOrderTimelineTool = defineAdminChatTool({
       targetType: "order",
       targetId: row.id,
       actorId: entry.actor_id,
+      // order_status_history never recorded a role (see order_status_history
+      // schema) - the card's actor clause still recognizes a provider name
+      // like "stripe" as an automated change without one.
+      actorRole: null,
       createdAt: entry.created_at
     }));
     return {
-      message: items.length === 0 ? `Order ${row.number} has no status history yet.` : `Order ${row.number} has ${items.length} status change(s).`,
+      message:
+        items.length === 0
+          ? pick(ctx.language, `Order ${row.number} has no status history yet.`, `El pedido ${row.number} aún no tiene historial de estado.`)
+          : pick(ctx.language, `Order ${row.number} has ${items.length} status change(s).`, `El pedido ${row.number} tiene ${items.length} cambio(s) de estado.`),
       artifact: { type: "activity_list", items }
     };
   }
@@ -225,12 +250,18 @@ export const getAllowedOrderTransitionsTool = defineAdminChatTool({
   requires: { permission: "orders.read" },
   run: async (args, ctx) => {
     const row = await loadOrderRow(ctx.env.DB, args.orderId);
-    if (!row) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };
+    if (!row) return orderNotFoundResult(ctx);
     const current = row.fulfillment_status as FulfillmentStatus;
     const candidates: FulfillmentStatus[] = ["unfulfilled", "processing", "shipped", "delivered", "cancelled"];
     const allowed = candidates.filter((candidate) => canTransitionFulfillment(current, candidate));
     return {
-      message: allowed.length === 0 ? `Order ${row.number} (${current}) cannot move to any other status.` : `Order ${row.number} can move from ${current} to: ${allowed.join(", ")}.`,
+      message: pick(
+        ctx.language,
+        allowed.length === 0 ? `Order ${row.number} (${current}) cannot move to any other status.` : `Order ${row.number} can move from ${current} to: ${allowed.join(", ")}.`,
+        allowed.length === 0
+          ? `El pedido ${row.number} (${current}) no puede pasar a ningún otro estado.`
+          : `El pedido ${row.number} puede pasar de ${current} a: ${allowed.join(", ")}.`
+      ),
       artifact: { type: "allowed_transitions", current, allowed }
     };
   }

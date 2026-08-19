@@ -4,6 +4,7 @@ import { getCustomerDetail, listCustomersForAdmin } from "../../customers";
 import type { AdminCustomerSummary } from "../../customers";
 import type { CustomerSummaryArtifact, OrderSummaryArtifact } from "../artifacts";
 import { summarizeOrdersForModel } from "./orders";
+import { pick } from "../language";
 
 function asString(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
@@ -42,9 +43,13 @@ export const searchCustomersTool = defineAdminChatTool({
     const result = await listCustomersForAdmin(ctx.env, { search: args.query, page: 1, pageSize: args.pageSize });
     const customers = result.data.map(toSummaryArtifact);
     if (customers.length === 0) {
-      return { message: "No customers matched that search.", artifact: { type: "customer_list", customers: [] } };
+      return { message: pick(ctx.language, "No customers matched that search.", "Ningún cliente coincidió con esa búsqueda."), artifact: { type: "customer_list", customers: [] } };
     }
-    const shortMessage = `Found ${result.pagination.total} customer(s)${result.pagination.total > customers.length ? `, showing the first ${customers.length}` : ""}.`;
+    const shortMessage = pick(
+      ctx.language,
+      `Found ${result.pagination.total} customer(s)${result.pagination.total > customers.length ? `, showing the first ${customers.length}` : ""}.`,
+      `Se encontraron ${result.pagination.total} cliente(s)${result.pagination.total > customers.length ? `, mostrando los primeros ${customers.length}` : ""}.`
+    );
     return {
       message: `${shortMessage}\n${summarizeCustomersForModel(customers)}`,
       artifact: { type: "customer_list", customers, displayMessage: shortMessage }
@@ -59,7 +64,12 @@ export const getCustomerDetailsTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) return { message: "I could not find that customer.", artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: "Customer not found." } };
+    if (!detail) {
+      return {
+        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
+        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
+      };
+    }
     const customer: CustomerSummaryArtifact = {
       id: detail.id,
       name: detail.name,
@@ -73,7 +83,14 @@ export const getCustomerDetailsTool = defineAdminChatTool({
       }, 0),
       href: `/customers/detail/?id=${encodeURIComponent(detail.id)}`
     };
-    return { message: `${detail.name ?? detail.email}: ${detail.orders.length} order(s), status ${detail.status}.`, artifact: { type: "customer_card", customer } };
+    return {
+      message: pick(
+        ctx.language,
+        `${detail.name ?? detail.email}: ${detail.orders.length} order(s), status ${detail.status}.`,
+        `${detail.name ?? detail.email}: ${detail.orders.length} pedido(s), estado ${detail.status}.`
+      ),
+      artifact: { type: "customer_card", customer }
+    };
   }
 });
 
@@ -84,7 +101,12 @@ export const getCustomerOrderHistoryTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) return { message: "I could not find that customer.", artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: "Customer not found." } };
+    if (!detail) {
+      return {
+        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
+        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
+      };
+    }
 
     // Minimizes what's forwarded (and eventually shown to the model) to
     // exactly what an order-history question needs - order payloads on the
@@ -109,11 +131,11 @@ export const getCustomerOrderHistoryTool = defineAdminChatTool({
 
     if (orders.length === 0) {
       return {
-        message: `${detail.name ?? detail.email} has no orders yet.`,
+        message: pick(ctx.language, `${detail.name ?? detail.email} has no orders yet.`, `${detail.name ?? detail.email} aún no tiene pedidos.`),
         artifact: { type: "customer_order_history", customerId: detail.id, orders: [] }
       };
     }
-    const shortMessage = `${detail.name ?? detail.email} has ${orders.length} order(s).`;
+    const shortMessage = pick(ctx.language, `${detail.name ?? detail.email} has ${orders.length} order(s).`, `${detail.name ?? detail.email} tiene ${orders.length} pedido(s).`);
     return {
       message: `${shortMessage}\n${summarizeOrdersForModel(orders)}`,
       artifact: { type: "customer_order_history", customerId: detail.id, orders, displayMessage: shortMessage }

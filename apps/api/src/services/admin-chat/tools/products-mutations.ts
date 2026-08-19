@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineAdminChatTool } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { writeAuditLog } from "../../audit";
+import { pick, type ChatLanguage } from "../language";
 import {
   adjustProductInventory,
   bulkAdjustPriceByCategory,
@@ -15,6 +16,10 @@ import {
 } from "../../products-admin";
 import type { ActionDiff } from "../artifacts";
 import type { PendingActionExecutor } from "../executors";
+
+function productNotFoundMessage(language: ChatLanguage): string {
+  return pick(language, "Product not found.", "Producto no encontrado.");
+}
 
 // Only fields chat can realistically gather from a short natural-language
 // request. name/category/priceCents/stock/imageUrl are required arguments
@@ -46,7 +51,7 @@ export const prepareCreateProductTool = defineAdminChatTool({
       visibility: "draft"
     };
     const diff: ActionDiff = {
-      summary: `Create product "${args.name}"`,
+      summary: pick(ctx.language, `Create product "${args.name}"`, `Crear producto "${args.name}"`),
       targetLabel: args.name,
       fields: [
         { field: "name", before: null, after: args.name },
@@ -56,8 +61,10 @@ export const prepareCreateProductTool = defineAdminChatTool({
         { field: "visibility", before: null, after: "draft" }
       ],
       consequences: [
-        "Created as a draft - not visible to shoppers until published.",
-        ...(args.shortDescription ? [] : ["No description was given, so the product name will be used as a placeholder."])
+        pick(ctx.language, "Created as a draft - not visible to shoppers until published.", "Se crea como borrador - no será visible para los compradores hasta que se publique."),
+        ...(args.shortDescription
+          ? []
+          : [pick(ctx.language, "No description was given, so the product name will be used as a placeholder.", "No se dio ninguna descripción, así que se usará el nombre del producto como marcador.")])
       ]
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
@@ -70,7 +77,10 @@ export const prepareCreateProductTool = defineAdminChatTool({
       diff,
       requestId: ctx.requestId
     });
-    return { message: `Ready to create "${args.name}" as a draft. Please confirm.`, artifact: { type: "pending_action", operationId, toolName: "prepare_create_product", diff, expiresAt } };
+    return {
+      message: pick(ctx.language, `Ready to create "${args.name}" as a draft. Please confirm.`, `Listo para crear "${args.name}" como borrador. Por favor confirma.`),
+      artifact: { type: "pending_action", operationId, toolName: "prepare_create_product", diff, expiresAt }
+    };
   }
 });
 
@@ -99,7 +109,12 @@ export const prepareUpdateProductTool = defineAdminChatTool({
   requires: { permission: "products.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) return { message: "I could not find that product.", artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." } };
+    if (!existing) {
+      return {
+        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
+        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
+      };
+    }
 
     const patch: ProductPatchInput = {};
     const fields: ActionDiff["fields"] = [];
@@ -121,10 +136,13 @@ export const prepareUpdateProductTool = defineAdminChatTool({
     }
 
     if (fields.length === 0) {
-      return { message: "Nothing to change - those values already match.", artifact: { type: "missing_info", message: "No fields differ from the current product.", missingFields: [] } };
+      return {
+        message: pick(ctx.language, "Nothing to change - those values already match.", "Nada que cambiar - esos valores ya coinciden."),
+        artifact: { type: "missing_info", message: pick(ctx.language, "No fields differ from the current product.", "Ningún campo difiere del producto actual."), missingFields: [] }
+      };
     }
 
-    const diff: ActionDiff = { summary: `Update ${existing.name}`, targetLabel: existing.name, fields };
+    const diff: ActionDiff = { summary: pick(ctx.language, `Update ${existing.name}`, `Actualizar ${existing.name}`), targetLabel: existing.name, fields };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
       conversationId: ctx.conversationId,
       actorId: ctx.actor.userId ?? "admin",
@@ -135,14 +153,17 @@ export const prepareUpdateProductTool = defineAdminChatTool({
       diff,
       requestId: ctx.requestId
     });
-    return { message: `Ready to update ${existing.name}. Please confirm.`, artifact: { type: "pending_action", operationId, toolName: "prepare_update_product", diff, expiresAt } };
+    return {
+      message: pick(ctx.language, `Ready to update ${existing.name}. Please confirm.`, `Listo para actualizar ${existing.name}. Por favor confirma.`),
+      artifact: { type: "pending_action", operationId, toolName: "prepare_update_product", diff, expiresAt }
+    };
   }
 });
 
 export const executeUpdateProduct: PendingActionExecutor = async (ctx, params) => {
   const { productId, patch } = params as { productId: string; patch: ProductPatchInput };
   const row = await updateProduct(ctx.env, productId, patch);
-  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: "Product not found." };
+  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
   await writeAuditLog(ctx.env, { actorId: ctx.actor.userId ?? "admin", action: "product.updated", targetType: "product", targetId: row.id, payload: { ...patch, source: "admin_chat" } });
   return { success: true, result: { productId: row.id, name: row.name } };
 };
@@ -154,15 +175,29 @@ export const prepareArchiveProductTool = defineAdminChatTool({
   requires: { permission: "products.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) return { message: "I could not find that product.", artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." } };
+    if (!existing) {
+      return {
+        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
+        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
+      };
+    }
     if (existing.visibility === "hidden") {
-      return { message: `${existing.name} is already archived.`, artifact: { type: "missing_info", message: "Already archived.", missingFields: [] } };
+      return {
+        message: pick(ctx.language, `${existing.name} is already archived.`, `${existing.name} ya está archivado.`),
+        artifact: { type: "missing_info", message: pick(ctx.language, "Already archived.", "Ya está archivado."), missingFields: [] }
+      };
     }
     const diff: ActionDiff = {
-      summary: `Archive ${existing.name}`,
+      summary: pick(ctx.language, `Archive ${existing.name}`, `Archivar ${existing.name}`),
       targetLabel: existing.name,
       fields: [{ field: "visibility", before: existing.visibility, after: "hidden" }],
-      consequences: ["The product will no longer be visible to shoppers. It is not deleted and can be republished later."]
+      consequences: [
+        pick(
+          ctx.language,
+          "The product will no longer be visible to shoppers. It is not deleted and can be republished later.",
+          "El producto ya no será visible para los compradores. No se elimina y puede volver a publicarse más tarde."
+        )
+      ]
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
       conversationId: ctx.conversationId,
@@ -174,16 +209,19 @@ export const prepareArchiveProductTool = defineAdminChatTool({
       diff,
       requestId: ctx.requestId
     });
-    return { message: `Ready to archive ${existing.name}. Please confirm.`, artifact: { type: "pending_action", operationId, toolName: "prepare_archive_product", diff, expiresAt } };
+    return {
+      message: pick(ctx.language, `Ready to archive ${existing.name}. Please confirm.`, `Listo para archivar ${existing.name}. Por favor confirma.`),
+      artifact: { type: "pending_action", operationId, toolName: "prepare_archive_product", diff, expiresAt }
+    };
   }
 });
 
 export const executeArchiveProduct: PendingActionExecutor = async (ctx, params) => {
   const { productId } = params as { productId: string };
   const row = await getProductRow(ctx.env, productId);
-  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: "Product not found." };
+  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
   const changed = await setProductVisibility(ctx.env, productId, "hidden");
-  if (!changed) return { success: false, code: "PRODUCT_NOT_FOUND", message: "Product not found." };
+  if (!changed) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
   await writeAuditLog(ctx.env, { actorId: ctx.actor.userId ?? "admin", action: "product.visibility_changed", targetType: "product", targetId: productId, payload: { visibility: "hidden", source: "admin_chat" } });
   return { success: true, result: { productId, name: row.name, visibility: "hidden" } };
 };
@@ -199,15 +237,29 @@ export const prepareBulkProductUpdateTool = defineAdminChatTool({
   run: async (args, ctx) => {
     const rows = await previewBulkPriceAdjustment(ctx.env, { category: args.category, percent: args.percent });
     if (rows.length === 0) {
-      return { message: `No products found in category "${args.category}".`, artifact: { type: "error", code: "CATEGORY_EMPTY", message: "No products in that category." } };
+      return {
+        message: pick(ctx.language, `No products found in category "${args.category}".`, `No se encontraron productos en la categoría "${args.category}".`),
+        artifact: { type: "error", code: "CATEGORY_EMPTY", message: pick(ctx.language, "No products in that category.", "No hay productos en esa categoría.") }
+      };
     }
+    const verb = args.percent > 0 ? pick(ctx.language, "Increase", "Aumentar") : pick(ctx.language, "Decrease", "Reducir");
     const diff: ActionDiff = {
-      summary: `${args.percent > 0 ? "Increase" : "Decrease"} prices by ${Math.abs(args.percent)}% in "${args.category}"`,
+      summary: pick(
+        ctx.language,
+        `${args.percent > 0 ? "Increase" : "Decrease"} prices by ${Math.abs(args.percent)}% in "${args.category}"`,
+        `${verb} precios en ${Math.abs(args.percent)}% en "${args.category}"`
+      ),
       targetLabel: args.category,
-      fields: [{ field: "priceCents", before: "varies per product", after: `${args.percent > 0 ? "+" : ""}${args.percent}%` }],
+      fields: [{ field: "priceCents", before: pick(ctx.language, "varies per product", "varía por producto"), after: `${args.percent > 0 ? "+" : ""}${args.percent}%` }],
       affectedCount: rows.length,
       sampleAffected: rows.slice(0, 5).map((row) => `${row.name}: ${(row.priceCents / 100).toFixed(2)} -> ${(row.nextPriceCents / 100).toFixed(2)}`),
-      consequences: [`This changes the price of all ${rows.length} product(s) in "${args.category}" at once.`]
+      consequences: [
+        pick(
+          ctx.language,
+          `This changes the price of all ${rows.length} product(s) in "${args.category}" at once.`,
+          `Esto cambia el precio de los ${rows.length} producto(s) de "${args.category}" a la vez.`
+        )
+      ]
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
       conversationId: ctx.conversationId,
@@ -219,7 +271,14 @@ export const prepareBulkProductUpdateTool = defineAdminChatTool({
       diff,
       requestId: ctx.requestId
     });
-    return { message: `Ready to update ${rows.length} product(s) in "${args.category}". Please confirm.`, artifact: { type: "pending_action", operationId, toolName: "prepare_bulk_product_update", diff, expiresAt } };
+    return {
+      message: pick(
+        ctx.language,
+        `Ready to update ${rows.length} product(s) in "${args.category}". Please confirm.`,
+        `Listo para actualizar ${rows.length} producto(s) en "${args.category}". Por favor confirma.`
+      ),
+      artifact: { type: "pending_action", operationId, toolName: "prepare_bulk_product_update", diff, expiresAt }
+    };
   }
 });
 
@@ -237,13 +296,18 @@ export const prepareInventoryAdjustmentTool = defineAdminChatTool({
   requires: { permission: "inventory.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) return { message: "I could not find that product.", artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: "Product not found." } };
+    if (!existing) {
+      return {
+        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
+        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
+      };
+    }
     const nextStock = Math.max(0, existing.stock + args.delta);
     const diff: ActionDiff = {
-      summary: `Adjust stock for ${existing.name}`,
+      summary: pick(ctx.language, `Adjust stock for ${existing.name}`, `Ajustar stock de ${existing.name}`),
       targetLabel: existing.name,
       fields: [{ field: "stock", before: existing.stock, after: nextStock }],
-      consequences: args.reason ? [`Reason: ${args.reason}`] : []
+      consequences: args.reason ? [pick(ctx.language, `Reason: ${args.reason}`, `Motivo: ${args.reason}`)] : []
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
       conversationId: ctx.conversationId,
@@ -255,7 +319,10 @@ export const prepareInventoryAdjustmentTool = defineAdminChatTool({
       diff,
       requestId: ctx.requestId
     });
-    return { message: `Ready to adjust ${existing.name}'s stock by ${args.delta}. Please confirm.`, artifact: { type: "pending_action", operationId, toolName: "prepare_inventory_adjustment", diff, expiresAt } };
+    return {
+      message: pick(ctx.language, `Ready to adjust ${existing.name}'s stock by ${args.delta}. Please confirm.`, `Listo para ajustar el stock de ${existing.name} en ${args.delta}. Por favor confirma.`),
+      artifact: { type: "pending_action", operationId, toolName: "prepare_inventory_adjustment", diff, expiresAt }
+    };
   }
 });
 
@@ -267,6 +334,6 @@ export const executeInventoryAdjustment: PendingActionExecutor = async (ctx, par
     actorId: ctx.actor.userId ?? "admin",
     requestId: ctx.requestId
   });
-  if (!result) return { success: false, code: "PRODUCT_NOT_FOUND", message: "Product not found." };
+  if (!result) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
   return { success: true, result: { productId, stock: result.stock } };
 };

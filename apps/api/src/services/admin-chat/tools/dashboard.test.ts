@@ -55,8 +55,8 @@ describe("getRecentActivityTool", () => {
     const { env } = fakeEnv([
       {
         all: [
-          { id: "log_2", actor_id: "usr_admin", action: "product.updated", target_type: "product", target_id: "prd_1", created_at: "2026-08-15T10:00:00Z" },
-          { id: "log_1", actor_id: "usr_admin", action: "order.status_changed", target_type: "order", target_id: "ord_1", created_at: "2026-08-15T09:00:00Z" }
+          { id: "log_2", actor_id: "usr_admin", actor_role: "admin", action: "product.updated", target_type: "product", target_id: "prd_1", created_at: "2026-08-15T10:00:00Z" },
+          { id: "log_1", actor_id: "usr_admin", actor_role: null, action: "order.status_changed", target_type: "order", target_id: "ord_1", created_at: "2026-08-15T09:00:00Z" }
         ]
       }
     ]);
@@ -67,8 +67,8 @@ describe("getRecentActivityTool", () => {
     expect(result.artifact).toEqual({
       type: "activity_list",
       items: [
-        { id: "log_2", action: "product.updated", targetType: "product", targetId: "prd_1", actorId: "usr_admin", createdAt: "2026-08-15T10:00:00Z" },
-        { id: "log_1", action: "order.status_changed", targetType: "order", targetId: "ord_1", actorId: "usr_admin", createdAt: "2026-08-15T09:00:00Z" }
+        { id: "log_2", action: "product.updated", targetType: "product", targetId: "prd_1", actorId: "usr_admin", actorRole: "admin", createdAt: "2026-08-15T10:00:00Z" },
+        { id: "log_1", action: "order.status_changed", targetType: "order", targetId: "ord_1", actorId: "usr_admin", actorRole: null, createdAt: "2026-08-15T09:00:00Z" }
       ]
     });
   });
@@ -81,5 +81,15 @@ describe("getRecentActivityTool", () => {
 
     expect(result.artifact).toEqual({ type: "activity_list", items: [] });
     expect(result.message).toMatch(/no recent activity/i);
+  });
+
+  it("builds the caption in Spanish when the operator's conversation is in Spanish, not just the card below it", async () => {
+    const { env } = fakeEnv([{ all: [{ id: "log_1", actor_id: "usr_admin", actor_role: null, action: "settings.updated", target_type: "settings", target_id: "checkout", created_at: "2026-08-16T17:35:37Z" }] }]);
+    const ctx = fakeContext(env, {}, { language: "es" });
+
+    const result = await getRecentActivityTool.run({ limit: 20 }, ctx);
+
+    expect(result.message).toBe("1 cambio(s) reciente(s), el más reciente primero.");
+    expect(result.message).not.toMatch(/recent change/i);
   });
 });

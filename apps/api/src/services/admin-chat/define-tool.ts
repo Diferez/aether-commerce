@@ -4,6 +4,7 @@ import type { Permission } from "@aether/schemas";
 import type { AdminChatContext } from "./context";
 import type { ChatArtifact } from "./artifacts";
 import { getLogger } from "../observability";
+import { pick } from "./language";
 
 export type ToolRequirements = { permission?: Permission; mutation?: boolean };
 
@@ -44,18 +45,25 @@ export function defineAdminChatTool<Schema extends z.ZodType>(spec: AdminChatToo
     requires: spec.requires,
     async run(rawArgs, ctx) {
       if (spec.requires?.mutation && ctx.env.ADMIN_CHAT_MUTATIONS_ENABLED === "false") {
-        return errorResult("MUTATIONS_DISABLED", "Mutations are temporarily disabled for Aether Chat.");
+        return errorResult("MUTATIONS_DISABLED", pick(ctx.language, "Mutations are temporarily disabled for Aether Chat.", "Las modificaciones están deshabilitadas temporalmente en Aether Chat."));
       }
       if (isDemoMutationBlocked(ctx.actor, spec.requires?.mutation ? "POST" : "GET")) {
-        return errorResult("DEMO_MODE", "Public demo mode. Changes are disabled.");
+        return errorResult("DEMO_MODE", pick(ctx.language, "Public demo mode. Changes are disabled.", "Modo de demostración pública. Los cambios están deshabilitados."));
       }
       if (spec.requires?.permission && !hasPermission(ctx.actor, spec.requires.permission)) {
-        return errorResult("FORBIDDEN", `You do not have the "${spec.requires.permission}" permission needed for this.`);
+        return errorResult(
+          "FORBIDDEN",
+          pick(
+            ctx.language,
+            `You do not have the "${spec.requires.permission}" permission needed for this.`,
+            `No tienes el permiso "${spec.requires.permission}" necesario para esto.`
+          )
+        );
       }
 
       const parsed = spec.schema.safeParse(rawArgs);
       if (!parsed.success) {
-        return errorResult("INVALID_ARGUMENTS", "That request was missing required information.");
+        return errorResult("INVALID_ARGUMENTS", pick(ctx.language, "That request was missing required information.", "A esa solicitud le faltaba información necesaria."));
       }
 
       try {
@@ -71,7 +79,7 @@ export function defineAdminChatTool<Schema extends z.ZodType>(spec: AdminChatToo
           metadata: { toolName: spec.name, conversationId: ctx.conversationId },
           error
         });
-        return errorResult("TOOL_FAILED", error instanceof Error ? error.message : "I could not complete that action right now.");
+        return errorResult("TOOL_FAILED", error instanceof Error ? error.message : pick(ctx.language, "I could not complete that action right now.", "No pude completar esa acción en este momento."));
       }
     }
   };

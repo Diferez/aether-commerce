@@ -25,6 +25,23 @@ describe("defineAdminChatTool", () => {
     expect(result.artifact).toMatchObject({ type: "error", code: "FORBIDDEN" });
   });
 
+  it("builds the FORBIDDEN message in Spanish when the operator's conversation is in Spanish", async () => {
+    const tool = defineAdminChatTool({
+      name: "test_tool",
+      description: "test",
+      schema: z.object({}),
+      requires: { permission: "orders.write" },
+      run: () => Promise.resolve({ message: "ok", artifact: { type: "text" as const } })
+    });
+    const { env } = fakeEnv();
+    const ctx = fakeContext(env, { roles: ["support"], permissions: [] }, { language: "es" });
+
+    const result = await tool.run({}, ctx);
+
+    expect(result.message).toBe('No tienes el permiso "orders.write" necesario para esto.');
+    expect(result.message).not.toMatch(/permission/i);
+  });
+
   it("blocks a mutation tool when ADMIN_CHAT_MUTATIONS_ENABLED is false, before touching business logic", async () => {
     let ran = false;
     const tool = defineAdminChatTool({

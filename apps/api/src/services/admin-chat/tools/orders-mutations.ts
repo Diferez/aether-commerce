@@ -3,6 +3,7 @@ import { canTransitionFulfillment } from "@aether/core";
 import type { FulfillmentStatus } from "@aether/schemas";
 import { defineAdminChatTool } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
+import { pick } from "../language";
 import { writeAuditLog } from "../../audit";
 import { buildRestockStatements } from "../../inventory";
 import { clearCatalogCache } from "../../catalog";
@@ -42,27 +43,37 @@ export const prepareOrderStatusChangeTool = defineAdminChatTool({
   requires: { permission: "orders.write", mutation: true },
   run: async (args, ctx) => {
     const order = await loadOrderFulfillment(ctx.env.DB, args.orderId);
-    if (!order) return { message: "I could not find that order.", artifact: { type: "error", code: "ORDER_NOT_FOUND", message: "Order not found." } };
+    if (!order) {
+      return {
+        message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."),
+        artifact: { type: "error", code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") }
+      };
+    }
 
     const from = order.fulfillment_status as FulfillmentStatus;
     if (!canTransitionFulfillment(from, args.fulfillmentStatus)) {
       const allowed = FULFILLMENT_STATUSES.filter((candidate) => canTransitionFulfillment(from, candidate));
       return {
-        message:
+        message: pick(
+          ctx.language,
           allowed.length > 0
             ? `Order ${order.number} is ${from} and can't move directly to ${args.fulfillmentStatus}. It can move to: ${allowed.join(", ")}.`
             : `Order ${order.number} is ${from}, which cannot move to any other status.`,
+          allowed.length > 0
+            ? `El pedido ${order.number} está en estado "${from}" y no puede pasar directamente a "${args.fulfillmentStatus}". Puede pasar a: ${allowed.join(", ")}.`
+            : `El pedido ${order.number} está en estado "${from}", que no puede pasar a ningún otro estado.`
+        ),
         artifact: { type: "allowed_transitions", current: from, allowed: [...allowed] }
       };
     }
 
     const diff: ActionDiff = {
-      summary: `Mark order ${order.number} as ${args.fulfillmentStatus}`,
+      summary: pick(ctx.language, `Mark order ${order.number} as ${args.fulfillmentStatus}`, `Marcar el pedido ${order.number} como "${args.fulfillmentStatus}"`),
       targetLabel: order.number,
       fields: [{ field: "fulfillmentStatus", before: from, after: args.fulfillmentStatus }],
       consequences:
         args.fulfillmentStatus === "cancelled" && !order.stock_restored_at
-          ? ["Cancelling restores stock for every item on this order."]
+          ? [pick(ctx.language, "Cancelling restores stock for every item on this order.", "Cancelar restaura el stock de todos los artículos de este pedido.")]
           : []
     };
     const { operationId, expiresAt } = await createPendingAction(ctx.env, {
@@ -76,7 +87,11 @@ export const prepareOrderStatusChangeTool = defineAdminChatTool({
       requestId: ctx.requestId
     });
     return {
-      message: `Ready to mark order ${order.number} as ${args.fulfillmentStatus}. Please confirm.`,
+      message: pick(
+        ctx.language,
+        `Ready to mark order ${order.number} as ${args.fulfillmentStatus}. Please confirm.`,
+        `Listo para marcar el pedido ${order.number} como "${args.fulfillmentStatus}". Por favor confirma.`
+      ),
       artifact: { type: "pending_action", operationId, toolName: "prepare_order_status_change", diff, expiresAt }
     };
   }
@@ -91,11 +106,19 @@ export const executeOrderStatusChange: PendingActionExecutor = async (ctx, param
   const current = await ctx.env.DB.prepare("select fulfillment_status, stock_restored_at from orders where id = ?")
     .bind(orderId)
     .first<{ fulfillment_status: string; stock_restored_at: string | null }>();
-  if (!current) return { success: false, code: "ORDER_NOT_FOUND", message: "Order not found." };
+  if (!current) return { success: false, code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") };
 
   const from = current.fulfillment_status as FulfillmentStatus;
   if (!canTransitionFulfillment(from, fulfillmentStatus)) {
-    return { success: false, code: "FULFILLMENT_TRANSITION_INVALID", message: `The order changed - it's now ${from} and can no longer move to ${fulfillmentStatus}.` };
+    return {
+      success: false,
+      code: "FULFILLMENT_TRANSITION_INVALID",
+      message: pick(
+        ctx.language,
+        `The order changed - it's now ${from} and can no longer move to ${fulfillmentStatus}.`,
+        `El pedido cambió: ahora está en estado "${from}" y ya no puede pasar a "${fulfillmentStatus}".`
+      )
+    };
   }
 
   const shouldRestock = fulfillmentStatus === "cancelled" && current.stock_restored_at === null;
@@ -112,7 +135,11 @@ export const executeOrderStatusChange: PendingActionExecutor = async (ctx, param
       ...restockStatements
     ]);
     if ((results[0]?.meta.changes ?? 0) !== 1) {
-      return { success: false, code: "FULFILLMENT_CONFLICT", message: "The order changed while this update was being applied." };
+      return {
+        success: false,
+        code: "FULFILLMENT_CONFLICT",
+        message: pick(ctx.language, "The order changed while this update was being applied.", "El pedido cambió mientras se aplicaba esta actualización.")
+      };
     }
     await clearCatalogCache(ctx.env);
   } else {
@@ -120,7 +147,11 @@ export const executeOrderStatusChange: PendingActionExecutor = async (ctx, param
       .bind(fulfillmentStatus, new Date().toISOString(), orderId, from)
       .run();
     if ((result.meta.changes ?? 0) !== 1) {
-      return { success: false, code: "FULFILLMENT_CONFLICT", message: "The order changed while this update was being applied." };
+      return {
+        success: false,
+        code: "FULFILLMENT_CONFLICT",
+        message: pick(ctx.language, "The order changed while this update was being applied.", "El pedido cambió mientras se aplicaba esta actualización.")
+      };
     }
   }
 

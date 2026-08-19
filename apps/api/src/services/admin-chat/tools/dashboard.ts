@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineAdminChatTool } from "../define-tool";
+import { pick } from "../language";
 
 // Mirrors GET /admin/dashboard's own numbers exactly (routes/admin.ts) -
 // including the fact that revenue/orders/averageTicket/productsSold/
@@ -26,7 +27,11 @@ export const getDashboardSummaryTool = defineAdminChatTool({
       lowStock: lowStock?.count ?? 0
     };
     return {
-      message: `${summary.orders} orders, ${summary.lowStock} product(s) low on stock.`,
+      message: pick(
+        ctx.language,
+        `${summary.orders} orders, ${summary.lowStock} product(s) low on stock.`,
+        `${summary.orders} pedidos, ${summary.lowStock} producto(s) con poco stock.`
+      ),
       artifact: { type: "dashboard_summary", summary }
     };
   }
@@ -37,10 +42,14 @@ export const getSalesSummaryTool = defineAdminChatTool({
   description: "Gets revenue and order-volume figures shown on the dashboard.",
   schema: z.object({}),
   requires: { permission: "orders.read" },
-  run: () => {
+  run: (_args, ctx) => {
     const summary = { revenue: 1842500, orders: 128, averageTicket: 14395, conversionRate: 4.8 };
     return Promise.resolve({
-      message: `Revenue: ${(summary.revenue / 100).toFixed(2)} across ${summary.orders} orders.`,
+      message: pick(
+        ctx.language,
+        `Revenue: ${(summary.revenue / 100).toFixed(2)} across ${summary.orders} orders.`,
+        `Ingresos: ${(summary.revenue / 100).toFixed(2)} en ${summary.orders} pedidos.`
+      ),
       artifact: { type: "dashboard_summary" as const, summary }
     });
   }
@@ -63,7 +72,11 @@ export const getStoreAlertsTool = defineAdminChatTool({
       pendingOrders: pendingOrders?.count ?? 0
     };
     return {
-      message: `${summary.pendingOrders} order(s) pending, ${summary.lowStock} product(s) low on stock, ${summary.outOfStock} out of stock.`,
+      message: pick(
+        ctx.language,
+        `${summary.pendingOrders} order(s) pending, ${summary.lowStock} product(s) low on stock, ${summary.outOfStock} out of stock.`,
+        `${summary.pendingOrders} pedido(s) pendiente(s), ${summary.lowStock} producto(s) con poco stock, ${summary.outOfStock} agotado(s).`
+      ),
       artifact: { type: "dashboard_summary", summary }
     };
   }
@@ -75,19 +88,25 @@ export const getRecentActivityTool = defineAdminChatTool({
   schema: z.object({ limit: z.number().int().min(1).max(50).default(20) }),
   requires: { permission: "audit.read" },
   run: async (args, ctx) => {
-    const rows = await ctx.env.DB.prepare("select id, actor_id, action, target_type, target_id, created_at from audit_logs order by created_at desc limit ?")
+    const rows = await ctx.env.DB.prepare(
+      "select id, actor_id, actor_role, action, target_type, target_id, created_at from audit_logs order by created_at desc limit ?"
+    )
       .bind(args.limit)
-      .all<{ id: string; actor_id: string; action: string; target_type: string; target_id: string | null; created_at: string }>();
+      .all<{ id: string; actor_id: string; actor_role: string | null; action: string; target_type: string; target_id: string | null; created_at: string }>();
     const items = (rows.results || []).map((row) => ({
       id: row.id,
       action: row.action,
       targetType: row.target_type,
       targetId: row.target_id,
       actorId: row.actor_id,
+      actorRole: row.actor_role,
       createdAt: row.created_at
     }));
     return {
-      message: items.length === 0 ? "No recent activity." : `${items.length} recent change(s), most recent first.`,
+      message:
+        items.length === 0
+          ? pick(ctx.language, "No recent activity.", "No hay actividad reciente.")
+          : pick(ctx.language, `${items.length} recent change(s), most recent first.`, `${items.length} cambio(s) reciente(s), el más reciente primero.`),
       artifact: { type: "activity_list", items }
     };
   }

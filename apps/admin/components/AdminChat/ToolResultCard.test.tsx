@@ -72,3 +72,86 @@ describe("ToolResultCard - dashboard_summary", () => {
     expect(screen.getByText("Low stock")).toBeInTheDocument();
   });
 });
+
+describe("ToolResultCard - activity_list", () => {
+  it("renders a plain-language sentence for a known audit action, never the raw dotted code or internal ids", () => {
+    const artifact: ChatArtifact = {
+      type: "activity_list",
+      items: [
+        {
+          id: "log_1",
+          action: "order.fulfillment_changed",
+          targetType: "order",
+          targetId: "ord_cs_test_a1aaoipCwYTRlX55YnmJZ0GzHu6I3zbdlu4YfCuVOoyQh1gZAWhqWRYRfM",
+          actorId: "user_3H4gZeq7OeXzhhUHc2lOGSFg6cj",
+          actorRole: null,
+          createdAt: "2026-08-16T10:21:21Z"
+        },
+        {
+          id: "log_2",
+          action: "settings.updated",
+          targetType: "settings",
+          targetId: "checkout",
+          actorId: "user_3H4gZeq7OeXzhhUHc2lOGSFg6cj",
+          actorRole: "admin",
+          createdAt: "2026-08-16T17:35:37Z"
+        }
+      ]
+    };
+
+    render(<ToolResultCard artifact={artifact} />);
+
+    expect(screen.getByText("Order shipping status updated")).toBeInTheDocument();
+    expect(screen.getByText("Store settings updated: checkout & payments")).toBeInTheDocument();
+
+    // A resolved role reads as "by admin"; nothing resolves the other row's
+    // actor, so it must not fall back to showing the raw Clerk id.
+    expect(screen.getByText(/by admin/)).toBeInTheDocument();
+    expect(screen.queryByText(/order\.fulfillment_changed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/settings\.updated/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/user_3H4gZeq7OeXzhhUHc2lOGSFg6cj/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ord_cs_test_a1aaoipCwYTRlX55YnmJZ0GzHu6I3zbdlu4YfCuVOoyQh1gZAWhqWRYRfM/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to a humanized (not raw) label for an action code with no translation yet", () => {
+    const artifact: ChatArtifact = {
+      type: "activity_list",
+      items: [
+        {
+          id: "log_3",
+          action: "auth.login_failed",
+          targetType: "auth",
+          targetId: null,
+          actorId: "user_abc",
+          actorRole: null,
+          createdAt: "2026-08-16T10:00:00Z"
+        }
+      ]
+    };
+
+    render(<ToolResultCard artifact={artifact} />);
+
+    expect(screen.getByText("Auth login failed")).toBeInTheDocument();
+  });
+
+  it("marks a webhook-driven change as automatic instead of showing the provider as a person", () => {
+    const artifact: ChatArtifact = {
+      type: "activity_list",
+      items: [
+        {
+          id: "evt_1",
+          action: "stripe.processed",
+          targetType: "webhook",
+          targetId: "evt_123",
+          actorId: "stripe",
+          actorRole: null,
+          createdAt: "2026-08-16T10:00:00Z"
+        }
+      ]
+    };
+
+    render(<ToolResultCard artifact={artifact} />);
+
+    expect(screen.getByText(/automatically/)).toBeInTheDocument();
+  });
+});

@@ -284,6 +284,59 @@ describe("interview regressions", () => {
     expect(payload.message).not.toMatch(/no puedo ayudar con esa solicitud/i);
   });
 
+  it("routes an unambiguous 'my orders' request straight to get_my_orders without ever calling the model", async () => {
+    // Regression for a real production bug: clicking "Ver mis pedidos" right
+    // after a "Buscar ofertas" turn returned that earlier turn's product
+    // results again instead of the shopper's orders - the LLM tool-calling
+    // path occasionally picks an unrelated tool for unambiguous, no-argument
+    // read requests. GET_MY_ORDERS/GET_CART/GET_FAVORITES now bypass the
+    // model entirely via heuristicIntent (validateAgentRequestNode's
+    // tryHeuristicShortCircuit), so there's no tool-call decision for the
+    // model to get wrong. Asserts on both ends: the right data comes back,
+    // and Gemini's endpoint is never touched to get it.
+    let geminiCalled = false;
+    const originalFetch = global.fetch;
+    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("generativelanguage.googleapis.com")) geminiCalled = true;
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        assistantRequest("Ver mis pedidos", { authorization: "Bearer clerk-token" }),
+        {
+          ...env((_request, init) => {
+            expect(new Headers(init?.headers).get("authorization")).toBe("Bearer clerk-token");
+            return Promise.resolve(Response.json({ success: true, data: [order] }));
+          }),
+          GEMINI_API_KEY: "test-key"
+        }
+      );
+      const payload = await response.json<{ intent: string; orders: unknown[]; message: string }>();
+      expect(payload.intent).toBe("GET_MY_ORDERS");
+      expect(payload.orders).toEqual([expect.objectContaining({ number: "AETH-5001" })]);
+      expect(payload.message).toMatch(/pedido/i);
+      expect(geminiCalled).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("still asks the model when GET_MY_ORDERS preconditions block the heuristic short-circuit", async () => {
+    // The short-circuit still enforces the same sign-in requirement the LLM
+    // tool-calling path would - it must never surface order data (or any
+    // other tool's data) without authorization just because it skipped the
+    // model.
+    const response = await worker.fetch(
+      assistantRequest("Ver mis pedidos"),
+      { ...env(), GEMINI_API_KEY: "test-key" }
+    );
+    const payload = await response.json<{ intent: string; action: { type: string } }>();
+    expect(payload.intent).toBe("GET_MY_ORDERS");
+    expect(payload.action.type).toBe("SIGN_IN_REQUIRED");
+  });
+
   it("maps celulares to the real smartphones category", async () => {
     let category = "";
     const response = await worker.fetch(

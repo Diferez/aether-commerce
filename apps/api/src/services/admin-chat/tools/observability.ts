@@ -3,6 +3,7 @@ import { formatDurationMinutes } from "@aether/core";
 import { defineAdminChatTool } from "../define-tool";
 import { computeSystemHealth } from "../../system-health";
 import { listRecentWebhookEvents } from "../../webhooks";
+import { pick } from "../language";
 import type { ActivityItemArtifact, OrderSummaryArtifact } from "../artifacts";
 
 // Read-only visibility into the observability layer itself (System health,
@@ -22,7 +23,7 @@ export const getSystemHealthTool = defineAdminChatTool({
     const snapshot = await computeSystemHealth(ctx.env);
     const issues: { name: string; level: "critical" | "degraded"; reason: string }[] = Object.entries(snapshot.components)
       .filter((entry): entry is [string, { level: "critical" | "degraded"; reason?: string }] => entry[1].level === "critical" || entry[1].level === "degraded")
-      .map(([name, component]) => ({ name, level: component.level, reason: component.reason ?? "no detail" }));
+      .map(([name, component]) => ({ name, level: component.level, reason: component.reason ?? pick(ctx.language, "no detail", "sin detalle") }));
 
     const relatedOrders: OrderSummaryArtifact[] = snapshot.stats.blockedOrders.map((order) => ({
       id: order.id,
@@ -43,15 +44,21 @@ export const getSystemHealthTool = defineAdminChatTool({
     const blockedOrderDetail = snapshot.stats.blockedOrders
       .map(
         (order) =>
-          `- ${order.number}: ${(order.totalCents / 100).toFixed(2)} ${order.currency}, ${order.email}, unfulfilled for ${formatDurationMinutes(order.blockedMinutes)} (id ${order.id})`
+          `- ${order.number}: ${(order.totalCents / 100).toFixed(2)} ${order.currency}, ${order.email}, ${pick(ctx.language, "unfulfilled for", "sin surtir desde hace")} ${formatDurationMinutes(order.blockedMinutes)} (id ${order.id})`
       )
       .join("\n");
 
-    const message =
+    const message = pick(
+      ctx.language,
       issues.length === 0
         ? `System status: ${snapshot.status}. No components are flagged.`
         : `System status: ${snapshot.status}. ${issues.length} component(s) need attention:\n${issues.map((issue) => `- ${issue.name} (${issue.level}): ${issue.reason}`).join("\n")}` +
-          (snapshot.stats.blockedOrders.length > 0 ? `\n\nBlocked order(s):\n${blockedOrderDetail}` : "");
+          (snapshot.stats.blockedOrders.length > 0 ? `\n\nBlocked order(s):\n${blockedOrderDetail}` : ""),
+      issues.length === 0
+        ? `Estado del sistema: ${snapshot.status}. Ningún componente está marcado.`
+        : `Estado del sistema: ${snapshot.status}. ${issues.length} componente(s) necesitan atención:\n${issues.map((issue) => `- ${issue.name} (${issue.level}): ${issue.reason}`).join("\n")}` +
+          (snapshot.stats.blockedOrders.length > 0 ? `\n\nPedido(s) bloqueado(s):\n${blockedOrderDetail}` : "")
+    );
 
     return {
       message,
@@ -70,7 +77,7 @@ export const getSystemHealthTool = defineAdminChatTool({
             ? `${snapshot.stats.lastCriticalTask.status} (${formatDurationMinutes(
                 Math.round((Date.now() - new Date(snapshot.stats.lastCriticalTask.lastRunAt.replace(" ", "T") + "Z").getTime()) / 60_000)
               )} ago)`
-            : "never run"
+            : pick(ctx.language, "never run", "nunca se ejecutó")
         },
         ...(issues.length > 0 ? { issues } : {}),
         ...(relatedOrders.length > 0 ? { relatedOrders } : {}),
@@ -103,21 +110,35 @@ export const getWebhookActivityTool = defineAdminChatTool({
       targetType: "webhook",
       targetId: row.provider_event_id,
       actorId: row.provider,
+      // No human actor exists for a webhook delivery - actorId is already the
+      // provider name (e.g. "stripe"), which the card's actor clause
+      // recognizes as an automated actor without needing a role here.
+      actorRole: null,
       createdAt: row.received_at
     }));
 
     const failed = rows.filter((row) => row.status === "failed");
     const failedSummary = failed
       .slice(0, 5)
-      .map((row) => `${row.provider}/${row.provider_event_id} - ${row.error_code ?? "unknown error"}: ${row.error_message ?? "no detail recorded"} (${row.attempts} attempt(s))`)
+      .map(
+        (row) =>
+          `${row.provider}/${row.provider_event_id} - ${row.error_code ?? pick(ctx.language, "unknown error", "error desconocido")}: ${row.error_message ?? pick(ctx.language, "no detail recorded", "sin detalle registrado")} (${row.attempts} ${pick(ctx.language, "attempt(s)", "intento(s)")})`
+      )
       .join("\n");
 
-    const message =
+    const message = pick(
+      ctx.language,
       rows.length === 0
         ? "No webhook deliveries match that filter."
         : failed.length === 0
           ? `${rows.length} recent webhook event(s), none failed.`
-          : `${rows.length} recent webhook event(s), ${failed.length} failed:\n${failedSummary}`;
+          : `${rows.length} recent webhook event(s), ${failed.length} failed:\n${failedSummary}`,
+      rows.length === 0
+        ? "Ningún webhook coincide con ese filtro."
+        : failed.length === 0
+          ? `${rows.length} evento(s) de webhook reciente(s), ninguno falló.`
+          : `${rows.length} evento(s) de webhook reciente(s), ${failed.length} fallaron:\n${failedSummary}`
+    );
 
     return { message, artifact: { type: "activity_list", items } };
   }

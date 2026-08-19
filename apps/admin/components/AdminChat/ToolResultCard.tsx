@@ -1,6 +1,16 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
 import { StatusBadge } from "../StatusBadge";
-import { money, visibilityTone, fulfillmentTone, customerStatusTone, healthLevelTone, statFieldLabel, formatStatValue } from "./format";
+import {
+  money,
+  visibilityTone,
+  fulfillmentTone,
+  customerStatusTone,
+  healthLevelTone,
+  statFieldLabel,
+  formatStatValue,
+  activityActionLabel,
+  activityActorClause
+} from "./format";
 import { useAdminLanguage } from "../AdminLanguageProvider";
 import type { AdminDictionary } from "@aether/i18n";
 import type {
@@ -100,13 +110,22 @@ function IssueRow({ issue }: { issue: { name: string; level: "critical" | "degra
   );
 }
 
-function ActivityRow({ item, locale }: { item: ActivityItemArtifact; locale: string }) {
+function ActivityRow({ item, locale, t }: { item: ActivityItemArtifact; locale: string; t: AdminDictionary }) {
+  // Primary line is a plain-language sentence (see format.ts's
+  // activityActionLabel) instead of the raw dotted action code - the store
+  // owner reading this card has no reason to know what "order.
+  // fulfillment_changed" means. The actor clause is included only when it
+  // resolves to something a human recognizes (a role, or a known automated
+  // actor) - an opaque Clerk user id is omitted rather than shown as if it
+  // meant something (see activityActorClause).
+  const actorClause = activityActorClause(t, item);
+  const when = new Date(item.createdAt).toLocaleString(locale === "es" ? "es-ES" : "en-US");
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2 text-sm">
-      <p className="font-medium text-ink [overflow-wrap:anywhere]">{item.action}</p>
+      <p className="font-medium text-ink [overflow-wrap:anywhere]">{activityActionLabel(t, item)}</p>
       <p className="text-xs text-ink-subtle [overflow-wrap:anywhere]">
-        {item.targetType}
-        {item.targetId ? ` - ${item.targetId}` : ""} - {item.actorId} - {new Date(item.createdAt).toLocaleString(locale === "es" ? "es-ES" : "en-US")}
+        {actorClause ? `${actorClause} - ` : ""}
+        {when}
       </p>
     </div>
   );
@@ -202,7 +221,7 @@ export function ToolResultCard({ artifact }: { artifact: ChatArtifact }) {
       return artifact.items.length === 0 ? (
         <p className="text-sm text-ink-subtle">{t.chat.noActivityToShow}</p>
       ) : (
-        <div className="grid gap-1.5">{artifact.items.map((item) => <ActivityRow key={item.id} item={item} locale={locale} />)}</div>
+        <div className="grid gap-1.5">{artifact.items.map((item) => <ActivityRow key={item.id} item={item} locale={locale} t={t} />)}</div>
       );
 
     case "allowed_transitions":

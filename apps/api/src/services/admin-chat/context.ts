@@ -1,5 +1,6 @@
 import type { Actor } from "@aether/schemas";
 import type { Env } from "../../types";
+import type { ChatLanguage } from "./language";
 
 export type ClientVisibleContext = {
   route?: string;
@@ -14,6 +15,11 @@ export type AdminChatContext = {
   requestId: string;
   conversationId: string;
   visible: ClientVisibleContext;
+  // The admin panel's active locale, sent by the client (see
+  // buildChatRequestContext's sibling `language` field on the request body,
+  // not part of this "visible" bag since it changes tool behavior rather
+  // than just informing it). Defaults to "en" when a client omits it.
+  language: ChatLanguage;
 };
 
 const MAX_FILTER_ENTRIES = 10;

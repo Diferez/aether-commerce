@@ -46,12 +46,18 @@ export function fakeActor(overrides: Partial<Actor> = {}): Actor {
   return { userId: "usr_admin", roles: ["admin"], permissions: [], mode: "private", ...overrides };
 }
 
-export function fakeContext(env: Env, actorOverrides: Partial<Actor> = {}): AdminChatContext {
+export function fakeContext(
+  env: Env,
+  actorOverrides: Partial<Actor> = {},
+  contextOverrides: Partial<Pick<AdminChatContext, "visible" | "language">> = {}
+): AdminChatContext {
   return {
     env,
     actor: fakeActor(actorOverrides),
     requestId: "req_test",
     conversationId: "conv_test",
-    visible: {}
+    visible: {},
+    language: "en",
+    ...contextOverrides
   };
 }
