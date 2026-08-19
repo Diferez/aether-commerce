@@ -2,10 +2,17 @@
 
 `agent-core` owns reusable prompt composition and guardrails. Client adapters pass store context, tools and business instructions while keeping provider credentials, rate limits and bindings in their runtime.
 
-For Python/LangGraph adapters, the same package contains a small installable
-runtime at `packages/agent-core/python`. Its `compile_agent_graph` primitive
-owns only graph assembly and deterministic fallback wiring; client adapters own
-their state, nodes, prompts, tools, provider, persistence and deployment
-bindings. The Aether Python assistant consumes this primitive through
-`PYTHONPATH`; the container builds from the repository root so that source is
-included without copying it into the app.
+The Aether storefront assistant (`apps/ai-assistant`) is a TypeScript
+LangGraph.js Cloudflare Worker built on `agent-core`'s TypeScript surface
+(conversation-memory ownership, tool telemetry, Gemini provider adapter).
+The earlier Python/LangGraph container adapter
+(`packages/agent-core/python`, `apps/ai-assistant`'s FastAPI/Docker
+runtime) has been removed.
+
+The admin panel's own "Aether Chat" agent
+(`apps/api/src/services/admin-chat/`) is a separate, independent
+implementation - it does not import `agent-core` - built directly inside
+`apps/api` against its own D1-backed conversation/pending-action tables
+(migration `0019_admin_chat.sql`). `agent-core` is not yet the shared
+foundation for both assistants; extracting a common layer between them is
+open follow-up work, not something already done.
