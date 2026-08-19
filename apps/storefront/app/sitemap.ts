@@ -1,6 +1,12 @@
 import type { MetadataRoute } from "next";
 import products from "../data/products.json";
 
+// output: "export" (next.config.mjs) requires every dynamic-looking route -
+// sitemap.xml and robots.txt included - to explicitly opt into static
+// generation, even though this one has no real per-request behavior to
+// begin with (confirmed live: the build fails without this).
+export const dynamic = "force-static";
+
 // Same origin layout.tsx's own metadataBase already hardcodes - kept
 // consistent rather than introducing a second source of truth for it.
 const baseUrl = "https://aether-storefront.pickofwow.workers.dev";
