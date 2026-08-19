@@ -233,6 +233,16 @@ export const dictionaries = {
       consent: "I agree to send this demo contact request and understand no sensitive data should be included.",
       submit: "Send message",
       defaultSubject: "Aether inquiry"
+    },
+    checkoutPage: {
+      eyebrow: "Checkout",
+      title: "Review before Stripe sandbox",
+      highlights: [
+        ["Backend totals", "The Worker recalculates prices, coupons, shipping and inventory."],
+        ["Stripe test mode", "Checkout uses sandbox keys only and never processes live payments."],
+        ["Simulated shipping", "Standard, express and priority options are configured in D1."]
+      ],
+      continueFromCart: "Continue from cart"
     }
   },
   es: {
@@ -465,6 +475,16 @@ export const dictionaries = {
       consent: "Acepto enviar esta solicitud de contacto demo y entiendo que no debo incluir datos sensibles.",
       submit: "Enviar mensaje",
       defaultSubject: "Consulta Aether"
+    },
+    checkoutPage: {
+      eyebrow: "Checkout",
+      title: "Revisión antes del checkout de prueba con Stripe",
+      highlights: [
+        ["Totales del backend", "El Worker recalcula precios, cupones, envío e inventario."],
+        ["Modo de prueba de Stripe", "El checkout usa solo llaves de sandbox y nunca procesa pagos reales."],
+        ["Envío simulado", "Las opciones estándar, exprés y prioritaria están configuradas en D1."]
+      ],
+      continueFromCart: "Continuar desde el carrito"
     }
   }
 } as const;
