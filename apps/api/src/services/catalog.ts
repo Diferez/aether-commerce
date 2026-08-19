@@ -2,22 +2,8 @@ import { getInventoryStatus, humanizeCategorySlug } from "@aether/core";
 import { foldCatalogText, queryCatalog } from "@aether/api-core";
 import { productSchema, type Product, type ProductQuery } from "@aether/schemas";
 import type { Env } from "../types";
-import localProducts from "../data/products.json";
 
-type LocalProduct = {
-  id: string;
-  sku: string;
-  slug: string;
-  name: string;
-  brand: string;
-  category: string;
-  subcategory: string;
-  price: number;
-  compareAtPrice?: number;
-  currency: "USD";
-  stock: number;
-  rating: number;
-  reviewCount: number;
+export type ProductDetails = {
   shortDescription: string;
   description: string;
   highlights: string[];
@@ -25,15 +11,41 @@ type LocalProduct = {
   tags: string[];
   variants: Array<{ type: string; options: string[] }>;
   images: { main: string; gallery: string[] };
-  imagePrompt: string;
-  featured: boolean;
-  isNew: boolean;
-  createdAt: string;
+  imagePrompt?: string;
+  // Optional admin overrides - normalizeRow falls back to a name/
+  // shortDescription-derived default when either is absent, same behavior
+  // as before these existed. Explicit `| undefined` (not just `?:`) because
+  // exactOptionalPropertyTypes distinguishes "key absent" from "key present
+  // with value undefined", and callers build this object from optional input.
+  seoTitle?: string | undefined;
+  seoDescription?: string | undefined;
 };
 
-const typedLocalProducts = localProducts as LocalProduct[];
+export type ProductRow = {
+  id: string;
+  sku: string;
+  slug: string;
+  name: string;
+  brand: string | null;
+  category: string;
+  subcategory: string | null;
+  price_cents: number;
+  compare_at_price_cents: number | null;
+  final_price_cents: number;
+  stock: number;
+  low_stock_threshold: number;
+  visibility: "draft" | "visible" | "hidden";
+  featured: number;
+  is_new: number;
+  is_deal: number;
+  rating_average: number;
+  rating_count: number;
+  details_json: string;
+  created_at: string;
+  updated_at: string;
+};
 
-export const catalogCacheKey = "local-products-v1";
+export const catalogCacheKey = "products-v2";
 const memoryCacheTtlMs = 5 * 60 * 1000;
 let memoryCatalogCache: { expiresAt: number; products: Product[] } | null = null;
 
@@ -41,70 +53,69 @@ function storefrontOrigin(env: Env) {
   return env.APP_ORIGIN_STORE ?? "http://localhost:3000";
 }
 
+// Cloudinary/external image URLs already resolve on their own; only bare
+// paths (the bundled demo catalog's /products/*.webp assets) need the
+// storefront origin prefixed onto them.
 function absoluteImageUrl(env: Env, imagePath: string) {
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
   const basePath = (env.APP_STORE_BASE_PATH ?? "").replace(/\/$/, "");
   return `${storefrontOrigin(env)}${basePath}${imagePath}`;
 }
 
-function flagsFor(product: LocalProduct): Product["flags"] {
+function flagsFor(row: ProductRow): Product["flags"] {
   const flags: Product["flags"] = [];
-  if (product.featured) flags.push("featured");
-  if (product.isNew) flags.push("new");
-  if (product.compareAtPrice) flags.push("deal");
-  if (product.stock > 0 && product.stock <= 6) flags.push("limited");
+  if (row.featured) flags.push("featured");
+  if (row.is_new) flags.push("new");
+  if (row.is_deal) flags.push("deal");
+  if (row.stock > 0 && row.stock <= row.low_stock_threshold) flags.push("limited");
   return flags.length > 0 ? flags : ["featured"];
 }
 
-function normalizeLocal(env: Env, product: LocalProduct): Product {
-  // The local catalog's `price` is what the customer pays today; the (older,
-  // higher) `compareAtPrice` - when present - is the struck-through reference
-  // price. The shared Product contract inherited the opposite direction from
-  // its DummyJSON origin (`price` = pre-discount, `finalPrice` = what's
-  // charged), so the two are swapped here to land in the right fields.
-  const finalPrice = Math.round(product.price * 100);
-  const price = product.compareAtPrice ? Math.round(product.compareAtPrice * 100) : finalPrice;
-  const discountPercentage = product.compareAtPrice
-    ? Math.max(0, Math.min(95, Math.round((1 - product.price / product.compareAtPrice) * 100)))
+function normalizeRow(env: Env, row: ProductRow): Product {
+  const details = JSON.parse(row.details_json) as ProductDetails;
+  const finalPrice = row.final_price_cents;
+  const price = row.compare_at_price_cents ?? finalPrice;
+  const discountPercentage = row.compare_at_price_cents
+    ? Math.max(0, Math.min(95, Math.round((1 - finalPrice / row.compare_at_price_cents) * 100)))
     : 0;
 
-  const categoryName = humanizeCategorySlug(product.category);
-  const availableStock = Math.max(0, product.stock);
-  const availabilityStatus = getInventoryStatus(availableStock, 4);
+  const categoryName = humanizeCategorySlug(row.category);
+  const availableStock = Math.max(0, row.stock);
+  const availabilityStatus = getInventoryStatus(availableStock, row.low_stock_threshold);
 
-  const images: Product["images"] = [product.images.main, ...product.images.gallery].map((imagePath, index) => ({
+  const images: Product["images"] = [details.images.main, ...details.images.gallery].map((imagePath, index) => ({
     url: absoluteImageUrl(env, imagePath),
-    alt: `${product.name} image ${index + 1}`,
-    source: "local"
+    alt: `${row.name} image ${index + 1}`,
+    source: /^https?:\/\//i.test(imagePath) ? "cloudinary" : "local"
   }));
 
-  const flags = flagsFor(product);
-  const now = new Date().toISOString();
-  const specifications = Object.entries(product.specs).map(([key, value]) => ({ key, value }));
-  const primaryVariant = product.variants[0];
+  const flags = flagsFor(row);
+  const specifications = Object.entries(details.specs).map(([key, value]) => ({ key, value }));
+  const primaryVariant = details.variants[0];
 
   return productSchema.parse({
-    id: product.id,
+    id: row.id,
     externalId: null,
-    sourceId: String(Number(product.id.replace(/\D/g, "")) || 0),
-    slug: product.slug,
-    name: product.name,
-    shortDescription: product.shortDescription,
-    description: product.description,
+    sourceId: row.id,
+    slug: row.slug,
+    name: row.name,
+    shortDescription: details.shortDescription,
+    description: details.description,
     price,
-    originalPrice: product.compareAtPrice ? price : null,
+    originalPrice: row.compare_at_price_cents ? price : null,
     finalPrice,
     discountPercentage,
     currency: "USD",
     category: {
-      id: product.category,
+      id: row.category,
       externalId: null,
-      slug: product.category,
+      slug: row.category,
       name: categoryName,
       image: images[0]?.url ?? null
     },
-    sku: product.sku,
-    brand: product.brand,
-    tags: [product.category, product.subcategory, ...product.tags, ...flags],
+    sku: row.sku,
+    brand: row.brand,
+    tags: [row.category, row.subcategory, ...details.tags, ...flags].filter((tag): tag is string => Boolean(tag)),
     initialStock: availableStock,
     reservedStock: 0,
     soldStock: 0,
@@ -112,62 +123,67 @@ function normalizeLocal(env: Env, product: LocalProduct): Product {
     adjustedStock: 0,
     availableStock,
     availabilityStatus: availabilityStatus === "hidden" ? "discontinued" : availabilityStatus,
-    thumbnail: images[0]?.url ?? absoluteImageUrl(env, product.images.main),
+    thumbnail: images[0]?.url ?? absoluteImageUrl(env, details.images.main),
     images,
     gallery: images.map((image) => image.url),
     specifications,
     flags,
     seo: {
-      title: `${product.name} | Aether`,
-      description: product.shortDescription.slice(0, 150),
-      canonicalPath: `/products/${product.slug}`
+      title: details.seoTitle || `${row.name} | Aether`,
+      description: details.seoDescription || details.shortDescription.slice(0, 150),
+      canonicalPath: `/products/${row.slug}`
     },
     variants: primaryVariant
       ? primaryVariant.options.map((option, index) => ({
-          id: `${product.slug}-${option.toLowerCase().replace(/\s+/g, "-")}`,
+          id: `${row.slug}-${option.toLowerCase().replace(/\s+/g, "-")}`,
           name: primaryVariant.type,
           value: option,
           priceAdjustment: 0,
           stockAdjustment: 0,
           label: option,
-          sku: `${product.sku}-${index + 1}`,
+          sku: `${row.sku}-${index + 1}`,
           priceDelta: 0,
           inventory: availableStock,
           attributes: { [primaryVariant.type]: option }
         }))
       : [],
     rating: {
-      average: product.rating,
-      count: product.reviewCount
+      average: row.rating_average,
+      count: row.rating_count
     },
-    reviewCount: product.reviewCount,
+    reviewCount: row.rating_count,
     reviews: [],
     inventory: {
-      sku: product.sku,
+      sku: row.sku,
       available: availableStock,
       reserved: 0,
-      lowStockThreshold: 4,
-      status: getInventoryStatus(availableStock, 4)
+      lowStockThreshold: row.low_stock_threshold,
+      status: getInventoryStatus(availableStock, row.low_stock_threshold)
     },
-    visibility: "visible",
+    visibility: row.visibility,
     featured: flags.includes("featured"),
     newArrival: flags.includes("new"),
     deal: flags.includes("deal"),
-    visible: true,
-    seoTitle: `${product.name} | Aether`,
-    seoDescription: product.shortDescription.slice(0, 150),
+    visible: row.visibility === "visible",
+    seoTitle: details.seoTitle || `${row.name} | Aether`,
+    seoDescription: details.seoDescription || details.shortDescription.slice(0, 150),
     catalogSource: "local",
     externalStock: null,
-    lastSyncedAt: now,
+    lastSyncedAt: row.updated_at,
     shippingInformation: null,
     warrantyInformation: null,
     returnPolicy: null,
     minimumOrderQuantity: null,
     weight: null,
     dimensions: null,
-    createdAt: new Date(product.createdAt).toISOString(),
-    updatedAt: now
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   });
+}
+
+async function readAllRows(env: Env): Promise<ProductRow[]> {
+  const rows = await env.DB.prepare("select * from products order by updated_at desc").all<ProductRow>();
+  return rows.results || [];
 }
 
 async function readCachedProducts(env: Env): Promise<Product[] | null> {
@@ -207,15 +223,20 @@ async function writeCachedProducts(env: Env, products: Product[]) {
   }
 }
 
-async function getCatalogSource(env: Env) {
+// Cached set includes every row regardless of visibility - getCatalogSource
+// filters to "visible" for the public-facing functions below, while
+// products-admin.ts reads the table directly (bypassing this cache
+// entirely) so admin management always sees drafts/hidden products and
+// never a stale cached view of its own just-made edit.
+async function getCatalogSource(env: Env): Promise<Product[]> {
   const cached = await readCachedProducts(env);
-  if (cached) {
-    return cached.filter((product) => product.visibility === "visible");
-  }
-
-  const source = typedLocalProducts.map((product) => normalizeLocal(env, product));
-  await writeCachedProducts(env, source);
-  return source.filter((product) => product.visibility === "visible");
+  const all = cached ?? (await (async () => {
+    const rows = await readAllRows(env);
+    const products = rows.map((row) => normalizeRow(env, row));
+    await writeCachedProducts(env, products);
+    return products;
+  })());
+  return all.filter((product) => product.visibility === "visible");
 }
 
 // Strips diacritics for accent-insensitive search (e.g. "camara" matches "cámara").
@@ -279,8 +300,8 @@ export async function getBrands(env: Env) {
 
 // Exported for characterization tests only - not part of the public catalog API surface.
 export const __testables = {
-  normalizeLocal,
+  normalizeRow,
   flagsFor,
   foldText,
-  typedLocalProducts
+  readAllRows
 };

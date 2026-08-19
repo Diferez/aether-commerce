@@ -7,8 +7,10 @@ import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
 import { themeTokensToCssVariables } from "@aether/ui/theme";
 import { aetherThemeTokens } from "../config/theme";
+import { WhatsappBubble } from "../components/WhatsappBubble";
 import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
+import { SentryProvider } from "../components/SentryProvider";
 
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
@@ -48,16 +50,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
-        <ClerkAuthProvider>
-          <LanguageProvider>
-            <SiteHeader />
-            {children}
-            <SiteFooter />
-            <CookieNotice />
-            <AssistantWidget />
-            <FloatingCart />
-          </LanguageProvider>
-        </ClerkAuthProvider>
+        <SentryProvider>
+          <ClerkAuthProvider>
+            <LanguageProvider>
+              <SiteHeader />
+              {children}
+              <SiteFooter />
+              <CookieNotice />
+              <AssistantWidget />
+              <WhatsappBubble />
+              <FloatingCart />
+            </LanguageProvider>
+          </ClerkAuthProvider>
+        </SentryProvider>
       </body>
     </html>
   );

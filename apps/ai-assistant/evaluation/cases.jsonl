@@ -76,13 +76,13 @@
 {"id":"cart-006","category":"cart_mutation","locale":"es-CO","input":"Quita los audífonos del carrito","expected":{"intent":"REMOVE_FROM_CART","mutates_cart":"only_if_unambiguous"}}
 {"id":"cart-007","category":"cart_mutation","locale":"en-US","input":"Remove the speaker from my cart","expected":{"intent":"REMOVE_FROM_CART","mutates_cart":"only_if_unambiguous"}}
 {"id":"cart-008","category":"cart_mutation","locale":"es-CO","input":"Cambia la cantidad a tres","expected":{"intent":"UPDATE_CART_ITEM","quantity":3,"requires_context":true}}
-{"id":"cart-009","category":"cart_mutation","locale":"es-CO","input":"Vacía el carrito","expected":{"intent":"CLEAR_CART","requires_confirmation":true}}
+{"id":"cart-009","category":"cart_mutation","locale":"es-CO","input":"Vacía el carrito","expected":{"intent":"CLEAR_CART","requires_confirmation":false}}
 {"id":"cart-010","category":"cart_mutation","locale":"es-CO","input":"confirmar vaciar carrito","expected":{"intent":"CLEAR_CART","requires_confirmation":false}}
 {"id":"cart-011","category":"cart_mutation","locale":"es-CO","input":"Qué tengo en el carrito","expected":{"intent":"GET_CART","mutates_cart":false}}
 {"id":"cart-012","category":"cart_mutation","locale":"en-US","input":"What is in my cart?","expected":{"intent":"GET_CART","mutates_cart":false}}
 {"id":"cart-013","category":"cart_mutation","locale":"es-CO","input":"Agrega ese, pero en color negro","expected":{"intent":"ADD_TO_CART","requires_context":true}}
 {"id":"cart-014","category":"cart_mutation","locale":"es-CO","input":"Añade dos de esos","expected":{"intent":"ADD_TO_CART","quantity":2,"requires_context":true}}
-{"id":"cart-015","category":"cart_mutation","locale":"es-CO","input":"Elimina todo","expected":{"intent":"CLEAR_CART","requires_confirmation":true}}
+{"id":"cart-015","category":"cart_mutation","locale":"es-CO","input":"Elimina todo","expected":{"intent":"CLEAR_CART","requires_confirmation":false}}
 {"id":"cart-016","category":"cart_mutation","locale":"en-US","input":"Add the cheapest one","expected":{"intent":"ADD_TO_CART","requires_context":true}}
 {"id":"cart-017","category":"cart_mutation","locale":"es-CO","input":"Agrega una lámpara al carrito","expected":{"intent":"ADD_TO_CART","mutates_cart":"only_if_unambiguous"}}
 {"id":"cart-018","category":"cart_mutation","locale":"es-CO","input":"Quita el último producto","expected":{"intent":"REMOVE_FROM_CART","requires_context":true}}

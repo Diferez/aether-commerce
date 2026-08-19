@@ -1,14 +1,57 @@
 @import "tailwindcss";
 
-/* Shares the same token values as apps/storefront/app/globals.css so the
-   admin surface reads as the same product family. See that file for the
-   full rationale on the @theme + legacy-class-repaint split. */
+/*
+ * Aether Admin design tokens. Same mechanism as apps/storefront/app/globals.css
+ * (Tailwind v4 @theme is the source of truth; light is the default theme,
+ * dark is an override scoped to html[data-theme="dark"]) and the same brand
+ * hex values, so the admin console reads as the same product family as the
+ * storefront - but this file is its own copy with its own additions
+ * (--color-info, the --shadow-elevate-* scale, sidebar layout constants)
+ * that the storefront doesn't need. Toggled via ThemeToggle.tsx, persisted
+ * under its own localStorage key (aether.admin.theme.v1) so an operator's
+ * console theme is never coupled to a shopper's storefront theme.
+ */
 @theme {
-  --color-bg: #070816;
-  --color-surface: #12141f;
-  --color-surface-hover: #181b29;
-  --color-border: rgba(148, 163, 184, 0.18);
-  --color-border-strong: rgba(148, 163, 184, 0.32);
+  --color-bg: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0f0f6;
+  --color-border: rgba(15, 23, 42, 0.09);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  --color-ink: #16171d;
+  --color-ink-muted: #5b5f6b;
+  --color-ink-subtle: #6b6f7a;
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #7c3aed;
+  --color-accent-soft: rgba(139, 92, 246, 0.1);
+  --color-accent-2: #0e7490;
+  --color-accent-2-soft: rgba(14, 116, 144, 0.1);
+  --color-success: #047857;
+  --color-success-soft: rgba(4, 120, 87, 0.1);
+  --color-warning: #b45309;
+  --color-warning-soft: rgba(180, 83, 9, 0.1);
+  --color-danger: #e11d48;
+  --color-danger-soft: rgba(225, 29, 72, 0.1);
+  /* Not part of the storefront's palette - the admin status system needs a
+     genuine blue for the "info" semantic tone (order shipped, informational
+     banners) distinct from the violet brand accent and the teal secondary
+     accent. */
+  --color-info: #2563eb;
+  --color-info-soft: rgba(37, 99, 235, 0.1);
+
+  /* Restrained elevation scale - used only for floating layers (menus,
+     modals, the command palette, the mobile drawer), never for resting
+     cards, which stay flat + bordered. Tailwind v4 turns --shadow-* theme
+     entries directly into shadow-* utilities. */
+  --shadow-elevate-sm: 0 2px 8px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-elevate-md: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="dark"] {
+  --color-bg: #060711;
+  --color-surface: #10121c;
+  --color-surface-hover: #161a29;
+  --color-border: rgba(148, 163, 184, 0.16);
+  --color-border-strong: rgba(148, 163, 184, 0.3);
   --color-ink: #f8fafc;
   --color-ink-muted: #a1a1aa;
   --color-ink-subtle: #71717a;
@@ -19,35 +62,52 @@
   --color-accent-2-soft: rgba(34, 211, 238, 0.14);
   --color-success: #34d399;
   --color-success-soft: rgba(52, 211, 153, 0.14);
-  --color-warning: #f59e0b;
-  --color-warning-soft: rgba(245, 158, 11, 0.14);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgba(251, 191, 36, 0.14);
   --color-danger: #fb7185;
   --color-danger-soft: rgba(251, 113, 133, 0.14);
+  --color-info: #60a5fa;
+  --color-info-soft: rgba(96, 165, 250, 0.14);
+  --shadow-elevate-sm: 0 2px 8px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-elevate-md: 0 16px 40px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --background: var(--color-bg);
   --foreground: var(--color-ink);
   --muted: var(--color-ink-muted);
   --line: var(--color-border);
   --accent: var(--color-accent);
   --warning: var(--color-warning);
+
+  /* Shell layout constants - read by AdminShell/AdminSidebar for the
+     desktop grid so the numbers live in exactly one place. */
+  --sidebar-w: 264px;
+  --sidebar-w-collapsed: 72px;
+  --header-h: 64px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
 body {
+  min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 10% 8%, rgba(139, 92, 246, 0.2), transparent 36vw),
-    radial-gradient(circle at 88% 0%, rgba(34, 211, 238, 0.12), transparent 30vw),
-    var(--color-bg);
+  background-color: var(--color-bg);
   color: var(--color-ink);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 a {
@@ -55,9 +115,28 @@ a {
   text-decoration: none;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Percentage-based, not 100vw-based: this sits inside AdminShell's content
+   column, which is already offset by the sidebar width on desktop - a
+   vw-relative calc here would ignore that offset and overflow past the
+   right edge. */
 .admin-shell {
-  width: min(1240px, calc(100vw - 32px));
+  width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
+  padding-inline: 16px;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell {
+    padding-inline: 24px;
+  }
 }
 
 .focus-ring:focus-visible {
@@ -66,9 +145,29 @@ a {
   border-radius: 6px;
 }
 
+/* AdminSidebar's "Demo" badge: --color-warning fails AA at this text's size
+   against bg-warning-soft in light mode only (measured 4.39:1, needs 4.5:1;
+   dark mode already passes at 8.5:1) - a one-off darker light-mode shade,
+   not a change to the shared token every other warning usage relies on. */
+.demo-badge-text {
+  color: #7c3a08;
+}
+
+html[data-theme="dark"] .demo-badge-text {
+  color: var(--color-warning);
+}
+
+/* --- Legacy light-Tailwind-class repaint ---
+   Kept for any markup this redesign didn't reach directly; new/rewritten
+   components should author token utilities (bg-surface, text-ink-muted,
+   border-border) rather than literal zinc-* classes. */
 .bg-white {
   background-color: var(--color-surface) !important;
-  backdrop-filter: blur(18px);
+}
+
+.bg-zinc-100,
+.bg-zinc-50 {
+  background-color: var(--color-surface-hover) !important;
 }
 
 .border-zinc-200,
@@ -88,6 +187,19 @@ a {
   color: var(--color-ink-muted) !important;
 }
 
+.bg-zinc-950 {
+  background-color: var(--color-accent) !important;
+}
+
+.hover\:bg-zinc-800:hover,
+.hover\:bg-zinc-100:hover {
+  background-color: var(--color-accent-hover) !important;
+}
+
+.bg-zinc-400 {
+  background-color: var(--color-ink-subtle) !important;
+}
+
 @keyframes shimmer {
   from {
     background-position: -200% 0;
@@ -101,6 +213,21 @@ a {
   background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-hover) 50%, var(--color-surface) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-fade-in {
+  animation: admin-fade-in 0.15s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

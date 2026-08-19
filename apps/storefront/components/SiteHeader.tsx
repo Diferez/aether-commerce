@@ -3,8 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Heart, Menu, Search, Settings2, ShoppingCart, Sparkles, UserRound, X } from "lucide-react";
+import type { BrandSettings } from "@aether/core";
 import { Badge } from "@aether/ui";
-import { portfolioUrl, storefrontPath } from "./config";
+import { apiBaseUrl, portfolioUrl, storefrontPath } from "./config";
 import { readLocalCartItems } from "./cart-client";
 import { useCustomerSession } from "./customer-client";
 import { migrateGuestFavoritesToCustomer, readFavoriteProducts } from "./favorites-client";
@@ -12,6 +13,8 @@ import { useLanguage } from "./LanguageProvider";
 import { migrateLegacyAetherStorage } from "./legacy-storage";
 import { StorefrontLink } from "./StorefrontLink";
 import { ThemeToggle } from "./ThemeToggle";
+
+const brandCacheKey = "aether.brand.v1";
 
 function useQueryParam(name: string) {
   const [value, setValue] = useState("");
@@ -33,8 +36,59 @@ export function SiteHeader() {
   const [cartCount, setCartCount] = useState(0);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [legacyNotice, setLegacyNotice] = useState(false);
+  const [brand, setBrand] = useState<BrandSettings | null>(null);
   const initialQuery = useQueryParam("q");
   const [searchValue, setSearchValue] = useState(initialQuery);
+
+  // Applying primaryColor as CSS custom properties (rather than, say, an
+  // inline style per component) re-themes every existing bg-accent/
+  // text-accent/border-accent usage across the whole storefront at once -
+  // those Tailwind utilities are generated from --color-accent* in
+  // globals.css. color-mix() derives the hover/soft shades from whatever
+  // color the client picks instead of needing a JS color-math dependency.
+  function applyBrand(data: BrandSettings) {
+    setBrand(data);
+    const root = document.documentElement.style;
+    root.setProperty("--color-accent", data.primaryColor);
+    root.setProperty("--color-accent-hover", `color-mix(in srgb, ${data.primaryColor} 85%, black)`);
+    root.setProperty("--color-accent-soft", `color-mix(in srgb, ${data.primaryColor} 12%, transparent)`);
+  }
+
+  // The real brand (logo, name, color) only arrives once this fetch
+  // resolves, so every reload briefly showed the generic Sparkles glyph
+  // first. Restoring last-known values from localStorage before the first
+  // paint (useLayoutEffect, not useEffect) removes that flash on repeat
+  // visits - same technique already used for the cart badge below - while
+  // the fetch still runs underneath to pick up any real change.
+  useLayoutEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(brandCacheKey);
+      if (cached) applyBrand(JSON.parse(cached) as BrandSettings);
+    } catch {
+      // Ignore malformed/inaccessible cache - the fetch below still runs.
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/brand`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: BrandSettings }) => {
+        if (cancelled || !payload.success || !payload.data) return;
+        applyBrand(payload.data);
+        try {
+          window.localStorage.setItem(brandCacheKey, JSON.stringify(payload.data));
+        } catch {
+          // Storage may be unavailable (private browsing, quota) - non-fatal.
+        }
+      })
+      .catch(() => {
+        // Default Aether name/theme stays in place if this read fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setSearchValue(initialQuery);
@@ -98,12 +152,24 @@ export function SiteHeader() {
       ) : null}
       <div className="aether-shell flex min-h-16 items-center justify-between gap-3">
         <StorefrontLink className="flex shrink-0 items-center gap-3 font-semibold" href="/">
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-accent text-white">
-            <Sparkles size={18} aria-hidden />
-          </span>
+          {brand?.logoUrl ? (
+            // Plain <img>, not next/image - the URL is admin-configured at
+            // runtime, not a build-time known asset next/image can optimize.
+            <img
+              src={brand.logoUrl}
+              alt={brand.name}
+              className="h-9 w-9 rounded-md object-contain"
+            />
+          ) : (
+            <span className="grid h-9 w-9 place-items-center rounded-md bg-accent text-white">
+              <Sparkles size={18} aria-hidden />
+            </span>
+          )}
           <span className="hidden sm:block">
-            <span className="block text-base leading-tight">{t.brand}</span>
-            <span className="block text-xs font-normal text-ink-muted">{t.tagline}</span>
+            <span className="block text-base leading-tight">{brand?.name || t.brand}</span>
+            <span className="block text-xs font-normal text-ink-muted">
+              {brand?.tagline[locale] || t.tagline}
+            </span>
           </span>
         </StorefrontLink>
 
@@ -184,6 +250,16 @@ export function SiteHeader() {
         </button>
         <StorefrontLink
           href="/cart"
+          onClick={(event) => {
+            // With items, open the quick-view drawer (FloatingCart) instead
+            // of navigating away - keeps the shopper on the page they're
+            // browsing. An empty cart has nothing to show there, so this
+            // falls through to the normal /cart navigation instead.
+            if (cartCount > 0) {
+              event.preventDefault();
+              window.dispatchEvent(new Event("aether-open-cart"));
+            }
+          }}
           className="focus-ring relative inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-ink hover:bg-surface-hover md:hidden"
           aria-label={t.cart}
         >

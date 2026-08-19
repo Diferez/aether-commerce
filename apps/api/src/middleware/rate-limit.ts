@@ -71,12 +71,9 @@ async function actorKey(c: Parameters<MiddlewareHandler<AppBindings>>[0]) {
   const actor = c.get("actor");
   if (actor.userId) return `user:${await digest(actor.userId)}`;
 
-  const authorization = c.req.header("authorization");
-  if (authorization) return `auth:${await digest(authorization)}`;
-
-  const cartToken = c.req.header("x-aether-cart-token");
-  if (cartToken) return `cart:${await digest(cartToken)}`;
-
+  // Only verified identities receive their own bucket. Authorization and
+  // cart headers are attacker-controlled at this point; hashing them would
+  // let an anonymous caller rotate arbitrary values to bypass every limit.
   const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
   return `ip:${ip}`;
 }

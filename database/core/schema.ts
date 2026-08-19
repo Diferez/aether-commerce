@@ -55,6 +55,26 @@ export const carts = sqliteTable("carts", {
   ...timestamps
 });
 
+export const checkoutSnapshots = sqliteTable(
+  "checkout_snapshots",
+  {
+    id: text("id").primaryKey(),
+    cartId: text("cart_id").notNull(),
+    userId: text("user_id").notNull(),
+    cartPayloadJson: text("cart_payload_json").notNull(),
+    amountTotal: integer("amount_total").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").notNull().default("active"),
+    providerSessionId: text("provider_session_id"),
+    expiresAt: text("expires_at").notNull(),
+    completedAt: text("completed_at"),
+    ...timestamps
+  },
+  (table) => ({
+    providerSessionIdIdx: uniqueIndex("checkout_snapshots_provider_session_id_idx").on(table.providerSessionId)
+  })
+);
+
 export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
   number: text("number").notNull(),
@@ -85,10 +105,18 @@ export const webhookEvents = sqliteTable(
     provider: text("provider").notNull(),
     providerEventId: text("provider_event_id").notNull(),
     payloadJson: text("payload_json").notNull(),
+    status: text("status").notNull().default("received"),
+    attempts: integer("attempts").notNull().default(0),
+    requestId: text("request_id"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    processingStartedAt: text("processing_started_at"),
+    nextRetryAt: text("next_retry_at"),
+    receivedAt: text("received_at").notNull().default("CURRENT_TIMESTAMP"),
     processedAt: text("processed_at"),
     ...timestamps
   },
   (table) => ({
-    providerEventIdIdx: uniqueIndex("webhook_events_provider_event_id_idx").on(table.providerEventId)
+    providerEventIdIdx: uniqueIndex("webhook_events_provider_event_id_idx").on(table.provider, table.providerEventId)
   })
 );

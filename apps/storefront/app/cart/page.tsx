@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
+import { CreditCard, MessageCircle, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
 import { formatMoney } from "@aether/core";
 import type { Cart, Product } from "@aether/schemas";
 import { Badge, Button } from "@aether/ui";
@@ -18,6 +18,8 @@ import {
   updateCartItemQuantity,
   getCartCredentials
 } from "../../components/cart-client";
+import { buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildWhatsappUrl } from "../../components/whatsapp-checkout";
+import { useCheckoutOptions } from "../../components/checkout-options";
 import { useAetherAuth } from "../../components/ClerkAuthProvider";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
@@ -39,6 +41,7 @@ export default function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const checkoutOptions = useCheckoutOptions();
 
   async function refresh() {
     const id = getCartId();
@@ -160,6 +163,13 @@ export default function CartPage() {
   }
 
   async function checkout() {
+    if (checkoutOptions?.paymentMode === "whatsapp") {
+      if (!cart || cart.items.length === 0) return;
+      const message = buildCartWhatsappMessage(cart, locale);
+      window.open(buildWhatsappUrl(checkoutOptions.whatsappNumber, message), "_blank", "noopener,noreferrer");
+      return;
+    }
+
     if (!customer) {
       router.push(storefrontPath("/register?next=/cart&checkout=1"));
       return;
@@ -243,12 +253,25 @@ export default function CartPage() {
             <div className="grid place-items-center gap-3 p-10 text-center">
               <ShoppingBag size={32} className="text-zinc-400" aria-hidden />
               <p className="text-zinc-600">{t.emptyCart}</p>
-              <StorefrontLink
-                href="/products"
-                className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white"
-              >
-                {t.browseProducts}
-              </StorefrontLink>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <StorefrontLink
+                  href="/products"
+                  className="focus-ring inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-semibold text-white"
+                >
+                  {t.browseProducts}
+                </StorefrontLink>
+                {checkoutOptions?.paymentMode === "whatsapp" && checkoutOptions.whatsappNumber ? (
+                  <a
+                    href={buildWhatsappUrl(checkoutOptions.whatsappNumber, buildInquiryWhatsappMessage(locale))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
+                  >
+                    <MessageCircle size={16} aria-hidden />
+                    {t.askAboutProducts}
+                  </a>
+                ) : null}
+              </div>
             </div>
           ) : (
             items.map((item) => {
@@ -328,15 +351,15 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() => void removeItem(item.slug, item.name)}
-                      className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
+                      className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+                      title={t.remove}
                       aria-label={
                         locale === "es"
                           ? `Eliminar ${item.name} del carrito`
                           : `Remove ${item.name} from cart`
                       }
                     >
-                      <Trash2 size={16} aria-hidden />
-                      {t.remove}
+                      <Trash2 size={17} aria-hidden />
                     </button>
                   </div>
                 </div>
@@ -363,28 +386,44 @@ export default function CartPage() {
               {t.applyCoupon}
             </Button>
             <Button type="button" onClick={() => void checkout()} disabled={items.length === 0}>
-              <CreditCard size={17} aria-hidden />
-              {t.checkoutSandbox}
+              {checkoutOptions?.paymentMode === "whatsapp" ? (
+                <MessageCircle size={17} aria-hidden />
+              ) : (
+                <CreditCard size={17} aria-hidden />
+              )}
+              {checkoutOptions?.paymentMode === "whatsapp"
+                ? locale === "es"
+                  ? "Comprar por WhatsApp"
+                  : "Buy via WhatsApp"
+                : t.checkoutSandbox}
             </Button>
-            <p className="text-xs leading-5 text-ink-muted">
-              {locale === "es"
-                ? "Checkout de prueba: no hay cobro, venta ni envío real. Al continuar confirmas que leíste "
-                : "Sandbox checkout: there is no real charge, sale, or shipping. By continuing you confirm that you read "}
-              <StorefrontLink
-                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
-                href="/terms"
-              >
-                {locale === "es" ? "los términos" : "the terms"}
-              </StorefrontLink>{" "}
-              {locale === "es" ? "y la " : "and the "}
-              <StorefrontLink
-                className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
-                href="/privacy"
-              >
-                {locale === "es" ? "política de privacidad" : "privacy policy"}
-              </StorefrontLink>
-              .
-            </p>
+            {checkoutOptions?.paymentMode === "whatsapp" ? (
+              <p className="text-xs leading-5 text-ink-muted">
+                {locale === "es"
+                  ? "Se abrira WhatsApp con el resumen de tu carrito para coordinar el pago con la tienda."
+                  : "This opens WhatsApp with your cart summary so you can arrange payment with the store."}
+              </p>
+            ) : (
+              <p className="text-xs leading-5 text-ink-muted">
+                {locale === "es"
+                  ? "Checkout de prueba: no hay cobro, venta ni envío real. Al continuar confirmas que leíste "
+                  : "Sandbox checkout: there is no real charge, sale, or shipping. By continuing you confirm that you read "}
+                <StorefrontLink
+                  className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                  href="/terms"
+                >
+                  {locale === "es" ? "los términos" : "the terms"}
+                </StorefrontLink>{" "}
+                {locale === "es" ? "y la " : "and the "}
+                <StorefrontLink
+                  className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
+                  href="/privacy"
+                >
+                  {locale === "es" ? "política de privacidad" : "privacy policy"}
+                </StorefrontLink>
+                .
+              </p>
+            )}
           </div>
         </aside>
       </div>

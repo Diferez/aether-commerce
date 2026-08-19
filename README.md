@@ -59,6 +59,10 @@ pnpm build
 
 La operación del asistente se documenta en `docs/ai-assistant/acceptance-status.md`. Sus valores server-side incluyen `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN` y `AI_ASSISTANT_ENABLED`; el storefront solo recibe `NEXT_PUBLIC_AETHER_AI_URL`. Conversaciones, auditoría y límites se almacenan en D1.
 
+## Observabilidad
+
+Logs estructurados, Sentry (opcional, desactivado por defecto), auditoría administrativa, estado de webhooks y el panel "System health" del admin. Consulta `docs/observability.md` para variables de entorno, cómo investigar un error mediante `requestId`, la política de datos sensibles y los límites del plan gratuito.
+
 ## Ambiente de desarrollo previo a main
 
 El repo usa `develop` como ambiente de prueba antes de producción:

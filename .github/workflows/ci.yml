@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
       - name: Fetch develop for changeset diverge-check
@@ -26,10 +26,10 @@ jobs:
         # where HEAD already *is* local branch develop - a plain fetch into that
         # same ref is refused ("refusing to fetch into current branch") without it.
         run: git fetch --update-head-ok origin develop:develop
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 8.15.9
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: pnpm

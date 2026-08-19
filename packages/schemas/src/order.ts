@@ -58,6 +58,10 @@ export const paymentSchema = z.object({
   currency: currencyCodeSchema
 });
 
+export const orderChannelSchema = z.enum(["stripe", "wompi", "whatsapp"]);
+export const paymentStatusSchema = z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]);
+export const fulfillmentStatusSchema = z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]);
+
 export const shipmentSchema = z.object({
   carrier: z.string().min(1),
   trackingNumber: z.string().min(1),
@@ -71,16 +75,30 @@ export const orderSchema = z.object({
   userId: z.string().min(1).optional(),
   email: z.string().email(),
   state: orderStateSchema,
+  channel: orderChannelSchema,
+  paymentStatus: paymentStatusSchema,
+  fulfillmentStatus: fulfillmentStatusSchema,
   items: z.array(cartItemSchema).min(1),
   totals: cartTotalsSchema,
   shippingAddress: addressSchema,
   payment: paymentSchema.optional(),
   shipment: shipmentSchema.optional(),
+  internalNotes: z.string().max(2000).nullable(),
+  tracking: z
+    .object({
+      carrier: z.string().nullable(),
+      number: z.string().nullable(),
+      url: z.string().url().nullable()
+    })
+    .nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 });
 
 export type OrderState = z.infer<typeof orderStateSchema>;
+export type OrderChannel = z.infer<typeof orderChannelSchema>;
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+export type FulfillmentStatus = z.infer<typeof fulfillmentStatusSchema>;
 export type OrderItemSnapshot = z.infer<typeof orderItemSnapshotSchema>;
 export type Address = z.infer<typeof addressSchema>;
 export type Payment = z.infer<typeof paymentSchema>;

@@ -3,12 +3,12 @@
 import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { useRouter } from "next/navigation";
-import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
+import { Heart, MessageCircle, Minus, Plus, ShoppingBag, Star } from "lucide-react";
+import type { BrandSettings } from "@aether/core";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
 import { Badge, Button } from "@aether/ui";
-import { apiBaseUrl, storefrontPath } from "../../../components/config";
+import { apiBaseUrl } from "../../../components/config";
 import { addProductToCart } from "../../../components/cart-client";
 import { useCustomerSession } from "../../../components/customer-client";
 import { demoProducts } from "../../../components/demo-products";
@@ -17,10 +17,11 @@ import { useLanguage } from "../../../components/LanguageProvider";
 import { ProductGrid } from "../../../components/ProductGrid";
 import { getLocalizedProduct } from "../../../components/product-localization";
 import { StorefrontLink } from "../../../components/StorefrontLink";
+import { buildProductWhatsappMessage, buildWhatsappUrl } from "../../../components/whatsapp-checkout";
+import { useCheckoutOptions } from "../../../components/checkout-options";
 
 export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
-  const router = useRouter();
   const { customer } = useCustomerSession();
   const productWindowRef = useRef<HTMLDivElement | null>(null);
   const fallback = useMemo(() => demoProducts.find((candidate) => candidate.slug === slug) ?? null, [slug]);
@@ -30,7 +31,30 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const checkoutOptions = useCheckoutOptions();
+  const [brand, setBrand] = useState<BrandSettings | null>(null);
   const localized = product ? getLocalizedProduct(product, locale) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/brand`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: BrandSettings }) => {
+        if (!cancelled && payload.success && payload.data) setBrand(payload.data);
+      })
+      .catch(() => {
+        // Reviews stay visible (the default) if this read fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function buyNowViaWhatsapp() {
+    if (!product || !checkoutOptions || checkoutOptions.paymentMode !== "whatsapp") return;
+    const message = buildProductWhatsappMessage(product, quantity, locale, window.location.href);
+    window.open(buildWhatsappUrl(checkoutOptions.whatsappNumber, message), "_blank", "noopener,noreferrer");
+  }
 
   const scrollToProductWindow = useCallback((behavior: ScrollBehavior = "auto") => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -87,7 +111,10 @@ export function ProductDetailClient({ slug }: { slug: string }) {
       for (let i = 0; i < quantity; i += 1) {
         await addProductToCart(product);
       }
-      router.push(storefrontPath("/cart"));
+      // Open the quick-view drawer instead of navigating to /cart - confirms
+      // the add without pulling the shopper off the product page they're
+      // browsing.
+      window.dispatchEvent(new Event("aether-open-cart"));
     } finally {
       setIsAdding(false);
     }
@@ -181,13 +208,15 @@ export function ProductDetailClient({ slug }: { slug: string }) {
             </p>
             {product.brand ? <p className="mt-2 text-sm font-medium text-zinc-500">{product.brand}</p> : null}
             <h1 className="mt-1 text-3xl font-semibold text-zinc-950 sm:text-4xl">{product.name}</h1>
-            <div className="mt-2 flex items-center gap-2 text-sm text-zinc-600">
-              <span className="flex items-center gap-1">
-                <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
-                {product.rating.average.toFixed(1)}
-              </span>
-              <span>{t.basedOnReviews.replace("{count}", String(product.reviewCount))}</span>
-            </div>
+            {brand?.features.reviews === false ? null : (
+              <div className="mt-2 flex items-center gap-2 text-sm text-zinc-600">
+                <span className="flex items-center gap-1">
+                  <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
+                  {product.rating.average.toFixed(1)}
+                </span>
+                <span>{t.basedOnReviews.replace("{count}", String(product.reviewCount))}</span>
+              </div>
+            )}
 
             <div className="mt-4 flex items-baseline gap-3">
               <p className="text-3xl font-semibold text-zinc-950">{formatUsd(product.finalPrice, locale === "es" ? "es-CO" : "en-US")}</p>
@@ -259,6 +288,12 @@ export function ProductDetailClient({ slug }: { slug: string }) {
                 <ShoppingBag size={17} aria-hidden />
                 {isAdding ? t.adding : outOfStock ? t.availability.out_of_stock : t.addToCart}
               </Button>
+              {checkoutOptions?.paymentMode === "whatsapp" && !outOfStock ? (
+                <Button type="button" variant="outline" onClick={buyNowViaWhatsapp}>
+                  <MessageCircle size={17} aria-hidden />
+                  {locale === "es" ? "Comprar ahora" : "Buy now"}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -299,40 +334,42 @@ export function ProductDetailClient({ slug }: { slug: string }) {
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-zinc-950">{t.reviewsHeading}</h2>
-              <span className="flex items-center gap-1 text-sm text-zinc-600">
-                <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
-                {product.rating.average.toFixed(1)} · {t.basedOnReviews.replace("{count}", String(product.reviewCount))}
-              </span>
+          {brand?.features.reviews === false ? null : (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-semibold text-zinc-950">{t.reviewsHeading}</h2>
+                <span className="flex items-center gap-1 text-sm text-zinc-600">
+                  <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
+                  {product.rating.average.toFixed(1)} · {t.basedOnReviews.replace("{count}", String(product.reviewCount))}
+                </span>
+              </div>
+              {product.reviews.length === 0 ? (
+                <p className="mt-3 text-sm text-zinc-600">{t.noReviewsYet}</p>
+              ) : (
+                <ul className="mt-4 grid gap-4">
+                  {product.reviews.map((review, index) => (
+                    <li key={`${review.reviewerName}-${index}`} className="border-b border-zinc-100 pb-4 last:border-b-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-zinc-950">{review.reviewerName}</p>
+                        <span className="text-xs text-zinc-500">{new Date(review.date).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, starIndex) => (
+                          <Star
+                            key={starIndex}
+                            size={13}
+                            className={starIndex < Math.round(review.rating) ? "fill-amber-400 text-amber-400" : "text-zinc-300"}
+                            aria-hidden
+                          />
+                        ))}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-zinc-600">{review.comment}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            {product.reviews.length === 0 ? (
-              <p className="mt-3 text-sm text-zinc-600">{t.noReviewsYet}</p>
-            ) : (
-              <ul className="mt-4 grid gap-4">
-                {product.reviews.map((review, index) => (
-                  <li key={`${review.reviewerName}-${index}`} className="border-b border-zinc-100 pb-4 last:border-b-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-zinc-950">{review.reviewerName}</p>
-                      <span className="text-xs text-zinc-500">{new Date(review.date).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}</span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, starIndex) => (
-                        <Star
-                          key={starIndex}
-                          size={13}
-                          className={starIndex < Math.round(review.rating) ? "fill-amber-400 text-amber-400" : "text-zinc-300"}
-                          aria-hidden
-                        />
-                      ))}
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-zinc-600">{review.comment}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          )}
           </section>
         )}
       </div>

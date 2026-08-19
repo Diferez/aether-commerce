@@ -16,6 +16,7 @@ const rolePermissions: Record<Role, Permission[]> = {
     "orders.write",
     "refunds.create",
     "users.read",
+    "users.write",
     "reviews.moderate",
     "contacts.read",
     "coupons.manage",
@@ -23,6 +24,10 @@ const rolePermissions: Record<Role, Permission[]> = {
     "audit.read",
     "exports.create"
   ],
+  // super_admin is the only role that can change another user's role
+  // (users.manage_roles) - that's a privilege-escalation vector, so it's
+  // deliberately kept out of the plain admin role's permission set. This is
+  // the first real distinction between admin and super_admin in this codebase.
   super_admin: [
     "products.read",
     "products.write",
@@ -32,6 +37,8 @@ const rolePermissions: Record<Role, Permission[]> = {
     "orders.write",
     "refunds.create",
     "users.read",
+    "users.write",
+    "users.manage_roles",
     "reviews.moderate",
     "contacts.read",
     "coupons.manage",
