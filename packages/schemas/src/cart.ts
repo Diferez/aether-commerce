@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { addressSchema } from "./address";
 
 /** ISO 4217 currency code. A reference store may constrain this further in its config. */
 export const currencyCodeSchema = z.string().regex(/^[A-Z]{3}$/, "currency must be an ISO 4217 code");
@@ -45,6 +46,12 @@ export const cartSchema = z.object({
   items: z.array(cartItemSchema),
   couponCode: z.string().optional(),
   totals: cartTotalsSchema,
+  // Collected on the storefront's /checkout page (only shown when shipping
+  // is enabled and the active payment mode isn't WhatsApp - see
+  // apps/storefront/app/checkout/page.tsx) and carried through the
+  // immutable checkout snapshot so order creation can use the real address
+  // instead of a placeholder (see services/orders.ts's demoShippingAddress).
+  shippingAddress: addressSchema.optional(),
   updatedAt: z.string().datetime()
 });
 

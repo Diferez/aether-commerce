@@ -129,7 +129,10 @@ publicRoutes.get("/products/:id/reviews", async (c) => {
   });
 });
 
-publicRoutes.get("/shipping/options", async (c) => {
+// Unauthenticated by necessity - the storefront needs to know the flat fee
+// (and whether it applies at all) before checkout even starts, to show it in
+// the cart total and to decide whether /checkout's address step is needed.
+publicRoutes.get("/shipping/settings", async (c) => {
   return ok(c, await createShippingSettingsService(c.env.DB).get(aetherDemoShippingSettings));
 });
 

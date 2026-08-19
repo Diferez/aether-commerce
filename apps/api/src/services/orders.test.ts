@@ -289,6 +289,34 @@ describe("createOrderFromPaidSession", () => {
     errorSpy.mockRestore();
   });
 
+  it("uses the real shipping address collected at checkout when the cart snapshot carries one", async () => {
+    const realAddress = {
+      fullName: "Maria Gomez",
+      line1: "Calle 10 # 5-23",
+      city: "Medellin",
+      region: "Antioquia",
+      postalCode: "000000",
+      country: "CO"
+    };
+    await mockActiveSnapshot(fakeCart({ shippingAddress: realAddress }));
+
+    const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
+
+    expect(result.created).toBe(true);
+    expect((result.order as { shippingAddress: unknown }).shippingAddress).toEqual(realAddress);
+  });
+
+  it("falls back to the sandbox placeholder address when the cart never collected a real one (e.g. shipping was disabled)", async () => {
+    await mockActiveSnapshot(fakeCart());
+
+    const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
+
+    expect(result.created).toBe(true);
+    expect((result.order as { shippingAddress: { line1: string } }).shippingAddress.line1).toBe("Sandbox checkout");
+  });
+
   it("rejects a paid session whose amount differs from the immutable snapshot", async () => {
     await mockActiveSnapshot();
     const { env } = fakeEnv([{ first: null }]);

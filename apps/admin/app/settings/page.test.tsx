@@ -14,7 +14,7 @@ const fetchMock = vi.fn();
 const settingsRows = [
   { key: "brand", value_json: JSON.stringify({ name: "Aether Test", tagline: { en: "a", es: "b" }, logoUrl: "", primaryColor: "#111111", portfolioUrl: "", features: { reviews: true } }) },
   { key: "checkout", value_json: JSON.stringify({ paymentMode: "stripe", whatsappNumber: "", whatsappMessageTemplate: "" }) },
-  { key: "shipping", value_json: JSON.stringify({ freeShippingThreshold: 15000, countries: ["US"], options: [] }) },
+  { key: "shipping", value_json: JSON.stringify({ enabled: true, amountCents: 15000 }) },
   { key: "reservations", value_json: JSON.stringify({ ttlMinutes: 15 }) }
 ];
 
@@ -39,8 +39,22 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     expect(await screen.findByDisplayValue("Aether Test")).toBeInTheDocument();
-    expect(screen.getByLabelText(/free shipping threshold/i)).toHaveValue(150);
+    expect(screen.getByLabelText(/charge for shipping/i)).toBeChecked();
+    expect(screen.getByLabelText(/shipping cost in dollars/i)).toHaveValue(150);
     expect(screen.getByLabelText(/reservation ttl/i)).toHaveValue(15);
+  });
+
+  it("hides the shipping cost input while shipping is disabled", async () => {
+    fetchMock.mockResolvedValueOnce(
+      settingsResponse([
+        ...settingsRows.filter((row) => row.key !== "shipping"),
+        { key: "shipping", value_json: JSON.stringify({ enabled: false, amountCents: 0 }) }
+      ])
+    );
+    render(<SettingsPage />);
+
+    await screen.findByDisplayValue("Aether Test");
+    expect(screen.queryByLabelText(/shipping cost in dollars/i)).not.toBeInTheDocument();
   });
 
   it("saves the branding section", async () => {
@@ -78,14 +92,14 @@ describe("SettingsPage", () => {
     );
   });
 
-  it("saves the shipping section with the threshold converted to cents", async () => {
+  it("saves the shipping section with the cost converted to cents", async () => {
     fetchMock.mockResolvedValueOnce(settingsResponse());
     const user = userEvent.setup();
     render(<SettingsPage />);
     await screen.findByDisplayValue("Aether Test");
 
-    const thresholdInput = screen.getByLabelText(/free shipping threshold/i);
-    fireEvent.change(thresholdInput, { target: { value: "200" } });
+    const amountInput = screen.getByLabelText(/shipping cost in dollars/i);
+    fireEvent.change(amountInput, { target: { value: "200" } });
 
     fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: true }) } as Response);
     await user.click(screen.getAllByRole("button", { name: /^save$/i })[2]!);
@@ -97,8 +111,24 @@ describe("SettingsPage", () => {
       )
     );
     const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/settings/shipping"));
-    const body = JSON.parse((call?.[1] as RequestInit).body as string) as { freeShippingThreshold: number };
-    expect(body.freeShippingThreshold).toBe(20000);
+    const body = JSON.parse((call?.[1] as RequestInit).body as string) as { enabled: boolean; amountCents: number };
+    expect(body).toEqual({ enabled: true, amountCents: 20000 });
+  });
+
+  it("saves enabled: false when the operator turns shipping off, hiding the cost field", async () => {
+    fetchMock.mockResolvedValueOnce(settingsResponse());
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByDisplayValue("Aether Test");
+
+    await user.click(screen.getByLabelText(/charge for shipping/i));
+
+    fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: true }) } as Response);
+    await user.click(screen.getAllByRole("button", { name: /^save$/i })[2]!);
+
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/settings/shipping"));
+    const body = JSON.parse((call?.[1] as RequestInit).body as string) as { enabled: boolean; amountCents: number };
+    expect(body.enabled).toBe(false);
   });
 
   it("saves the reservations section", async () => {

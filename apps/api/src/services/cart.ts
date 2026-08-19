@@ -1,9 +1,22 @@
-import { createCartItem, createEmptyCart, withCoupon } from "@aether/api-core";
+import { createCartItem, createEmptyCart } from "@aether/api-core";
 import { calculateCartTotals } from "@aether/core";
 import type { Cart, CartItemInput, Coupon } from "@aether/schemas";
 import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
+import { createShippingSettingsService } from "./shipping-settings";
+import { aetherDemoShippingSettings } from "../config/aether-demo";
+
+// Reused by every cart-total recalculation below - the flat fee (see
+// packages/core/src/shipping.ts's ShippingSettings) only ever affects the
+// `shipping` slot calculateCartTotals already had; it's read fresh on every
+// mutation (not cached) so a toggle in the admin panel takes effect on the
+// operator's very next add/remove/quantity change, without the shopper
+// having to start a new cart.
+async function getShippingCents(env: Env): Promise<number> {
+  const settings = await createShippingSettingsService(env.DB).get(aetherDemoShippingSettings);
+  return settings.enabled === true && typeof settings.amountCents === "number" ? settings.amountCents : 0;
+}
 
 const defaultCoupon: Coupon = {
   code: "AETHER10",
@@ -93,7 +106,8 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
       )
     : [...cart.items, item];
 
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
+  const shipping = await getShippingCents(env);
+  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined, shipping);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
   await upsertActiveReservation(env, { cartId, productId: product.id, sku: product.sku, quantity: newQuantity });
   return updatedCart;
@@ -102,7 +116,9 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
 export async function applyCoupon(env: Env, cartId: string, code: string): Promise<Cart> {
   const cart = await readCart(env, cartId);
   const coupon = code.toUpperCase() === defaultCoupon.code ? defaultCoupon : undefined;
-  return writeCart(env, withCoupon(cart, coupon));
+  const shipping = await getShippingCents(env);
+  const totals = calculateCartTotals(cart.items, coupon, shipping);
+  return writeCart(env, { ...cart, couponCode: coupon?.code, totals });
 }
 
 export async function removeItem(env: Env, cartId: string, itemId: string): Promise<Cart> {
@@ -113,7 +129,8 @@ export async function removeItem(env: Env, cartId: string, itemId: string): Prom
   const items = cart.items.filter(
     (item) => item.productId !== itemId && item.variantId !== itemId && item.slug !== itemId
   );
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
+  const shipping = await getShippingCents(env);
+  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined, shipping);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
   if (removed) {
     await releaseReservation(env, cartId, removed.productId);
@@ -139,7 +156,8 @@ export async function updateItemQuantity(env: Env, cartId: string, itemId: strin
       ? { ...item, quantity, lineTotal: item.finalUnitPrice * quantity }
       : item
   );
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
+  const shipping = await getShippingCents(env);
+  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined, shipping);
   const updatedCart = await writeCart(env, { ...cart, items, totals });
 
   if (target) {

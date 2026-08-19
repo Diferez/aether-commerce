@@ -11,6 +11,7 @@ import { apiBaseUrl, storefrontPath } from "../../components/config";
 import {
   getCartId,
   applyCartCoupon,
+  createCheckoutSession,
   readLocalCart,
   readLocalCartItems,
   removeProductFromCart,
@@ -19,17 +20,11 @@ import {
   getCartCredentials
 } from "../../components/cart-client";
 import { buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildWhatsappUrl } from "../../components/whatsapp-checkout";
-import { useCheckoutOptions } from "../../components/checkout-options";
+import { useCheckoutOptions, useShippingSettings } from "../../components/checkout-options";
 import { useAetherAuth } from "../../components/ClerkAuthProvider";
 import { useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
 import { StorefrontLink } from "../../components/StorefrontLink";
-
-type CheckoutPayload = {
-  success: boolean;
-  data?: { checkoutUrl: string };
-  error?: { code: string; message: string };
-};
 
 export default function CartPage() {
   const { locale, t } = useLanguage();
@@ -42,6 +37,7 @@ export default function CartPage() {
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const checkoutOptions = useCheckoutOptions();
+  const shippingSettings = useShippingSettings();
 
   async function refresh() {
     const id = getCartId();
@@ -147,21 +143,6 @@ export default function CartPage() {
     }
   }
 
-  async function createCheckoutSession() {
-    const { cartId, token: cartToken } = await getCartCredentials();
-    const token = await getToken();
-    const response = await fetch(`${apiBaseUrl}/api/v1/checkout/session`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-        ...(cartToken ? { "x-aether-cart-token": cartToken } : {})
-      },
-      body: JSON.stringify({ cartId })
-    });
-    return (await response.json()) as CheckoutPayload;
-  }
-
   async function checkout() {
     if (checkoutOptions?.paymentMode === "whatsapp") {
       if (!cart || cart.items.length === 0) return;
@@ -171,34 +152,39 @@ export default function CartPage() {
     }
 
     if (!customer) {
-      router.push(storefrontPath("/register?next=/cart&checkout=1"));
+      router.push(storefrontPath(`/register?next=${shippingSettings?.enabled ? "/checkout" : "/cart"}&checkout=1`));
       return;
     }
 
-    setStatus(t.preparingCheckout);
+    // Shipping is off (or its setting hasn't loaded yet - defaulting to the
+    // existing direct flow rather than making every shopper wait on an extra
+    // request before their first click does anything): go straight to the
+    // payment provider, same as before /checkout existed. Only when it's on
+    // does the shopper need to stop at /checkout first to give an address.
+    if (!shippingSettings?.enabled) {
+      setStatus(t.preparingCheckout);
+      try {
+        let payload = await createCheckoutSession(getToken);
 
-    try {
-      let payload = await createCheckoutSession();
+        if (!payload.success && payload.error?.code === "EMPTY_CART" && readLocalCartItems().length > 0) {
+          setStatus(t.syncingCartCheckout);
+          await syncLocalCartToApi();
+          payload = await createCheckoutSession(getToken);
+        }
 
-      if (
-        !payload.success &&
-        payload.error?.code === "EMPTY_CART" &&
-        readLocalCartItems().length > 0
-      ) {
-        setStatus(t.syncingCartCheckout);
-        await syncLocalCartToApi();
-        payload = await createCheckoutSession();
+        if (payload.success && payload.data?.checkoutUrl) {
+          window.location.href = payload.data.checkoutUrl;
+          return;
+        }
+
+        setStatus(payload.error?.message ?? t.checkoutFailed);
+      } catch {
+        setStatus(t.startApiCheckout);
       }
-
-      if (payload.success && payload.data?.checkoutUrl) {
-        window.location.href = payload.data.checkoutUrl;
-        return;
-      }
-
-      setStatus(payload.error?.message ?? t.checkoutFailed);
-    } catch {
-      setStatus(t.startApiCheckout);
+      return;
     }
+
+    router.push(storefrontPath("/checkout"));
   }
 
   async function removeItem(itemId: string, itemName: string) {

@@ -12,6 +12,10 @@ function orderNumber(sessionId: string) {
   return `AETH-${suffix}`;
 }
 
+// Only reached when the shopper's cart never carried a real shippingAddress
+// - either shipping was disabled (so /checkout's address step never ran) or
+// the storefront checkout button skipped straight to the payment provider
+// (WhatsApp orders don't reach this function at all - see createManualOrder).
 function demoShippingAddress(email: string): Address {
   return {
     fullName: email.split("@")[0] || "Aether Customer",
@@ -108,7 +112,7 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
     fulfillmentStatus: "unfulfilled",
     items: cart.items,
     totals: { ...cart.totals, total, currency },
-    shippingAddress: demoShippingAddress(email),
+    shippingAddress: cart.shippingAddress ?? demoShippingAddress(email),
     payment: {
       provider,
       providerSessionId: session.id,

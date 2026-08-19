@@ -27,9 +27,8 @@ type BrandSettings = {
 };
 
 type ShippingSettings = {
-  freeShippingThreshold: number;
-  countries: string[];
-  options: Array<{ id: string; label: string; amount: number; currency: string; estimatedDays: string }>;
+  enabled: boolean;
+  amountCents: number;
 };
 
 type ReservationSettings = {
@@ -48,7 +47,7 @@ const defaultBrand: BrandSettings = {
 };
 
 const defaultCheckout: CheckoutSettings = { paymentMode: "stripe", whatsappNumber: "", whatsappMessageTemplate: "" };
-const defaultShipping: ShippingSettings = { freeShippingThreshold: 15000, countries: ["US"], options: [] };
+const defaultShipping: ShippingSettings = { enabled: false, amountCents: 0 };
 const defaultReservations: ReservationSettings = { ttlMinutes: 15 };
 
 function money(cents: number, locale: string) {
@@ -324,26 +323,37 @@ export default function SettingsPage() {
               }
               description={t.settingsPage.shippingDescription}
             >
-              <label className="grid gap-1 text-sm">
-                <span className="font-medium text-ink-muted">{t.settingsPage.freeShippingThreshold}</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    aria-label={t.settingsPage.freeShippingThresholdLabel}
-                    value={shippingForm.freeShippingThreshold / 100}
-                    onChange={(event) =>
-                      setShippingForm((current) => ({
-                        ...current,
-                        freeShippingThreshold: Math.max(0, Math.round(Number(event.target.value) * 100))
-                      }))
-                    }
-                    className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
-                  />
-                  <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.freeShippingThreshold, locale)}</span>
-                </div>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={shippingForm.enabled}
+                  onChange={(event) => setShippingForm((current) => ({ ...current, enabled: event.target.checked }))}
+                  className="h-4 w-4 rounded border-border-strong"
+                />
+                <span className="font-medium text-ink-muted">{t.settingsPage.shippingEnabledLabel}</span>
               </label>
+              {shippingForm.enabled ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-ink-muted">{t.settingsPage.shippingAmount}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      aria-label={t.settingsPage.shippingAmountAriaLabel}
+                      value={shippingForm.amountCents / 100}
+                      onChange={(event) =>
+                        setShippingForm((current) => ({
+                          ...current,
+                          amountCents: Math.max(0, Math.round(Number(event.target.value) * 100))
+                        }))
+                      }
+                      className="focus-ring min-h-10 w-32 rounded-md border border-border bg-surface px-3 text-ink tabular-nums"
+                    />
+                    <span className="text-sm text-ink-muted tabular-nums">= {money(shippingForm.amountCents, locale)}</span>
+                  </div>
+                </label>
+              ) : null}
               <div className="flex items-center gap-3">
                 <button
                   type="button"

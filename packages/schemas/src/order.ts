@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cartItemSchema, cartTotalsSchema, currencyCodeSchema } from "./cart";
+import { addressSchema } from "./address";
 
 export const orderStateSchema = z.enum([
   "draft",
@@ -35,18 +36,6 @@ export const orderItemSnapshotSchema = z.object({
   discount: z.number().int().min(0),
   quantity: z.number().int().min(1),
   subtotal: z.number().int().min(0)
-});
-
-export const addressSchema = z.object({
-  id: z.string().min(1).optional(),
-  fullName: z.string().min(2),
-  line1: z.string().min(3),
-  line2: z.string().optional(),
-  city: z.string().min(2),
-  region: z.string().min(2),
-  postalCode: z.string().min(3),
-  country: z.string().length(2),
-  phone: z.string().optional()
 });
 
 export const paymentSchema = z.object({
@@ -100,7 +89,6 @@ export type OrderChannel = z.infer<typeof orderChannelSchema>;
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type FulfillmentStatus = z.infer<typeof fulfillmentStatusSchema>;
 export type OrderItemSnapshot = z.infer<typeof orderItemSnapshotSchema>;
-export type Address = z.infer<typeof addressSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
 export type Shipment = z.infer<typeof shipmentSchema>;
 export type Order = z.infer<typeof orderSchema>;

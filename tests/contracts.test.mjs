@@ -149,7 +149,7 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   const wompiService = read("apps/api/src/services/wompi.ts");
   const accountRoutes = read("apps/api/src/routes/account.ts");
   const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
-  const cartPage = read("apps/storefront/app/cart/page.tsx");
+  const cartClient = read("apps/storefront/components/cart-client.ts");
   const clerkService = read("apps/api/src/services/clerk.ts");
   const publicRoutes = read("apps/api/src/routes/public.ts");
   const clerkProvider = read("apps/storefront/components/ClerkAuthProvider.tsx");
@@ -165,9 +165,13 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(checkoutRoutes, /verifyCartToken/);
   assert.match(checkoutRoutes, /CART_OWNERSHIP_MISMATCH/);
   assert.match(checkoutRoutes, /CHECKOUT_OWNERSHIP_MISMATCH/);
-  assert.match(checkoutRoutes, /writeCart\(c\.env, \{ \.\.\.cart, userId: actor\.userId \}\)/);
-  assert.match(cartPage, /authorization: `Bearer \$\{token\}`/);
-  assert.match(cartPage, /"x-aether-cart-token": cartToken/);
+  assert.match(checkoutRoutes, /\.\.\.cart,\s*\n\s*userId: actor\.userId,/);
+  // Moved from an inline fetch in cart/page.tsx into a shared
+  // createCheckoutSession() (apps/storefront/components/cart-client.ts) so
+  // the storefront's new /checkout page (shipping address collection) can
+  // reuse the exact same auth/cart-token plumbing instead of duplicating it.
+  assert.match(cartClient, /authorization: `Bearer \$\{authToken\}`/);
+  assert.match(cartClient, /"x-aether-cart-token": cartToken/);
   assert.match(accountRoutes, /resolveActorEmail/);
   assert.match(accountRoutes, /email = \? collate nocase/);
   assert.match(clerkService, /https:\/\/api\.clerk\.com\/v1\/users/);

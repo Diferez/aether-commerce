@@ -1,28 +1,11 @@
-export type ShippingOption = {
-  id: string;
-  label: string;
-  amount: number;
-  currency: string;
-  estimatedDays: string;
-};
-
+// A single admin-configured flat fee, applied to every checkout as-is when
+// enabled (see cart.ts's getShippingCents) - no per-option/per-country
+// tiers, since nothing in this codebase ever offered more than one shipping
+// choice to a shopper.
 export type ShippingSettings = {
-  freeShippingThreshold: number;
-  countries: string[];
-  options: ShippingOption[];
+  enabled: boolean;
+  amountCents: number;
 };
-
-export function resolveShippingAmount(
-  subtotal: number,
-  option: ShippingOption,
-  settings: ShippingSettings
-): number {
-  if (option.id === "standard" && subtotal >= settings.freeShippingThreshold) {
-    return 0;
-  }
-
-  return option.amount;
-}
 
 export function buildTrackingTimeline(
   createdAt = new Date(),

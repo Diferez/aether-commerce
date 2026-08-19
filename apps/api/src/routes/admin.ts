@@ -1071,21 +1071,13 @@ adminRoutes.patch(
   }
 );
 
-const shippingOptionSchema = z.object({
-  id: z.enum(["standard", "express", "priority"]),
-  label: z.string().min(1).max(60),
-  amount: z.number().int().min(0),
-  currency: z.literal("USD"),
-  estimatedDays: z.string().min(1).max(20)
-});
-
-// The admin UI only exposes freeShippingThreshold for editing, but the full
-// object round-trips through this schema (countries/options come back from
-// GET /shipping/options unchanged) so a save never silently drops them.
+// A single flat fee, on or off - not the tiered per-option/per-country model
+// this used to be (freeShippingThreshold/countries/options), which the
+// storefront never actually charged (see cart.ts's getShippingCents for
+// where amountCents now really affects the cart total).
 const shippingSettingsSchema = z.object({
-  freeShippingThreshold: z.number().int().min(0),
-  countries: z.array(z.string().length(2)).min(1),
-  options: z.array(shippingOptionSchema).min(1)
+  enabled: z.boolean(),
+  amountCents: z.number().int().min(0)
 });
 
 adminRoutes.patch(
