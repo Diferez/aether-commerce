@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import type { Product } from "@aether/schemas";
 import { Badge, Button } from "@aether/ui";
 import { storefrontPath } from "../../../components/config";
@@ -97,7 +97,7 @@ export default function FavoritesPage() {
                   </div>
                   <p className="line-clamp-2 text-sm leading-6 text-zinc-600">{localized.description}</p>
                   <div className="flex items-center justify-between gap-3">
-                    <strong className="text-zinc-950">{formatUsd(product.finalPrice, locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">{formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}</strong>
                     <div className="flex gap-2">
                       <Button
                         type="button"

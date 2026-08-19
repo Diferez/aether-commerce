@@ -2,7 +2,7 @@
 
 import { Scale } from "lucide-react";
 import { demoProducts } from "../../components/demo-products";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { useLanguage } from "../../components/LanguageProvider";
 import { getLocalizedProduct } from "../../components/product-localization";
 
@@ -28,7 +28,7 @@ export default function ComparePage() {
           </thead>
           <tbody>
             {[
-              [t.price, ...products.map((product) => formatUsd(product.finalPrice, locale === "es" ? "es-CO" : "en-US"))],
+              [t.price, ...products.map((product) => formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US"))],
               [t.category, ...products.map((product) => getLocalizedProduct(product, locale).category)],
               [t.rating, ...products.map((product) => `${product.rating.average} / 5`)],
               [t.inventory, ...products.map((product) => t.availability[product.inventory.status])]

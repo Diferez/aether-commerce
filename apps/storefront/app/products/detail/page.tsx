@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { Badge, Button } from "@aether/ui";
 import { apiBaseUrl, storefrontPath } from "../../../components/config";
 import { addProductToCart } from "../../../components/cart-client";
@@ -179,10 +179,10 @@ export default function ProductDetailByQueryPage() {
             </div>
 
             <div className="mt-4 flex items-baseline gap-3">
-              <p className="text-3xl font-semibold text-zinc-950">{formatUsd(product.finalPrice, locale === "es" ? "es-CO" : "en-US")}</p>
+              <p className="text-3xl font-semibold text-zinc-950">{formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}</p>
               {product.originalPrice ? (
                 <>
-                  <p className="text-base text-zinc-500 line-through">{formatUsd(product.originalPrice, locale === "es" ? "es-CO" : "en-US")}</p>
+                  <p className="text-base text-zinc-500 line-through">{formatMoney(product.originalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}</p>
                   <Badge tone="accent">-{product.discountPercentage}%</Badge>
                 </>
               ) : null}

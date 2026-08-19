@@ -2,7 +2,7 @@ import {
   aetherAgentConfig,
   aetherIntegrationConfig,
   aetherNavigationConfig
-} from "../config";
+} from "../../../config/aether";
 
 const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
 

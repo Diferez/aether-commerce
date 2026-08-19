@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CreditCard, Minus, Plus, RotateCcw, ShoppingBag, Ticket, Trash2 } from "lucide-react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import type { Cart, Product } from "@aether/schemas";
 import { Badge, Button } from "@aether/ui";
 import { apiBaseUrl, storefrontPath } from "../../components/config";
@@ -234,7 +234,7 @@ export default function CartPage() {
                       {item.name}
                     </a>
                     <p className="mt-1 text-sm text-zinc-500">
-                      {formatUsd(item.finalUnitPrice, locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
+                      {formatMoney(item.finalUnitPrice, "USD", locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
                     </p>
                     {outOfStock ? (
                       <Badge tone="danger" className="mt-2">
@@ -270,7 +270,7 @@ export default function CartPage() {
                     </div>
                   </div>
                   <div className="grid justify-items-end gap-3">
-                    <strong className="text-zinc-950">{formatUsd(item.lineTotal, locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">{formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}</strong>
                     <button
                       type="button"
                       onClick={() => void removeItem(item.slug, item.name)}
@@ -289,10 +289,10 @@ export default function CartPage() {
         <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-5 lg:sticky lg:top-24">
           <h2 className="text-lg font-semibold text-zinc-950">{t.summary}</h2>
           <dl className="mt-4 grid gap-2 text-sm">
-            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatUsd(cart?.totals.subtotal ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatUsd(cart?.totals.discount ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatUsd(cart?.totals.shipping ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatUsd(cart?.totals.total ?? 0, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatMoney(cart?.totals.subtotal ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatMoney(cart?.totals.discount ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatMoney(cart?.totals.shipping ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatMoney(cart?.totals.total ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
           </dl>
           <div className="mt-5 grid gap-3">
             <Button type="button" variant="outline" onClick={() => void applyCoupon()} disabled={items.length === 0}>

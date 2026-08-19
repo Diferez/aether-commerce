@@ -2,7 +2,7 @@
 
 import { Bell, Check, Flame, Heart, ShoppingBag, Star } from "lucide-react";
 import type { Product } from "@aether/schemas";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { Skeleton } from "@aether/ui";
 import { storefrontPath } from "./config";
 import { useLanguage } from "./LanguageProvider";
@@ -105,14 +105,14 @@ export function ProductCard({
               anchored block again, just like the chip slot below. */}
           <div className="flex min-h-[46px] flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <p className={`text-lg font-semibold ${outOfStock ? "text-ink-muted" : "text-zinc-950"}`}>
-              {formatUsd(product.finalPrice, priceLocale)}
+              {formatMoney(product.finalPrice, "USD", priceLocale)}
             </p>
             {product.originalPrice ? (
-              <p className="text-xs text-zinc-500 line-through">{formatUsd(product.originalPrice, priceLocale)}</p>
+              <p className="text-xs text-zinc-500 line-through">{formatMoney(product.originalPrice, "USD", priceLocale)}</p>
             ) : null}
             {!outOfStock && product.originalPrice ? (
               <span className="text-xs font-medium text-success [font-variant-numeric:tabular-nums]">
-                {t.savings.replace("{amount}", formatUsd(product.originalPrice - product.finalPrice, priceLocale))}
+                {t.savings.replace("{amount}", formatMoney(product.originalPrice - product.finalPrice, "USD", priceLocale))}
               </span>
             ) : null}
           </div>

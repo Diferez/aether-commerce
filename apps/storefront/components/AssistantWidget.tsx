@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Loader2, RotateCcw, Send, ShoppingBag, X } from "lucide-react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { addProductReferenceToCart, getCartId, getCartToken, readLocalCart, replaceLocalCartItems } from "./cart-client";
 import type { Cart, CartItem } from "@aether/schemas";
 import { aiAssistantUrl, storefrontPath } from "./config";
@@ -601,7 +601,7 @@ export function AssistantWidget() {
                         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                           <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-chat-text">{product.name}</p>
                           <p className="text-[15px] font-bold text-chat-success">
-                            {formatUsd(Math.round(Number(product.price) * 100), locale === "es" ? "es-CO" : "en-US")}
+                            {formatMoney(Math.round(Number(product.price) * 100), "USD", locale === "es" ? "es-CO" : "en-US")}
                           </p>
                           <div className="flex flex-wrap gap-1">
                             <span
@@ -649,7 +649,7 @@ export function AssistantWidget() {
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-chat-text">
-                        {formatUsd(Math.round(Number(message.cart.subtotal) * 100), locale === "es" ? "es-CO" : "en-US")}
+                        {formatMoney(Math.round(Number(message.cart.subtotal) * 100), "USD", locale === "es" ? "es-CO" : "en-US")}
                       </p>
                     </div>
                     {message.cart.items.length > 0 ? (
@@ -671,7 +671,7 @@ export function AssistantWidget() {
                                 {name}
                               </span>
                               <span className="shrink-0 font-medium text-chat-text">
-                                {formatUsd(Math.round(lineTotal), locale === "es" ? "es-CO" : "en-US")}
+                                {formatMoney(Math.round(lineTotal), "USD", locale === "es" ? "es-CO" : "en-US")}
                               </span>
                             </li>
                           );
@@ -718,7 +718,7 @@ export function AssistantWidget() {
                   {footerItemCount} {copy.items}
                 </span>
               </div>
-              <span className="text-sm font-bold text-chat-text">{formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}</span>
+              <span className="text-sm font-bold text-chat-text">{formatMoney(footerTotal, "USD", locale === "es" ? "es-CO" : "en-US")}</span>
             </div>
             <form
               className="flex items-center gap-2 px-3 py-3"
