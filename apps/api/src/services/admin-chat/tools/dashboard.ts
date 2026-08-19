@@ -75,15 +75,18 @@ export const getRecentActivityTool = defineAdminChatTool({
   schema: z.object({ limit: z.number().int().min(1).max(50).default(20) }),
   requires: { permission: "audit.read" },
   run: async (args, ctx) => {
-    const rows = await ctx.env.DB.prepare("select id, actor_id, action, target_type, target_id, created_at from audit_logs order by created_at desc limit ?")
+    const rows = await ctx.env.DB.prepare(
+      "select id, actor_id, actor_role, action, target_type, target_id, created_at from audit_logs order by created_at desc limit ?"
+    )
       .bind(args.limit)
-      .all<{ id: string; actor_id: string; action: string; target_type: string; target_id: string | null; created_at: string }>();
+      .all<{ id: string; actor_id: string; actor_role: string | null; action: string; target_type: string; target_id: string | null; created_at: string }>();
     const items = (rows.results || []).map((row) => ({
       id: row.id,
       action: row.action,
       targetType: row.target_type,
       targetId: row.target_id,
       actorId: row.actor_id,
+      actorRole: row.actor_role,
       createdAt: row.created_at
     }));
     return {

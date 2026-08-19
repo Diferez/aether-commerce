@@ -103,6 +103,10 @@ export const getWebhookActivityTool = defineAdminChatTool({
       targetType: "webhook",
       targetId: row.provider_event_id,
       actorId: row.provider,
+      // No human actor exists for a webhook delivery - actorId is already the
+      // provider name (e.g. "stripe"), which the card's actor clause
+      // recognizes as an automated actor without needing a role here.
+      actorRole: null,
       createdAt: row.received_at
     }));
 

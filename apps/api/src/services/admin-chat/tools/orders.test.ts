@@ -162,8 +162,8 @@ describe("getOrderTimelineTool", () => {
     expect(result.artifact).toEqual({
       type: "activity_list",
       items: [
-        { id: "hist_1", action: "processing", targetType: "order", targetId: "ord_1", actorId: "usr_admin", createdAt: "2026-08-14T09:00:00Z" },
-        { id: "hist_2", action: "processing -> shipped", targetType: "order", targetId: "ord_1", actorId: "usr_admin", createdAt: "2026-08-15T09:00:00Z" }
+        { id: "hist_1", action: "processing", targetType: "order", targetId: "ord_1", actorId: "usr_admin", actorRole: null, createdAt: "2026-08-14T09:00:00Z" },
+        { id: "hist_2", action: "processing -> shipped", targetType: "order", targetId: "ord_1", actorId: "usr_admin", actorRole: null, createdAt: "2026-08-15T09:00:00Z" }
       ]
     });
   });

@@ -55,8 +55,8 @@ describe("getRecentActivityTool", () => {
     const { env } = fakeEnv([
       {
         all: [
-          { id: "log_2", actor_id: "usr_admin", action: "product.updated", target_type: "product", target_id: "prd_1", created_at: "2026-08-15T10:00:00Z" },
-          { id: "log_1", actor_id: "usr_admin", action: "order.status_changed", target_type: "order", target_id: "ord_1", created_at: "2026-08-15T09:00:00Z" }
+          { id: "log_2", actor_id: "usr_admin", actor_role: "admin", action: "product.updated", target_type: "product", target_id: "prd_1", created_at: "2026-08-15T10:00:00Z" },
+          { id: "log_1", actor_id: "usr_admin", actor_role: null, action: "order.status_changed", target_type: "order", target_id: "ord_1", created_at: "2026-08-15T09:00:00Z" }
         ]
       }
     ]);
@@ -67,8 +67,8 @@ describe("getRecentActivityTool", () => {
     expect(result.artifact).toEqual({
       type: "activity_list",
       items: [
-        { id: "log_2", action: "product.updated", targetType: "product", targetId: "prd_1", actorId: "usr_admin", createdAt: "2026-08-15T10:00:00Z" },
-        { id: "log_1", action: "order.status_changed", targetType: "order", targetId: "ord_1", actorId: "usr_admin", createdAt: "2026-08-15T09:00:00Z" }
+        { id: "log_2", action: "product.updated", targetType: "product", targetId: "prd_1", actorId: "usr_admin", actorRole: "admin", createdAt: "2026-08-15T10:00:00Z" },
+        { id: "log_1", action: "order.status_changed", targetType: "order", targetId: "ord_1", actorId: "usr_admin", actorRole: null, createdAt: "2026-08-15T09:00:00Z" }
       ]
     });
   });
