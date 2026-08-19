@@ -39,10 +39,12 @@ Según las funciones habilitadas:
 
 - `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER`, `CLERK_WEBHOOK_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `WOMPI_SECRET_KEY`, `WOMPI_EVENTS_SECRET`
+- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout; ver `docs/security.md`)
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
 - `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN`
 
-Usa únicamente Stripe test mode en esta demo.
+Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wompi.
 
 ## D1
 

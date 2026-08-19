@@ -9,11 +9,18 @@ export function CheckoutSuccessClient() {
   const [state, setState] = useState<ConfirmState>("idle");
   const [orderNumber, setOrderNumber] = useState<string>("");
 
+  // Stripe returns session_id (from the {CHECKOUT_SESSION_ID} template in the
+  // success_url); Wompi's checkout redirect appends the transaction id as
+  // `id` (or `transaction_id` on some integrations) instead. /checkout/confirm
+  // only needs *a* provider-specific session identifier - it resolves which
+  // provider is active server-side, so this page never needs to know which
+  // one ran.
   const sessionId = useMemo(() => {
     if (typeof window === "undefined") {
       return "";
     }
-    return new URLSearchParams(window.location.search).get("session_id") ?? "";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("session_id") ?? params.get("id") ?? params.get("transaction_id") ?? "";
   }, []);
 
   useEffect(() => {
@@ -67,15 +74,15 @@ export function CheckoutSuccessClient() {
 
   const body =
     state === "confirming"
-      ? "We are saving your Stripe sandbox order in D1."
+      ? "We are saving your sandbox order in D1."
       : state === "created"
         ? `Your order${orderNumber ? ` ${orderNumber}` : ""} was saved successfully.`
         : state === "existing"
           ? `Your order${orderNumber ? ` ${orderNumber}` : ""} was already saved.`
           : state === "missing-session"
-            ? "Stripe returned without a session id. The webhook can still save the order if it is configured."
+            ? "The payment provider returned without a session id. The webhook can still save the order if it is configured."
             : state === "error"
-              ? "Stripe approved the payment, but the order could not be confirmed from this page. Check webhook configuration or Worker logs."
+              ? "The payment provider approved the payment, but the order could not be confirmed from this page. Check webhook configuration or Worker logs."
               : "The webhook flow is idempotent and stores payment/order events in D1.";
 
   return (

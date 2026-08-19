@@ -7,8 +7,16 @@ bad URLs and falls back to deterministic Cloudinary placeholders.
 
 ## Checkout does not redirect
 
-Check that `STRIPE_SECRET_KEY`, `APP_ORIGIN_STORE`, and `STRIPE_WEBHOOK_SECRET`
-are configured. Aether does not create live payments.
+Check that `APP_ORIGIN_STORE` is configured, and that the active provider's
+secret key is set - either `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` or
+`WOMPI_SECRET_KEY`/`WOMPI_EVENTS_SECRET` as a Worker secret, or the
+equivalent value saved from the admin panel's checkout settings (`GET
+/api/v1/admin/checkout-settings` shows which provider and credentials are
+currently effective). Aether does not create live payments in either
+provider. If credentials were saved from the admin panel and checkout still
+falls back to a simulated URL, confirm `AETHER_SETTINGS_ENCRYPTION_KEY` is
+set - without it, stored secrets cannot be decrypted and are treated as not
+configured.
 
 ## Emails are not sent
 

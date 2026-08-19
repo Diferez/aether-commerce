@@ -307,7 +307,7 @@ paths:
           description: Updated cart
   /checkout/session:
     post:
-      summary: Create Stripe test checkout session
+      summary: Create a checkout session with the active provider (Stripe or Wompi, sandbox only)
       requestBody:
         required: true
         content:
@@ -416,6 +416,14 @@ paths:
   /webhooks/stripe:
     post:
       summary: Stripe signed webhook
+      responses:
+        "200":
+          description: Webhook accepted
+        "401":
+          $ref: "#/components/responses/Error"
+  /webhooks/wompi:
+    post:
+      summary: Wompi signed webhook (events secret checksum)
       responses:
         "200":
           description: Webhook accepted
