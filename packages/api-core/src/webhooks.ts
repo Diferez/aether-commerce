@@ -44,3 +44,30 @@ export type StripeWebhookPayload = {
 export function parseStripeWebhookPayload(payload: string): StripeWebhookPayload {
   return JSON.parse(payload) as StripeWebhookPayload;
 }
+
+export type WompiWebhookPayload = {
+  event: string;
+  data?: {
+    transaction?: {
+      id: string;
+      status?: string;
+      amount_in_cents?: number;
+      currency?: string;
+      reference?: string;
+      customer_email?: string;
+      payment_link_id?: string;
+    };
+  };
+  sent_at?: string;
+  timestamp?: number;
+  signature?: {
+    properties: string[];
+    checksum: string;
+  };
+  environment?: string;
+};
+
+/** Parses only the public event shape consumed by the checkout adapter. */
+export function parseWompiWebhookPayload(payload: string): WompiWebhookPayload {
+  return JSON.parse(payload) as WompiWebhookPayload;
+}

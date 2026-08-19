@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { checkoutProviderIds } from "@aether/api-core";
 import type { AppBindings } from "../types";
-import { ok } from "../http";
+import { fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache, getCatalogProducts, getProductById } from "../services/catalog";
 import { createInventoryService } from "../services/inventory";
@@ -11,12 +12,44 @@ import { createCouponService } from "../services/coupons";
 import { createReviewModerationService } from "../services/review-moderation";
 import { createProductOverrideService } from "../services/product-overrides";
 import { createAdministrationService } from "../services/administration";
+import { createCheckoutSettingsService } from "../services/checkout-settings";
+import { summarizeCheckoutSettings } from "../services/checkout-provider";
 
 const productOverrideSchema = z.object({
   name: z.string().min(1).optional(),
   visibility: z.enum(["visible", "hidden", "draft"]).optional(),
   flags: z.array(z.enum(["featured", "new", "deal", "limited", "hidden"])).optional()
 });
+
+const checkoutCredentialsUpdateSchema = z.object({
+  secretKey: z.string().min(1).optional(),
+  webhookSecret: z.string().min(1).optional()
+});
+
+const checkoutSettingsUpdateSchema = z.object({
+  mode: z.enum(checkoutProviderIds).optional(),
+  stripe: checkoutCredentialsUpdateSchema.optional(),
+  wompi: checkoutCredentialsUpdateSchema.optional()
+});
+
+function sanitizeCredentials(credentials?: z.infer<typeof checkoutCredentialsUpdateSchema>) {
+  if (!credentials) return undefined;
+  return {
+    ...(credentials.secretKey !== undefined ? { secretKey: credentials.secretKey } : {}),
+    ...(credentials.webhookSecret !== undefined ? { webhookSecret: credentials.webhookSecret } : {})
+  };
+}
+
+/** zod's .optional() output type carries explicit `| undefined`; strip it so exactOptionalPropertyTypes accepts the merge input. */
+function sanitizeCheckoutSettingsUpdate(input: z.infer<typeof checkoutSettingsUpdateSchema>) {
+  const stripe = sanitizeCredentials(input.stripe);
+  const wompi = sanitizeCredentials(input.wompi);
+  return {
+    ...(input.mode !== undefined ? { mode: input.mode } : {}),
+    ...(stripe !== undefined ? { stripe } : {}),
+    ...(wompi !== undefined ? { wompi } : {})
+  };
+}
 
 export const adminRoutes = new Hono<AppBindings>();
 
@@ -182,4 +215,27 @@ adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, {
 adminRoutes.get("/audit", requirePermission("audit.read"), async (c) => ok(c, await createAdministrationService(c.env.DB).listAuditLogs()));
 adminRoutes.get("/settings", requirePermission("settings.manage"), async (c) => ok(c, await createAdministrationService(c.env.DB).listApplicationSettings()));
 adminRoutes.patch("/settings", requirePermission("settings.manage"), (c) => ok(c, { updated: true }));
+
+adminRoutes.get("/checkout-settings", requirePermission("settings.manage"), async (c) =>
+  ok(c, await summarizeCheckoutSettings(c.env))
+);
+adminRoutes.put(
+  "/checkout-settings",
+  requirePermission("settings.manage"),
+  zValidator("json", checkoutSettingsUpdateSchema),
+  async (c) => {
+    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+      return fail(
+        c,
+        500,
+        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing checkout secrets from the admin panel."
+      );
+    }
+
+    const input = c.req.valid("json");
+    await createCheckoutSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeCheckoutSettingsUpdate(input));
+    return ok(c, await summarizeCheckoutSettings(c.env));
+  }
+);
 adminRoutes.get("/export/orders", requirePermission("exports.create"), (c) => ok(c, { format: "csv", simulated: true, rows: 0 }));

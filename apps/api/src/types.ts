@@ -12,10 +12,13 @@ export type Env = {
   CLERK_JWT_ISSUER?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  WOMPI_SECRET_KEY?: string;
+  WOMPI_EVENTS_SECRET?: string;
   RESEND_API_KEY?: string;
   CONTACT_RECIPIENT_EMAIL?: string;
   CLOUDINARY_CLOUD_NAME?: string;
   AETHER_CART_TOKEN_SECRET?: string;
+  AETHER_SETTINGS_ENCRYPTION_KEY?: string;
   AETHER_ENV?: string;
 };
 

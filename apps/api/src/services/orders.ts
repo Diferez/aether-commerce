@@ -1,28 +1,12 @@
-import { clearPaidCart, createPaidOrder } from "@aether/api-core";
+import { clearPaidCart, createPaidOrder, type CheckoutProviderId, type PaidCheckoutSession } from "@aether/api-core";
 import type { Address, Cart } from "@aether/schemas";
 import type { Env } from "../types";
 import { readCart } from "./cart";
 
-type StripeCheckoutSession = {
-  id: string;
-  payment_status?: string;
-  amount_total?: number;
-  currency?: string;
-  customer_details?: {
-    email?: string;
-  };
-  customer_email?: string;
-  metadata?: {
-    cartId?: string;
-    userId?: string;
-  };
-  payment_intent?: string;
-};
-
 function demoShippingAddress(email: string): Address {
   return {
     fullName: email.split("@")[0] || "Aether Customer",
-    line1: "Stripe sandbox checkout",
+    line1: "Sandbox checkout",
     city: "Demo City",
     region: "Demo",
     postalCode: "00000",
@@ -42,19 +26,19 @@ async function markCartPaid(env: Env, cart: Cart) {
     .run();
 }
 
-export async function createOrderFromStripeSession(env: Env, session: StripeCheckoutSession) {
+export async function createOrderFromPaidSession(env: Env, session: PaidCheckoutSession, provider: CheckoutProviderId) {
   const existing = await readOrderBySession(env, session.id);
   if (existing) {
     return { order: JSON.parse(existing.payload_json) as Record<string, unknown>, created: false };
   }
 
-  if (session.payment_status && session.payment_status !== "paid") {
-    throw new Error("Stripe session is not paid");
+  if (session.status !== "paid") {
+    throw new Error(`${provider} session is not paid`);
   }
 
   const cartId = session.metadata?.cartId;
   if (!cartId) {
-    throw new Error("Stripe session is missing cartId metadata");
+    throw new Error(`${provider} session is missing cartId metadata`);
   }
 
   const cart = await readCart(env, cartId);
@@ -62,18 +46,18 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     throw new Error("Cart is empty or already cleared");
   }
 
-  const email = session.customer_details?.email ?? session.customer_email ?? "customer@example.com";
+  const email = session.customerEmail ?? "customer@example.com";
   const order = createPaidOrder({
     cart,
     payment: {
       id: session.id,
       email,
-      ...(session.amount_total !== undefined ? { amountTotal: session.amount_total } : {}),
+      ...(session.amountTotal !== undefined ? { amountTotal: session.amountTotal } : {}),
       ...(session.currency ? { currency: session.currency } : {}),
       ...(session.metadata?.userId ? { userId: session.metadata.userId } : {}),
-      ...(session.payment_intent ? { paymentIntentId: session.payment_intent } : {})
+      ...(session.providerReference ? { paymentIntentId: session.providerReference } : {})
     },
-    paymentProvider: "stripe",
+    paymentProvider: provider,
     orderNumberPrefix: "AETH",
     shippingAddress: demoShippingAddress(email)
   });
@@ -88,12 +72,12 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     ).bind(order.id, order.number, order.userId ?? null, order.email, JSON.stringify(order), total, currency),
     env.DB.prepare(
       `insert into payments (id, order_id, provider, provider_ref, status, amount, currency, created_at, updated_at)
-       values (?, ?, 'stripe', ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).bind(`pay_${session.id}`, order.id, session.payment_intent ?? session.id, total, currency),
+       values (?, ?, ?, ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).bind(`pay_${session.id}`, order.id, provider, session.providerReference ?? session.id, total, currency),
     env.DB.prepare(
       `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-       values (?, ?, null, 'paid', 'stripe', 'checkout.session.completed', ?)`
-    ).bind(crypto.randomUUID(), order.id, session.id),
+       values (?, ?, null, 'paid', ?, 'checkout.session.completed', ?)`
+    ).bind(crypto.randomUUID(), order.id, provider, session.id),
     ...cart.items.map((item) =>
       env.DB.prepare(
         `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)

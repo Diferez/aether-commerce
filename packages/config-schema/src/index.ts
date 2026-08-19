@@ -43,7 +43,7 @@ export const featureConfigSchema = z
 
 export const checkoutConfigSchema = z
   .object({
-    mode: z.enum(["stripe"]),
+    mode: z.enum(["stripe", "wompi"]),
     successPath: z.string().startsWith("/"),
     cancelPath: z.string().startsWith("/")
   })
