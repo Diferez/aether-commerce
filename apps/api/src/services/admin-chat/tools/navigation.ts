@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { getProductRow } from "../../products-admin";
 import { getCustomerDetail } from "../../customers";
 import { pick } from "../language";
@@ -50,12 +50,7 @@ export const openProductTool = defineAdminChatTool({
   requires: { permission: "products.read" },
   run: async (args, ctx) => {
     const row = await getProductRow(ctx.env, args.productId);
-    if (!row) {
-      return {
-        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
-        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: pick(ctx.language, "Product not found.", "Producto no encontrado.") }
-      };
-    }
+    if (!row) return notFoundResult(ctx, "PRODUCT_NOT_FOUND", "product", "producto");
     const href = `/products/edit/?id=${encodeURIComponent(row.id)}`;
     return { message: pick(ctx.language, `Opening ${row.name}.`, `Abriendo ${row.name}.`), artifact: { type: "navigate", href, label: row.name } };
   }
@@ -71,12 +66,7 @@ export const openOrderTool = defineAdminChatTool({
     const row = await ctx.env.DB.prepare("select id, number from orders where id = ? or upper(number) = upper(?)")
       .bind(args.orderId, args.orderId)
       .first<{ id: string; number: string }>();
-    if (!row) {
-      return {
-        message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."),
-        artifact: { type: "error", code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") }
-      };
-    }
+    if (!row) return notFoundResult(ctx, "ORDER_NOT_FOUND", "order", "pedido");
     const href = `/orders/detail/?id=${encodeURIComponent(row.id)}`;
     return { message: pick(ctx.language, `Opening order ${row.number}.`, `Abriendo el pedido ${row.number}.`), artifact: { type: "navigate", href, label: row.number } };
   }
@@ -89,12 +79,7 @@ export const openCustomerTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) {
-      return {
-        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
-        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
-      };
-    }
+    if (!detail) return notFoundResult(ctx, "CUSTOMER_NOT_FOUND", "customer", "cliente");
     const href = `/customers/detail/?id=${encodeURIComponent(detail.id)}`;
     return {
       message: pick(ctx.language, `Opening ${detail.name ?? detail.email}.`, `Abriendo ${detail.name ?? detail.email}.`),

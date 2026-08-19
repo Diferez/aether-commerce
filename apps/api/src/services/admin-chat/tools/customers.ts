@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { getCustomerDetail, listCustomersForAdmin } from "../../customers";
 import type { AdminCustomerSummary } from "../../customers";
 import type { CustomerSummaryArtifact, OrderSummaryArtifact } from "../artifacts";
@@ -64,12 +64,7 @@ export const getCustomerDetailsTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) {
-      return {
-        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
-        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
-      };
-    }
+    if (!detail) return notFoundResult(ctx, "CUSTOMER_NOT_FOUND", "customer", "cliente");
     const customer: CustomerSummaryArtifact = {
       id: detail.id,
       name: detail.name,
@@ -101,12 +96,7 @@ export const getCustomerOrderHistoryTool = defineAdminChatTool({
   requires: { permission: "users.read" },
   run: async (args, ctx) => {
     const detail = await getCustomerDetail(ctx.env, args.customerId);
-    if (!detail) {
-      return {
-        message: pick(ctx.language, "I could not find that customer.", "No pude encontrar ese cliente."),
-        artifact: { type: "error", code: "CUSTOMER_NOT_FOUND", message: pick(ctx.language, "Customer not found.", "Cliente no encontrado.") }
-      };
-    }
+    if (!detail) return notFoundResult(ctx, "CUSTOMER_NOT_FOUND", "customer", "cliente");
 
     // Minimizes what's forwarded (and eventually shown to the model) to
     // exactly what an order-history question needs - order payloads on the
