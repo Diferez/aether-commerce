@@ -621,6 +621,7 @@ export function AssistantWidget() {
                           <div className="mt-1 flex gap-2">
                             <a
                               href={storefrontPath(product.product_url)}
+                              onClick={() => setIsOpen(false)}
                               className="focus-ring rounded-chat border border-chat-border px-3 py-1.5 text-[13px] font-medium text-chat-text transition-colors active:scale-[0.97]"
                             >
                               {copy.view}
@@ -679,7 +680,11 @@ export function AssistantWidget() {
                       </ul>
                     ) : null}
                     {message.action?.type === "OPEN_CART" || message.action?.type?.startsWith("CART_") ? (
-                      <a href={storefrontPath("/cart")} className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white">
+                      <a
+                        href={storefrontPath("/cart")}
+                        onClick={() => setIsOpen(false)}
+                        className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white"
+                      >
                         {copy.openCart}
                       </a>
                     ) : null}

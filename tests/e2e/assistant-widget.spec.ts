@@ -543,3 +543,114 @@ test("assistant widget opens as a full screen mobile dialog", async ({ page, isM
   expect(dialogBox!.height).toBeGreaterThanOrEqual(viewport!.height - 4);
   await expect(assistant.getByPlaceholder(/buscar|search/i)).toBeFocused();
 });
+
+// On mobile the dialog covers the whole viewport (see the test above), so a
+// customer who taps a product's "View" link with no visual feedback that the
+// dialog closed cannot tell whether anything happened at all - it looks
+// identical to the tap being ignored.
+test("assistant widget closes when a product's View link is clicked", async ({ page }) => {
+  await page.route("**/api/v1/cart/*/token", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { token: "test-cart-token" }, meta: { requestId: "req_cart_token" } })
+    });
+  });
+
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        "event: assistant.completed",
+        `data: ${JSON.stringify({
+          request_id: "req_test",
+          thread_id: "00000000-0000-4000-8000-000000000010",
+          message: "Aqui tienes una opcion.",
+          intent: "SEARCH_PRODUCTS",
+          products: [
+            {
+              product_id: "dummyjson_9006",
+              variant_id: "everyday-runner-sneakers-standard",
+              name: "Everyday Runner Sneakers",
+              description: null,
+              price: "119",
+              currency: "USD",
+              image_url: null,
+              product_url: "/products/detail?slug=everyday-runner-sneakers",
+              available: true,
+              color: null,
+              size: null,
+              rating: null
+            }
+          ],
+          cart: null,
+          suggested_replies: []
+        })}`,
+        "",
+        ""
+      ].join("\n")
+    });
+  });
+
+  await page.goto("/");
+  const assistant = await openAssistant(page);
+  await assistant.getByPlaceholder(/buscar|search/i).fill("tenis");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+
+  const viewLink = assistant.getByRole("link", { name: /^(ver|view)$/i });
+  await expect(viewLink).toBeVisible();
+  await viewLink.click();
+
+  await page.waitForURL(/products\/detail\/?\?slug=everyday-runner-sneakers/);
+  await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
+});
+
+test("assistant widget closes when the cart summary's Open cart link is clicked", async ({ page }) => {
+  await page.route("**/api/v1/cart/*/token", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { token: "test-cart-token" }, meta: { requestId: "req_cart_token" } })
+    });
+  });
+
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        "event: assistant.completed",
+        `data: ${JSON.stringify({
+          request_id: "req_test",
+          thread_id: "00000000-0000-4000-8000-000000000011",
+          message: "Este es tu carrito.",
+          intent: "VIEW_CART",
+          products: [],
+          cart: {
+            item_count: 1,
+            subtotal: "119",
+            currency: "USD",
+            items: [{ slug: "everyday-runner-sneakers", quantity: 1 }]
+          },
+          action: { type: "OPEN_CART", status: "SUCCEEDED", entity_id: null, message: null },
+          suggested_replies: []
+        })}`,
+        "",
+        ""
+      ].join("\n")
+    });
+  });
+
+  await page.goto("/");
+  const assistant = await openAssistant(page);
+  await assistant.getByPlaceholder(/buscar|search/i).fill("ver carrito");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+
+  const openCartLink = assistant.getByRole("link", { name: /abrir carrito|open cart/i });
+  await expect(openCartLink).toBeVisible();
+  await openCartLink.click();
+
+  await page.waitForURL(/\/cart\/?$/);
+  await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
+});
