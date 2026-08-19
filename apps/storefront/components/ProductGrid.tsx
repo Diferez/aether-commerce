@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import type { Product } from "@aether/schemas";
 import { Badge, Button, Input, Select, Sheet } from "@aether/ui";
-import { apiBaseUrl, storefrontPath } from "./config";
+import { apiBaseUrl } from "./config";
 import { addProductToCart } from "./cart-client";
 import { useCustomerSession } from "./customer-client";
 import { demoProducts } from "./demo-products";
 import { readFavoriteProducts, toggleFavoriteProduct } from "./favorites-client";
 import { useLanguage } from "./LanguageProvider";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
+import { StorefrontLink } from "./StorefrontLink";
 
 type ApiPagination = {
   page: number;
@@ -34,6 +37,7 @@ const catalogApiTimeoutMs = 12000;
 const debounceMs = 350;
 
 function useQueryState(enabled: boolean) {
+  const router = useRouter();
   const [params, setParamsState] = useState<URLSearchParams>(
     () => new URLSearchParams(enabled && typeof window !== "undefined" ? window.location.search : "")
   );
@@ -56,10 +60,15 @@ function useQueryState(enabled: boolean) {
           url.searchParams.set(key, value);
         }
       }
-      window.history[options?.replace ? "replaceState" : "pushState"]({}, "", url.toString());
+      const href = `${url.pathname}${url.search}`;
+      if (options?.replace) {
+        router.replace(href, { scroll: false });
+      } else {
+        router.push(href, { scroll: false });
+      }
       setParamsState(new URLSearchParams(url.search));
     },
-    [enabled]
+    [enabled, router]
   );
 
   return [params, setParams] as const;
@@ -74,7 +83,8 @@ export function ProductGrid({
   heading,
   eyebrow,
   description,
-  pageSize = 12
+  pageSize = 12,
+  onProductOpen
 }: {
   compact?: boolean;
   fixedCategory?: string;
@@ -85,6 +95,7 @@ export function ProductGrid({
   eyebrow?: string;
   description?: string;
   pageSize?: number;
+  onProductOpen?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const syncUrl = !compact;
   const { locale, t } = useLanguage();
@@ -441,6 +452,7 @@ export function ProductGrid({
                   isAdded={addedProduct?.id === product.id}
                   onToggleFavorite={toggleFavorite}
                   onAddToCart={(item) => void addToCart(item)}
+                  {...(onProductOpen ? { onOpenProduct: onProductOpen } : {})}
                 />
               ))}
             </div>
@@ -491,9 +503,9 @@ export function ProductGrid({
               <p className="truncate text-sm font-semibold text-zinc-950">{locale === "es" ? "Agregado al carrito" : "Added to cart"}</p>
               <p className="truncate text-sm text-zinc-600">{addedProduct.name}</p>
             </div>
-            <a href={storefrontPath("/cart")} className="focus-ring shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">
+            <StorefrontLink href="/cart" className="focus-ring shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">
               {t.cart}
-            </a>
+            </StorefrontLink>
           </div>
         </div>
       ) : null}

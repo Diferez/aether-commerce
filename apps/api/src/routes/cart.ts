@@ -6,13 +6,38 @@ import { cartItemInputSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { createCartToken, verifyCartToken } from "../services/cart-token";
-import { addItem, applyCoupon, readCart, removeItem, updateItemQuantity } from "../services/cart";
+import { withIdempotency } from "../services/idempotency";
+import {
+  addItem,
+  applyCoupon,
+  createCart,
+  readCart,
+  removeItem,
+  updateItemQuantity
+} from "../services/cart";
 
 export const cartRoutes = new Hono<AppBindings>();
 
-cartRoutes.get("/:id/token", async (c) => {
+async function purgeInactiveAnonymousCarts(c: Context<AppBindings>) {
   try {
-    return ok(c, { token: await createCartToken(c.env, c.req.param("id")) });
+    await c.env.DB.prepare(
+      "delete from cart_items where cart_id in (select id from carts where user_id is null and updated_at <= datetime('now', '-90 days'))"
+    ).run();
+    await c.env.DB.prepare(
+      "delete from carts where user_id is null and updated_at <= datetime('now', '-90 days')"
+    ).run();
+  } catch {
+    // A cart session must remain available during rolling schema migrations.
+  }
+}
+
+cartRoutes.post("/session", async (c) => {
+  try {
+    await purgeInactiveAnonymousCarts(c);
+    const cartId = crypto.randomUUID();
+    const token = await createCartToken(c.env, cartId);
+    await createCart(c.env, cartId);
+    return ok(c, { cartId, token }, 201);
   } catch {
     return fail(c, 500, "CART_TOKEN_UNAVAILABLE", "Cart token signing is not configured.");
   }
@@ -36,11 +61,19 @@ cartRoutes.post("/:id/items", zValidator("json", cartItemInputSchema), async (c)
   const tokenError = await requireCartToken(c, c.req.param("id"));
   if (tokenError) return tokenError;
 
-  try {
-    return ok(c, await addItem(c.env, c.req.param("id"), c.req.valid("json")), 201);
-  } catch {
-    return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
-  }
+  return withIdempotency(
+    c.env.DB,
+    "POST /cart/:id/items",
+    c.req.header("x-idempotency-key"),
+    { cartId: c.req.param("id"), ...c.req.valid("json") },
+    async () => {
+      try {
+        return ok(c, await addItem(c.env, c.req.param("id"), c.req.valid("json")), 201);
+      } catch {
+        return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
+      }
+    }
+  );
 });
 
 cartRoutes.post(
@@ -56,7 +89,14 @@ cartRoutes.post(
 cartRoutes.delete("/:id/items/:itemId", async (c) => {
   const tokenError = await requireCartToken(c, c.req.param("id"));
   if (tokenError) return tokenError;
-  return ok(c, await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId"))));
+  return withIdempotency(
+    c.env.DB,
+    "DELETE /cart/:id/items/:itemId",
+    c.req.header("x-idempotency-key"),
+    { cartId: c.req.param("id"), itemId: c.req.param("itemId") },
+    async () =>
+      ok(c, await removeItem(c.env, c.req.param("id"), decodeURIComponent(c.req.param("itemId"))))
+  );
 });
 
 cartRoutes.patch(
@@ -65,14 +105,21 @@ cartRoutes.patch(
   async (c) => {
     const tokenError = await requireCartToken(c, c.req.param("id"));
     if (tokenError) return tokenError;
-    return ok(
-      c,
-      await updateItemQuantity(
-        c.env,
-        c.req.param("id"),
-        decodeURIComponent(c.req.param("itemId")),
-        c.req.valid("json").quantity
-      )
+    return withIdempotency(
+      c.env.DB,
+      "PATCH /cart/:id/items/:itemId",
+      c.req.header("x-idempotency-key"),
+      { cartId: c.req.param("id"), itemId: c.req.param("itemId"), ...c.req.valid("json") },
+      async () =>
+        ok(
+          c,
+          await updateItemQuantity(
+            c.env,
+            c.req.param("id"),
+            decodeURIComponent(c.req.param("itemId")),
+            c.req.valid("json").quantity
+          )
+        )
     );
   }
 );

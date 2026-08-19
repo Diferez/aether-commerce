@@ -243,7 +243,14 @@ export const dictionaries = {
         ["Simulated shipping", "Standard, express and priority options are configured in D1."]
       ],
       continueFromCart: "Continue from cart"
-    }
+    },
+    authUnavailableTitle: "Account access is temporarily unavailable",
+    authUnavailableDescription: "You can continue browsing and using your local cart while authentication is restored.",
+    notFoundEyebrow: "Lost in the catalog",
+    notFoundTitle: "This page slipped off the shelf.",
+    notFoundDescription: "The link may be outdated, or the page may have moved. Head back home or continue exploring the Aether catalog.",
+    returnHome: "Return home",
+    exploreCatalog: "Explore the catalog"
   },
   es: {
     brand: "Aether",
@@ -485,7 +492,14 @@ export const dictionaries = {
         ["Envío simulado", "Las opciones estándar, exprés y prioritaria están configuradas en D1."]
       ],
       continueFromCart: "Continuar desde el carrito"
-    }
+    },
+    authUnavailableTitle: "El acceso a cuentas no está disponible temporalmente",
+    authUnavailableDescription: "Puedes seguir navegando y usando tu carrito local mientras se restablece la autenticación.",
+    notFoundEyebrow: "Fuera del catálogo",
+    notFoundTitle: "Esta página ya no está en el estante.",
+    notFoundDescription: "Es posible que el enlace esté desactualizado o que la página se haya movido. Vuelve al inicio o sigue explorando el catálogo de Aether.",
+    returnHome: "Volver al inicio",
+    exploreCatalog: "Explorar el catálogo"
   }
 } as const;
 

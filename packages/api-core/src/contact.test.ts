@@ -18,6 +18,7 @@ describe("contact messages", () => {
       subject: "Question",
       message: "A sufficiently long contact message.",
       consent: true,
+      privacyVersion: "v1",
       locale: "en"
     }, { queued: true })).resolves.toBe("contact-id");
     expect(savedId).toBe("contact-id");

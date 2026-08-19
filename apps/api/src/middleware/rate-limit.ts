@@ -2,10 +2,11 @@ import type { MiddlewareHandler } from "hono";
 import type { AppBindings } from "../types";
 import { fail } from "../http";
 
-type RateLimitProfile = "global" | "mutation" | "sensitive";
+type RateLimitProfile = "global" | "account" | "mutation" | "sensitive";
 
 const RATE_LIMITS: Record<RateLimitProfile, { limit: number; windowMs: number; retryAfter: number }> = {
   global: { limit: 240, windowMs: 60_000, retryAfter: 60 },
+  account: { limit: 600, windowMs: 60_000, retryAfter: 60 },
   mutation: { limit: 60, windowMs: 60_000, retryAfter: 60 },
   sensitive: { limit: 20, windowMs: 60_000, retryAfter: 60 }
 };
@@ -26,6 +27,12 @@ function normalizedRouteKey(method: string, pathname: string) {
 }
 
 function profileForRequest(method: string, pathname: string): RateLimitProfile {
+  const normalizedMethod = method.toUpperCase();
+
+  if (normalizedMethod === "OPTIONS") {
+    return "global";
+  }
+
   if (
     pathname.startsWith("/api/v1/checkout") ||
     pathname.startsWith("/api/v1/contact") ||
@@ -35,11 +42,24 @@ function profileForRequest(method: string, pathname: string): RateLimitProfile {
     return "sensitive";
   }
 
-  if (!["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
+  if (pathname.startsWith("/api/v1/account")) {
+    return ["GET", "HEAD"].includes(normalizedMethod) ? "account" : "mutation";
+  }
+
+  if (!["GET", "HEAD"].includes(normalizedMethod)) {
     return "mutation";
   }
 
   return "global";
+}
+
+function effectiveProfile(c: Parameters<MiddlewareHandler<AppBindings>>[0], profile: RateLimitProfile) {
+  const actor = c.get("actor");
+  if (profile === "account" && !actor.userId) {
+    return "sensitive";
+  }
+
+  return profile;
 }
 
 async function digest(value: string) {
@@ -48,6 +68,9 @@ async function digest(value: string) {
 }
 
 async function actorKey(c: Parameters<MiddlewareHandler<AppBindings>>[0]) {
+  const actor = c.get("actor");
+  if (actor.userId) return `user:${await digest(actor.userId)}`;
+
   const authorization = c.req.header("authorization");
   if (authorization) return `auth:${await digest(authorization)}`;
 
@@ -61,6 +84,7 @@ async function actorKey(c: Parameters<MiddlewareHandler<AppBindings>>[0]) {
 function nativeLimiter(c: Parameters<MiddlewareHandler<AppBindings>>[0], profile: RateLimitProfile) {
   if (profile === "sensitive") return c.env.RATE_LIMITER_SENSITIVE;
   if (profile === "mutation") return c.env.RATE_LIMITER_MUTATION;
+  if (profile === "account") return c.env.RATE_LIMITER_ACCOUNT;
   return c.env.RATE_LIMITER_GLOBAL;
 }
 
@@ -85,7 +109,8 @@ function localLimit(key: string, profile: RateLimitProfile) {
 export function rateLimit(): MiddlewareHandler<AppBindings> {
   return async (c, next) => {
     const url = new URL(c.req.url);
-    const profile = profileForRequest(c.req.method, url.pathname);
+    const requestedProfile = profileForRequest(c.req.method, url.pathname);
+    const profile = effectiveProfile(c, requestedProfile);
     const key = `${profile}:${await actorKey(c)}:${normalizedRouteKey(c.req.method, url.pathname)}`;
     const limiter = nativeLimiter(c, profile);
     const limited = limiter ? !(await limiter.limit({ key })).success : localLimit(key, profile);

@@ -20,7 +20,7 @@ export type PaidCheckoutSession = {
 
 /** Infrastructure boundary. Provider SDKs, HTTP clients and secrets stay in app adapters. */
 export interface CheckoutProvider {
-  createCheckoutSession(cart: Cart): Promise<CheckoutRedirect>;
+  createCheckoutSession(cart: Cart, customerEmail?: string): Promise<CheckoutRedirect>;
   retrieveCheckoutSession(sessionId: string): Promise<PaidCheckoutSession>;
 }
 

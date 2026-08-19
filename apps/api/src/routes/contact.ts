@@ -4,7 +4,6 @@ import { contactMessageSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { ok } from "../http";
 import { sendContactEmail } from "../services/email";
-import { createContactMessageService } from "../services/contact-messages";
 
 export const contactRoutes = new Hono<AppBindings>();
 
@@ -34,8 +33,35 @@ contactRoutes.post("/", zValidator("json", contactMessageSchema), async (c) => {
     subject: sanitize(rawMessage.subject),
     message: sanitize(rawMessage.message)
   };
+  const id = crypto.randomUUID();
   const delivery = await sendContactEmail(c.env, message);
-  const id = await createContactMessageService(c.env.DB).store(message, delivery);
+
+  // Opportunistically enforce the published retention period without adding a
+  // separate scheduled job. Every new submission removes records whose
+  // retention window has expired before storing the new message.
+  await c.env.DB.prepare(
+    `delete from contact_messages
+      where expires_at is not null and expires_at <= CURRENT_TIMESTAMP`
+  ).run();
+
+  await c.env.DB.prepare(
+    `insert into contact_messages
+      (id, name, email, subject, message, locale, email_status, consent_at,
+       privacy_version, expires_at, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, datetime('now', '+12 months'),
+       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+  )
+    .bind(
+      id,
+      message.name,
+      message.email,
+      message.subject,
+      message.message,
+      message.locale,
+      JSON.stringify(delivery),
+      message.privacyVersion
+    )
+    .run();
 
   return ok(c, { id, emailQueued: delivery.queued }, 201);
 });

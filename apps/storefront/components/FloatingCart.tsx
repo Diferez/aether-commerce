@@ -1,12 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, ShoppingCart, Trash2, X } from "lucide-react";
 import { formatMoney } from "@aether/core";
 import type { Cart } from "@aether/schemas";
 import { readLocalCart, removeProductFromCart } from "./cart-client";
-import { storefrontPath } from "./config";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
 export function FloatingCart() {
   const { locale, t } = useLanguage();
@@ -73,7 +74,7 @@ export function FloatingCart() {
           <div className="max-h-80 overflow-y-auto p-3">
             {cart.items.map((item) => (
               <div key={`${item.productId}-${item.variantId ?? "default"}`} className="flex gap-3 border-b border-chat-border py-3 last:border-b-0">
-                <img src={item.imageUrl} alt={item.name} className="h-14 w-14 rounded-xl bg-chat-surface-alt object-cover" />
+                <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded-xl bg-chat-surface-alt object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-chat-text">{item.name}</p>
                   <p className="text-xs text-chat-text-muted">
@@ -99,14 +100,14 @@ export function FloatingCart() {
                 {formatMoney(cart.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
               </strong>
             </div>
-            <a
-              href={storefrontPath("/cart")}
+            <StorefrontLink
+              href="/cart"
               onClick={() => setIsOpen(false)}
               className="focus-ring mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-chat bg-chat-accent px-4 text-sm font-semibold text-white"
             >
               {locale === "es" ? "Ver carrito" : "View cart"}
               <ChevronRight size={17} aria-hidden />
-            </a>
+            </StorefrontLink>
           </div>
         </div>
       ) : null}

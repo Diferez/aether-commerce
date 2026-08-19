@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiBaseUrl } from "../../../components/config";
+import { useAetherAuth } from "../../../components/ClerkAuthProvider";
 
 type ConfirmState = "idle" | "confirming" | "created" | "existing" | "missing-session" | "error";
 
 export function CheckoutSuccessClient() {
+  const { getToken, isLoaded, isSignedIn } = useAetherAuth();
   const [state, setState] = useState<ConfirmState>("idle");
   const [orderNumber, setOrderNumber] = useState<string>("");
 
@@ -24,18 +26,29 @@ export function CheckoutSuccessClient() {
   }, []);
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!sessionId) {
       setState("missing-session");
+      return;
+    }
+    if (!isSignedIn) {
+      setState("error");
       return;
     }
 
     let active = true;
     setState("confirming");
-    fetch(`${apiBaseUrl}/api/v1/checkout/confirm`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId })
-    })
+    getToken()
+      .then((token) =>
+        fetch(`${apiBaseUrl}/api/v1/checkout/confirm`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(token ? { authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ sessionId })
+        })
+      )
       .then((response) => response.json() as Promise<{ success?: boolean; data?: { created?: boolean; order?: { number?: string } } }>)
       .then((payload) => {
         if (!active) {
@@ -57,7 +70,7 @@ export function CheckoutSuccessClient() {
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [getToken, isLoaded, isSignedIn, sessionId]);
 
   const label =
     state === "confirming"

@@ -34,15 +34,18 @@ Requeridos:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `AETHER_CART_TOKEN_SECRET`
+- `CLERK_SECRET_KEY`
+- `CLERK_JWT_ISSUER`
+- `GEMINI_API_KEY`
+- `AI_OPERATIONS_TOKEN`
 
 Según las funciones habilitadas:
 
-- `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER`, `CLERK_WEBHOOK_SECRET`
+- `CLERK_WEBHOOK_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `WOMPI_SECRET_KEY`, `WOMPI_EVENTS_SECRET`
 - `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout; ver `docs/security.md`)
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
-- `GEMINI_API_KEY`, `AI_OPERATIONS_TOKEN`
 
 Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wompi.
 
@@ -63,7 +66,7 @@ pnpm --filter @aether/api db:seed
 
 ## Publicación
 
-El workflow `.github/workflows/deploy-production.yml` se ejecuta en `main` cuando `CLOUDFLARE_DEPLOY_ENABLED=true`. Antes de activarlo:
+El workflow `.github/workflows/deploy-production.yml` se ejecuta después de que `Aether CI` termina correctamente en `main`. También permite ejecución manual desde `main`. Si falta configuración, el preflight falla mostrando solo los nombres ausentes en vez de omitir silenciosamente el despliegue. Antes de activarlo:
 
 ```bash
 pnpm deploy:preflight
@@ -75,7 +78,7 @@ El despliegue verifica las URLs públicas del storefront, API, asistente, admin 
 
 ## Ambiente de desarrollo
 
-El workflow `.github/workflows/deploy-development.yml` se ejecuta en `develop` y publica recursos separados:
+El workflow `.github/workflows/deploy-development.yml` se ejecuta después de que `Aether CI` termina correctamente en `develop` y publica recursos separados:
 
 - `aether-storefront-dev`
 - `aether-api-dev`

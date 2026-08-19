@@ -6,14 +6,14 @@ import { aetherCors } from "./middleware/cors";
 import { errorBoundary } from "./middleware/errors";
 import { rateLimit } from "./middleware/rate-limit";
 import { requestId } from "./middleware/request-id";
-import { ok } from "./http";
+import { fail, ok } from "./http";
 import { accountRoutes } from "./routes/account";
 import { adminRoutes } from "./routes/admin";
 import { cartRoutes } from "./routes/cart";
 import { catalogRoutes } from "./routes/catalog";
 import { checkoutRoutes } from "./routes/checkout";
 import { contactRoutes } from "./routes/contact";
-import { publicRoutes } from "./routes/public";
+import { clerkPublishableKey, publicRoutes } from "./routes/public";
 import { userRoutes } from "./routes/user";
 import { webhookRoutes } from "./routes/webhooks";
 import { getStripeSecretKeyStatus } from "./services/stripe";
@@ -24,32 +24,48 @@ app.use("*", errorBoundary());
 app.use("*", requestId());
 app.use("*", secureHeaders());
 app.use("*", aetherCors());
-app.use("*", rateLimit());
 app.use("*", auth());
+app.use("*", rateLimit());
 
 app.get("/", (c) => ok(c, { name: "Aether API", version: "v1", basePath: "/api/v1" }));
 
 const api = new Hono<AppBindings>().basePath("/api/v1");
+api.get("/runtime-config", (c) => {
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300");
+  return ok(c, {
+    clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY)
+  });
+});
+
 api.get("/health", async (c) => {
-  let d1 = "unknown";
+  const time = new Date().toISOString();
   try {
     await c.env.DB.prepare("select 1 as ok").first();
-    d1 = "ok";
-  } catch {
-    d1 = "error";
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: "D1 readiness check failed",
+      requestId: c.get("requestId"),
+      error: error instanceof Error ? error.message : "unknown"
+    }));
+    return fail(c, 503, "SERVICE_UNAVAILABLE", "The API is not ready to serve traffic.", {
+      status: "degraded",
+      environment: c.env.AETHER_ENV ?? "development",
+      checks: { d1: "error" },
+      time
+    });
   }
 
   return ok(c, {
     status: "ok",
     environment: c.env.AETHER_ENV ?? "development",
     checks: {
-      d1,
+      d1: "ok",
       catalogSource: "local",
       stripeSandboxConfigured: Boolean(c.env.STRIPE_SECRET_KEY),
       stripeSecretKeyStatus: getStripeSecretKeyStatus(c.env.STRIPE_SECRET_KEY),
       resendConfigured: Boolean(c.env.RESEND_API_KEY)
     },
-    time: new Date().toISOString()
+    time
   });
 });
 api.route("/catalog", catalogRoutes);

@@ -1,13 +1,22 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, Loader2, RotateCcw, Send, ShoppingBag, X } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import { addProductReferenceToCart, getCartId, getCartToken, readLocalCart, replaceLocalCartItems } from "./cart-client";
+import { Bot, Check, Loader2, PackageCheck, Send, ShoppingBag, Trash2, X } from "lucide-react";
+import { formatUsd } from "@aether/core";
+import {
+  addProductReferenceToCart,
+  getCartCredentials,
+  readLocalCart,
+  replaceLocalCartItems
+} from "./cart-client";
 import type { Cart, CartItem } from "@aether/schemas";
-import { aiAssistantUrl, storefrontPath } from "./config";
+import { aiAssistantUrl } from "./config";
 import { useCustomerSession } from "./customer-client";
+import { useAetherAuth } from "./ClerkAuthProvider";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
+import { legalPolicyVersion } from "./legal-content";
 
 type AssistantProduct = {
   product_id: string;
@@ -36,6 +45,7 @@ type AssistantResponse = {
     currency: "USD";
     items: Array<Record<string, unknown>>;
   } | null;
+  orders?: AssistantOrderSummary[];
   action?: {
     type: string;
     status: string;
@@ -45,20 +55,36 @@ type AssistantResponse = {
   suggested_replies: string[];
 };
 
+type AssistantOrderSummary = {
+  id: string;
+  number: string;
+  state: string;
+  item_count: number;
+  total: string;
+  currency: string;
+  created_at: string;
+};
+
 type AssistantCartSummary = NonNullable<AssistantResponse["cart"]>;
-type AssistantStreamData = AssistantResponse | AssistantProduct[] | AssistantCartSummary | { message?: string; text?: string };
+type AssistantStreamData =
+  | AssistantResponse
+  | AssistantProduct[]
+  | AssistantCartSummary
+  | { message?: string; text?: string };
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   products?: AssistantProduct[];
   cart?: AssistantResponse["cart"];
+  orders?: AssistantOrderSummary[];
   action?: AssistantResponse["action"];
   suggestedReplies?: string[];
   streaming?: boolean;
 };
 
 const threadStorageKey = "aether.assistant.threadId.v1";
+const privacyStorageKey = "aether.assistant.privacy.v1";
 
 export function AssistantWidget() {
   const { locale } = useLanguage();
@@ -71,6 +97,8 @@ export function AssistantWidget() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
   const [cartFeedback, setCartFeedback] = useState<string | null>(null);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -81,10 +109,12 @@ export function AssistantWidget() {
       locale === "es"
         ? {
             title: "Asistente Aether",
-            intro: "Preguntame por productos reales o pide ayuda con tu carrito.",
-            greetingGuest: "Hola! Soy el Asistente Aether. Preguntame por productos reales o pide ayuda con tu carrito.",
-            greetingCustomer: "Hola {name}! Preguntame por productos reales o pide ayuda con tu carrito.",
-            suggestedStart: ["Ver carrito", "Buscar ofertas"],
+            intro: "Preguntame por productos, tu carrito o tus pedidos.",
+            greetingGuest:
+              "Hola! Soy el Asistente Aether. Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
+            greetingCustomer:
+              "Hola {name}! Puedo buscar productos, revisar tu carrito y consultar tus pedidos.",
+            suggestedStart: ["Ver carrito", "Buscar ofertas", "Ver mis pedidos"],
             placeholder: "Buscar tenis, regalos, ofertas...",
             send: "Enviar",
             reset: "Reiniciar",
@@ -100,14 +130,20 @@ export function AssistantWidget() {
             items: "productos",
             openCart: "Abrir carrito",
             busy: "Buscando...",
-            error: "No pude conectar con el asistente. La tienda sigue funcionando normalmente."
+            error: "No pude conectar con el asistente. La tienda sigue funcionando normalmente.",
+            privacyNotice:
+              "Autorizo el tratamiento del chat. Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluiré datos sensibles.",
+            privacyLink: "Privacidad",
+            deleteChat: "Eliminar chat",
+            deleteError:
+              "No pude eliminar el chat del servidor. Intenta de nuevo antes de cerrar esta pestaña."
           }
         : {
             title: "Aether Assistant",
-            intro: "Ask me for real products or cart help.",
-            greetingGuest: "Hi! I'm the Aether Assistant. Ask me for real products or cart help.",
-            greetingCustomer: "Hi {name}! Ask me for real products or cart help.",
-            suggestedStart: ["View cart", "Search deals"],
+            intro: "Ask me about products, your cart, or your orders.",
+            greetingGuest: "Hi! I'm the Aether Assistant. I can search products and review your cart or orders.",
+            greetingCustomer: "Hi {name}! I can search products and review your cart or orders.",
+            suggestedStart: ["View cart", "Search deals", "View my orders"],
             placeholder: "Search sneakers, gifts, deals...",
             send: "Send",
             reset: "Reset",
@@ -123,12 +159,18 @@ export function AssistantWidget() {
             items: "items",
             openCart: "Open cart",
             busy: "Searching...",
-            error: "I could not reach the assistant. The store still works normally."
+            error: "I could not reach the assistant. The store still works normally.",
+            privacyNotice:
+              "I authorize chat processing. It is stored for up to 30 days and the message may be sent to Gemini. I will not include sensitive data.",
+            privacyLink: "Privacy",
+            deleteChat: "Delete chat",
+            deleteError: "I could not delete the server chat. Try again before closing this tab."
           },
     [locale]
   );
 
   const { customer } = useCustomerSession();
+  const { getToken } = useAetherAuth();
   const [footerCart, setFooterCart] = useState<Cart | null>(null);
 
   // Lets other components (e.g. the Hero's "Talk to Aether AI" CTA) open the
@@ -178,6 +220,7 @@ export function AssistantWidget() {
 
   useEffect(() => {
     if (!enabled) return;
+    setPrivacyAccepted(window.sessionStorage.getItem(privacyStorageKey) === legalPolicyVersion);
     const storedThreadId = window.sessionStorage.getItem(threadStorageKey);
     if (!storedThreadId) {
       setHistoryReady(true);
@@ -194,7 +237,13 @@ export function AssistantWidget() {
         if (!response.ok) return;
         const payload = (await response.json()) as {
           success?: boolean;
-          data?: { messages?: Array<{ role: string; content: string | null; payload?: Record<string, unknown> }> };
+          data?: {
+            messages?: Array<{
+              role: string;
+              content: string | null;
+              payload?: Record<string, unknown>;
+            }>;
+          };
         };
         if (cancelled || !payload.success || !payload.data?.messages?.length) return;
         const restored = payload.data.messages
@@ -209,9 +258,11 @@ export function AssistantWidget() {
                 content: entry.content || stored.message || ""
               };
               if (Array.isArray(stored.products)) restoredMessage.products = stored.products;
+              if (Array.isArray(stored.orders)) restoredMessage.orders = stored.orders;
               if (stored.cart) restoredMessage.cart = stored.cart;
               if (stored.action) restoredMessage.action = stored.action;
-              if (stored.suggested_replies) restoredMessage.suggestedReplies = stored.suggested_replies;
+              if (stored.suggested_replies)
+                restoredMessage.suggestedReplies = stored.suggested_replies;
               return restoredMessage;
             }
             return null;
@@ -247,11 +298,12 @@ export function AssistantWidget() {
 
   useEffect(() => {
     if (isOpen) {
-      panelRef.current?.querySelector("input")?.focus();
+      const selector = privacyAccepted ? "input[placeholder]" : 'input[type="checkbox"]';
+      panelRef.current?.querySelector<HTMLInputElement>(selector)?.focus();
     } else {
       triggerRef.current?.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, privacyAccepted]);
 
   useEffect(() => {
     if (isOpen) {
@@ -270,34 +322,44 @@ export function AssistantWidget() {
       message,
       locale: locale === "es" ? "es-CO" : "en-US",
       currency: "USD",
-      client_context: context
+      client_context: context,
+      privacy_consent: privacyAccepted,
+      privacy_version: legalPolicyVersion
     });
   }
 
   function assistantClientContext() {
     const path = `${window.location.pathname}${window.location.search}`;
     const categoryMatch = window.location.pathname.match(/\/(?:store\/)?categories\/([^/?#]+)/);
+    const productMatch = window.location.pathname.match(/\/(?:store\/)?products\/([^/?#]+)/);
     const params = new URLSearchParams(window.location.search);
     const categorySlug = categoryMatch?.[1] ? decodeURIComponent(categoryMatch[1]) : null;
+    const productSlug =
+      productMatch?.[1] && productMatch[1] !== "detail"
+        ? decodeURIComponent(productMatch[1])
+        : params.get("slug");
     return {
       current_path: path,
       current_category: categorySlug,
-      current_product_slug: params.get("slug")
+      current_product_slug: productSlug
     };
   }
 
   async function assistantRequestHeaders() {
-    const cartToken = await getCartToken();
-    return {
+    const { cartId, token } = await getCartCredentials();
+    const headers: Record<string, string> = {
       "content-type": "application/json",
-      "x-aether-cart-id": getCartId(),
-      "x-aether-session-id": getCartId(),
-      "x-aether-cart-token": cartToken
+      "x-aether-cart-id": cartId,
+      "x-aether-session-id": cartId,
+      "x-aether-cart-token": token
     };
+    const sessionToken = await getToken();
+    if (sessionToken) headers.authorization = `Bearer ${sessionToken}`;
+    return headers;
   }
 
   async function sendMessage(message = input.trim()) {
-    if (!message || isSending) return;
+    if (!message || isSending || !privacyAccepted) return;
     setInput("");
     setIsSending(true);
     setStatusMessage(null);
@@ -325,7 +387,9 @@ export function AssistantWidget() {
   async function readErrorMessage(response: Response): Promise<string> {
     try {
       const payload = (await response.clone().json()) as { error?: { message?: string } };
-      return typeof payload.error?.message === "string" && payload.error.message ? payload.error.message : copy.error;
+      return typeof payload.error?.message === "string" && payload.error.message
+        ? payload.error.message
+        : copy.error;
     } catch {
       return copy.error;
     }
@@ -343,11 +407,14 @@ export function AssistantWidget() {
   }
 
   async function sendMessageStream(message: string) {
-    const response = await fetch(`${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages/stream`, {
-      method: "POST",
-      headers: await assistantRequestHeaders(),
-      body: assistantRequestBody(message)
-    });
+    const response = await fetch(
+      `${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/messages/stream`,
+      {
+        method: "POST",
+        headers: await assistantRequestHeaders(),
+        body: assistantRequestBody(message)
+      }
+    );
     if (!response.ok || !response.body) throw new Error(await readErrorMessage(response));
 
     const reader = response.body.getReader();
@@ -431,7 +498,13 @@ export function AssistantWidget() {
       appendAssistantResponse(data);
     }
     if (eventName === "assistant.error") {
-      setMessages((current) => [...current, { role: "assistant", content: "message" in data && data.message ? data.message : copy.error }]);
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: "message" in data && data.message ? data.message : copy.error
+        }
+      ]);
     }
   }
 
@@ -465,7 +538,11 @@ export function AssistantWidget() {
         action: payload.action,
         suggestedReplies: payload.suggested_replies
       };
-      if (current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming) {
+      if (payload.orders?.length) nextMessage.orders = payload.orders;
+      if (
+        current[current.length - 1]?.role === "assistant" &&
+        current[current.length - 1]?.streaming
+      ) {
         return [...current.slice(0, -1), nextMessage];
       }
       return [...current, nextMessage];
@@ -493,14 +570,33 @@ export function AssistantWidget() {
       if (nextAction) draft.action = nextAction;
       if (nextSuggestedReplies) draft.suggestedReplies = nextSuggestedReplies;
 
-      if (current[current.length - 1]?.role === "assistant" && current[current.length - 1]?.streaming) {
+      if (
+        current[current.length - 1]?.role === "assistant" &&
+        current[current.length - 1]?.streaming
+      ) {
         return [...current.slice(0, -1), draft];
       }
       return [...current, draft];
     });
   }
 
-  function reset() {
+  async function reset() {
+    if (isDeleting) return;
+    if (threadId) {
+      setIsDeleting(true);
+      try {
+        const response = await fetch(
+          `${aiAssistantUrl.replace(/\/$/, "")}/v1/assistant/conversations/${encodeURIComponent(threadId)}`,
+          { method: "DELETE", headers: await assistantRequestHeaders() }
+        );
+        if (!response.ok && response.status !== 404) throw new Error("delete_failed");
+      } catch {
+        setStatusMessage(copy.deleteError);
+        setIsDeleting(false);
+        return;
+      }
+      setIsDeleting(false);
+    }
     setThreadId(null);
     window.sessionStorage.removeItem(threadStorageKey);
     setMessages([greetingMessage()]);
@@ -560,10 +656,25 @@ export function AssistantWidget() {
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button type="button" onClick={reset} className="focus-ring grid h-9 w-9 place-items-center rounded-chat text-chat-text-muted hover:bg-chat-surface-alt hover:text-chat-text" aria-label={copy.reset}>
-                <RotateCcw size={16} aria-hidden />
+              <button
+                type="button"
+                onClick={() => void reset()}
+                disabled={isDeleting}
+                className="focus-ring grid h-9 w-9 place-items-center rounded-chat text-chat-text-muted hover:bg-chat-surface-alt hover:text-chat-text disabled:cursor-wait disabled:opacity-50"
+                aria-label={copy.deleteChat}
+              >
+                {isDeleting ? (
+                  <Loader2 size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <Trash2 size={16} aria-hidden />
+                )}
               </button>
-              <button type="button" onClick={() => setIsOpen(false)} className="focus-ring grid h-9 w-9 place-items-center rounded-chat text-chat-text-muted hover:bg-chat-surface-alt hover:text-chat-text" aria-label="Close">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="focus-ring grid h-9 w-9 place-items-center rounded-chat text-chat-text-muted hover:bg-chat-surface-alt hover:text-chat-text"
+                aria-label="Close"
+              >
                 <X size={18} aria-hidden />
               </button>
             </div>
@@ -571,12 +682,18 @@ export function AssistantWidget() {
 
           <div className="flex-1 space-y-3 overflow-y-auto bg-chat-bg p-3">
             {cartFeedback ? (
-              <div className="rounded-chat border border-chat-success bg-chat-success-soft px-3 py-2 text-sm font-semibold text-chat-success" role="status" aria-live="polite">
+              <div
+                className="rounded-chat border border-chat-success bg-chat-success-soft px-3 py-2 text-sm font-semibold text-chat-success"
+                role="status"
+                aria-live="polite"
+              >
                 {cartFeedback}
               </div>
             ) : null}
             {messages.length === 0 ? (
-              <div className="rounded-chat border border-dashed border-chat-border bg-chat-surface p-4 text-sm text-chat-text-muted">{copy.intro}</div>
+              <div className="rounded-chat border border-dashed border-chat-border bg-chat-surface p-4 text-sm text-chat-text-muted">
+                {copy.intro}
+              </div>
             ) : null}
             {messages.map((message, index) => (
               <div key={index} className={message.role === "user" ? "ml-8 text-right" : "mr-8"}>
@@ -592,44 +709,65 @@ export function AssistantWidget() {
                 {message.products?.length ? (
                   <div className="mt-2 grid gap-2 text-left">
                     {message.products.map((product) => (
-                      <div key={product.product_id} className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3">
+                      <div
+                        key={product.product_id}
+                        className="flex gap-3 rounded-2xl border border-chat-border bg-chat-surface p-3"
+                      >
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt object-cover" />
+                          <Image
+                            src={product.image_url}
+                            alt={product.name}
+                            width={64}
+                            height={64}
+                            className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt object-cover"
+                          />
                         ) : (
                           <div className="h-16 w-16 shrink-0 rounded-xl bg-chat-surface-alt" />
                         )}
                         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-chat-text">{product.name}</p>
+                          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-chat-text">
+                            {product.name}
+                          </p>
                           <p className="text-[15px] font-bold text-chat-success">
-                            {formatMoney(Math.round(Number(product.price) * 100), "USD", locale === "es" ? "es-CO" : "en-US")}
+                            {formatUsd(
+                              Math.round(Number(product.price) * 100),
+                              locale === "es" ? "es-CO" : "en-US"
+                            )}
                           </p>
                           <div className="flex flex-wrap gap-1">
                             <span
                               className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                product.available ? "bg-chat-success-soft text-chat-success" : "bg-chat-surface-alt text-chat-text-muted"
+                                product.available
+                                  ? "bg-chat-success-soft text-chat-success"
+                                  : "bg-chat-surface-alt text-chat-text-muted"
                               }`}
                             >
-                              {product.available ? <Check size={11} strokeWidth={3} aria-hidden /> : null}
+                              {product.available ? (
+                                <Check size={11} strokeWidth={3} aria-hidden />
+                              ) : null}
                               {product.available ? copy.inStock : copy.outOfStock}
                             </span>
                             {product.color || product.size ? (
                               <span className="rounded-full bg-chat-surface-alt px-2 py-0.5 text-[11px] font-medium text-chat-text-muted">
-                                {copy.variant}: {[product.color, product.size].filter(Boolean).join(" / ")}
+                                {copy.variant}:{" "}
+                                {[product.color, product.size].filter(Boolean).join(" / ")}
                               </span>
                             ) : null}
                           </div>
                           <div className="mt-1 flex gap-2">
-                            <a
-                              href={storefrontPath(product.product_url)}
+                            <StorefrontLink
+                              href={`/products/${encodeURIComponent(slugFromAssistantProduct(product))}`}
                               onClick={() => setIsOpen(false)}
                               className="focus-ring rounded-chat border border-chat-border px-3 py-1.5 text-[13px] font-medium text-chat-text transition-colors active:scale-[0.97]"
                             >
                               {copy.view}
-                            </a>
+                            </StorefrontLink>
                             <button
                               type="button"
                               onClick={() => void addAssistantProduct(product)}
-                              disabled={!product.available || addingProductId === product.product_id}
+                              disabled={
+                                !product.available || addingProductId === product.product_id
+                              }
                               className="focus-ring rounded-chat bg-chat-accent px-3 py-1.5 text-[13px] font-semibold text-white transition-colors active:scale-[0.97] disabled:cursor-wait disabled:bg-chat-border disabled:text-chat-text-muted"
                             >
                               {addingProductId === product.product_id ? copy.adding : copy.add}
@@ -640,17 +778,63 @@ export function AssistantWidget() {
                     ))}
                   </div>
                 ) : null}
+                {message.orders?.length ? (
+                  <div className="mt-2 grid gap-2 text-left">
+                    {message.orders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="rounded-2xl border border-chat-border bg-chat-surface p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-chat-success">
+                              <PackageCheck size={14} aria-hidden />
+                              {order.state}
+                            </p>
+                            <p className="mt-1 truncate text-sm font-semibold text-chat-text">
+                              {order.number}
+                            </p>
+                            <p className="mt-0.5 text-xs text-chat-text-muted">
+                              {order.item_count} {copy.items}
+                              {order.created_at
+                                ? ` · ${new Date(order.created_at).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}`
+                                : ""}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-bold text-chat-text">
+                            {formatUsd(
+                              Math.round(Number(order.total) * 100),
+                              locale === "es" ? "es-CO" : "en-US"
+                            )}
+                          </p>
+                        </div>
+                        <StorefrontLink
+                          href="/account/orders"
+                          onClick={() => setIsOpen(false)}
+                          className="focus-ring mt-3 inline-flex rounded-chat border border-chat-border px-3 py-1.5 text-xs font-semibold text-chat-text"
+                        >
+                          {locale === "es" ? "Ver pedidos" : "View orders"}
+                        </StorefrontLink>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {message.cart ? (
                   <div className="mt-2 rounded-2xl border border-chat-border bg-chat-surface p-3 text-left">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-chat-success">{copy.cart}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-chat-success">
+                          {copy.cart}
+                        </p>
                         <p className="text-sm font-semibold text-chat-text">
                           {message.cart.item_count} {copy.items}
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-chat-text">
-                        {formatMoney(Math.round(Number(message.cart.subtotal) * 100), "USD", locale === "es" ? "es-CO" : "en-US")}
+                        {formatUsd(
+                          Math.round(Number(message.cart.subtotal) * 100),
+                          locale === "es" ? "es-CO" : "en-US"
+                        )}
                       </p>
                     </div>
                     {message.cart.items.length > 0 ? (
@@ -661,9 +845,18 @@ export function AssistantWidget() {
                           const quantity = Number(item.quantity ?? 1);
                           const lineTotal = Number(item.lineTotal ?? 0);
                           return (
-                            <li key={index} className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted">
+                            <li
+                              key={index}
+                              className="flex items-center gap-2 py-1.5 text-xs text-chat-text-muted"
+                            >
                               {imageUrl ? (
-                                <img src={imageUrl} alt={name} className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt object-cover" />
+                                <Image
+                                  src={imageUrl}
+                                  alt={name}
+                                  width={36}
+                                  height={36}
+                                  className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt object-cover"
+                                />
                               ) : (
                                 <div className="h-9 w-9 shrink-0 rounded-lg bg-chat-surface-alt" />
                               )}
@@ -672,21 +865,25 @@ export function AssistantWidget() {
                                 {name}
                               </span>
                               <span className="shrink-0 font-medium text-chat-text">
-                                {formatMoney(Math.round(lineTotal), "USD", locale === "es" ? "es-CO" : "en-US")}
+                                {formatUsd(
+                                  Math.round(lineTotal),
+                                  locale === "es" ? "es-CO" : "en-US"
+                                )}
                               </span>
                             </li>
                           );
                         })}
                       </ul>
                     ) : null}
-                    {message.action?.type === "OPEN_CART" || message.action?.type?.startsWith("CART_") ? (
-                      <a
-                        href={storefrontPath("/cart")}
+                    {message.action?.type === "OPEN_CART" ||
+                    message.action?.type?.startsWith("CART_") ? (
+                      <StorefrontLink
+                        href="/cart"
                         onClick={() => setIsOpen(false)}
                         className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white"
                       >
                         {copy.openCart}
-                      </a>
+                      </StorefrontLink>
                     ) : null}
                   </div>
                 ) : null}
@@ -697,7 +894,8 @@ export function AssistantWidget() {
                         key={reply}
                         type="button"
                         onClick={() => void sendMessage(reply)}
-                        className="focus-ring rounded-full border border-chat-border px-3.5 py-2 text-[13px] font-medium text-chat-text-muted hover:border-chat-accent hover:text-chat-text"
+                        disabled={!privacyAccepted}
+                        className="focus-ring rounded-full border border-chat-border px-3.5 py-2 text-[13px] font-medium text-chat-text-muted hover:border-chat-accent hover:text-chat-text disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {reply}
                       </button>
@@ -723,8 +921,34 @@ export function AssistantWidget() {
                   {footerItemCount} {copy.items}
                 </span>
               </div>
-              <span className="text-sm font-bold text-chat-text">{formatMoney(footerTotal, "USD", locale === "es" ? "es-CO" : "en-US")}</span>
+              <span className="text-sm font-bold text-chat-text">
+                {formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}
+              </span>
             </div>
+            <label className="flex items-start gap-2 border-b border-chat-border px-4 py-2.5 text-[11px] leading-4 text-chat-text-muted">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(event) => {
+                  const accepted = event.target.checked;
+                  setPrivacyAccepted(accepted);
+                  if (accepted)
+                    window.sessionStorage.setItem(privacyStorageKey, legalPolicyVersion);
+                  else window.sessionStorage.removeItem(privacyStorageKey);
+                }}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                {copy.privacyNotice}{" "}
+                <StorefrontLink
+                  href="/privacy"
+                  onClick={() => setIsOpen(false)}
+                  className="focus-ring font-semibold text-chat-text underline decoration-chat-accent underline-offset-2"
+                >
+                  {copy.privacyLink}
+                </StorefrontLink>
+              </span>
+            </label>
             <form
               className="flex items-center gap-2 px-3 py-3"
               onSubmit={(event) => {
@@ -740,7 +964,7 @@ export function AssistantWidget() {
               />
               <button
                 type="submit"
-                disabled={isSending || !input.trim()}
+                disabled={isSending || !input.trim() || !privacyAccepted}
                 className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-full bg-chat-accent text-white disabled:bg-chat-border disabled:text-chat-text-muted"
                 aria-label={copy.send}
               >

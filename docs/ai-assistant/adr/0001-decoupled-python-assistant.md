@@ -1,20 +1,7 @@
-# ADR 0001: Decoupled Python Assistant
+# ADR 0001: LangGraph.js on Cloudflare Workers
 
-## Status
+Status: superseded and updated 2026-08-12.
 
-Accepted
+The original design selected a separate Python/FastAPI service because LangGraph was not expected to fit Cloudflare Workers. Deployment experiments later proved that current Python LangGraph dependencies do not fit the free Worker path, while LangGraph.js 1.4.8 bundles well below the limit and starts quickly.
 
-## Context
-
-Aether currently uses static Next.js frontends and a Cloudflare Worker API. The assistant requirement asks for FastAPI, LangGraph and Gemini.
-
-## Decision
-
-Implement the assistant as `apps/ai-assistant`, a separate Python service. It communicates with the Worker API instead of reading D1 directly.
-
-## Consequences
-
-- Keeps Cloudflare Worker commerce logic as source of truth.
-- Avoids exposing Gemini secrets to the frontend.
-- Requires separate deployment for the Python runtime.
-- Enables Redis/PostgreSQL without changing the Worker runtime.
+The accepted architecture is therefore a standalone TypeScript Worker using LangGraph.js, a service binding to the Aether API, and D1 for conversations, rate limits, usage and audit. The former Python/Docker implementation was removed to eliminate duplicated behavior and CI cost.

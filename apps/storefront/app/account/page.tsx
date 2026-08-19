@@ -1,18 +1,20 @@
 "use client";
 
-import { Heart, LogOut, MapPin, PackageCheck, ShieldCheck, UserRound } from "lucide-react";
-import { storefrontPath } from "../../components/config";
+import { useRouter } from "next/navigation";
+import { Heart, LogOut, PackageCheck, UserRound } from "lucide-react";
 import { useCustomerSession, useSignOutCustomer } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
+import { StorefrontLink } from "../../components/StorefrontLink";
 
 export default function AccountPage() {
   const { t } = useLanguage();
+  const router = useRouter();
   const { customer, isLoaded } = useCustomerSession();
   const signOut = useSignOutCustomer();
 
   function logout() {
     void signOut(() => {
-      window.location.href = storefrontPath("/login");
+      router.push("/login/");
     });
   }
 
@@ -31,12 +33,12 @@ export default function AccountPage() {
           <h1 className="mt-2 text-4xl font-semibold text-zinc-950">{t.signInRequired}</h1>
           <p className="mt-3 text-zinc-600">{t.accountRequiredDescription}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <a href={storefrontPath("/login")} className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white">
+            <StorefrontLink href="/login" className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white">
               {t.signIn}
-            </a>
-            <a href={storefrontPath("/register")} className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-zinc-300 px-4 text-sm font-semibold">
+            </StorefrontLink>
+            <StorefrontLink href="/register" className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-zinc-300 px-4 text-sm font-semibold">
               {t.createAccount}
-            </a>
+            </StorefrontLink>
           </div>
         </section>
       </main>
@@ -60,18 +62,16 @@ export default function AccountPage() {
         </button>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
         {[
           { href: "/account/favorites", icon: Heart, title: t.accountCards[0][0], body: t.accountCards[0][1] },
-          { href: "/account/orders", icon: PackageCheck, title: t.accountCards[1][0], body: t.accountCards[1][1] },
-          { href: "/account/addresses", icon: MapPin, title: t.accountCards[2][0], body: t.accountCards[2][1] },
-          { href: "/account/reviews", icon: ShieldCheck, title: t.accountCards[3][0], body: t.accountCards[3][1] }
+          { href: "/account/orders", icon: PackageCheck, title: t.accountCards[1][0], body: t.accountCards[1][1] }
         ].map((item) => (
-          <a key={item.href} href={storefrontPath(item.href)} className="rounded-lg border border-zinc-200 bg-white p-5 hover:border-teal-700">
+          <StorefrontLink key={item.href} href={item.href} className="rounded-lg border border-zinc-200 bg-white p-5 hover:border-teal-700">
             <item.icon className="text-teal-700" aria-hidden />
             <h2 className="mt-3 text-xl font-semibold text-zinc-950">{item.title}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-600">{item.body}</p>
-          </a>
+          </StorefrontLink>
         ))}
       </div>
     </main>

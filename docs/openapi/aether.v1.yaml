@@ -87,6 +87,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Success"
+        "503":
+          $ref: "#/components/responses/Error"
   /catalog/products:
     get:
       summary: List normalized products
@@ -168,18 +170,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Success"
-  /cart/{id}/token:
-    get:
-      summary: Issue signed cart token
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+  /cart/session:
+    post:
+      summary: Create a server-owned anonymous cart session
       responses:
-        "200":
-          description: Signed cart token
+        "201":
+          description: Server-generated cart ID and signed cart token
           content:
             application/json:
               schema:
@@ -308,6 +304,14 @@ paths:
   /checkout/session:
     post:
       summary: Create a checkout session with the active provider (Stripe or Wompi, sandbox only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: x-aether-cart-token
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -321,6 +325,34 @@ paths:
       responses:
         "201":
           description: Checkout URL
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /checkout/confirm:
+    post:
+      summary: Confirm a paid checkout for its authenticated owner
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        "200":
+          description: Existing order
+        "201":
+          description: Created order
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /contact:
     post:
       summary: Store contact message and queue Resend email

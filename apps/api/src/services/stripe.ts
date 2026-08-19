@@ -87,7 +87,12 @@ export function mapStripeSessionToPaidCheckoutSession(session: StripeSessionResp
   };
 }
 
-async function createStripeCheckoutSession(env: Env, secretKey: string | undefined, cart: Cart): Promise<{ checkoutUrl: string }> {
+async function createStripeCheckoutSession(
+  env: Env,
+  secretKey: string | undefined,
+  cart: Cart,
+  customerEmail?: string
+): Promise<{ checkoutUrl: string }> {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
     checkoutUrl: storefrontUrl(
@@ -115,6 +120,9 @@ async function createStripeCheckoutSession(env: Env, secretKey: string | undefin
   params.set("metadata[cartId]", cart.id);
   if (cart.userId) {
     params.set("metadata[userId]", cart.userId);
+  }
+  if (customerEmail) {
+    params.set("customer_email", customerEmail);
   }
 
   cart.items.forEach((item, index) => {
@@ -202,14 +210,14 @@ async function retrieveStripeCheckoutSession(secretKey: string | undefined, sess
 export function createStripeCheckoutProvider(env: Env, credentials?: CheckoutProviderCredentials): CheckoutProvider {
   const secretKey = credentials?.secretKey ?? env.STRIPE_SECRET_KEY;
   return {
-    createCheckoutSession: (cart) => createStripeCheckoutSession(env, secretKey, cart),
+    createCheckoutSession: (cart, customerEmail) => createStripeCheckoutSession(env, secretKey, cart, customerEmail),
     retrieveCheckoutSession: (sessionId) => retrieveStripeCheckoutSession(secretKey, sessionId)
   };
 }
 
-/** @deprecated Use createStripeCheckoutProvider(env).createCheckoutSession(cart). */
-export function createCheckoutSession(env: Env, cart: Cart) {
-  return createStripeCheckoutProvider(env).createCheckoutSession(cart);
+/** @deprecated Use createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail). */
+export function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string) {
+  return createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail);
 }
 
 /** @deprecated Use createStripeCheckoutProvider(env).retrieveCheckoutSession(sessionId). */

@@ -10,20 +10,30 @@ async function openAssistant(page: Page) {
   return page.getByRole("dialog", { name: /assistant|asistente/i });
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem("aether.assistant.privacy.v1", "2026-08-12");
+  });
+});
+
 test("assistant widget opens and renders structured product results", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
   });
   await page.route("**/api/v1/cart/*/items", async (route) => {
-    const payload = route.request().postDataJSON() as { productId?: string; variantId?: string; quantity?: number };
+    const payload = route.request().postDataJSON() as {
+      productId?: string;
+      variantId?: string;
+      quantity?: number;
+    };
     expect(payload).toMatchObject({
       productId: "everyday-runner-sneakers",
       variantId: "everyday-runner-sneakers-standard",
@@ -43,7 +53,8 @@ test("assistant widget opens and renders structured product results", async ({ p
               quantity: 1,
               name: "Everyday Runner Sneakers",
               slug: "everyday-runner-sneakers",
-              imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
+              imageUrl:
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
               unitPrice: 11900,
               finalUnitPrice: 11900,
               lineTotal: 11900,
@@ -61,6 +72,10 @@ test("assistant widget opens and renders structured product results", async ({ p
   await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
     const headers = route.request().headers();
     expect(headers["x-aether-cart-token"]).toBe("test-cart-token");
+    expect(route.request().postDataJSON()).toMatchObject({
+      privacy_consent: true,
+      privacy_version: "2026-08-12"
+    });
     await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
@@ -69,10 +84,10 @@ test("assistant widget opens and renders structured product results", async ({ p
         "data: {}",
         "",
         "event: assistant.status",
-        "data: {\"message\":\"Buscando productos\"}",
+        'data: {"message":"Buscando productos"}',
         "",
         "event: assistant.token",
-        "data: {\"text\":\"Encontre estas opciones reales en Aether.\"}",
+        'data: {"text":"Encontre estas opciones reales en Aether."}',
         "",
         "event: assistant.completed",
         `data: ${JSON.stringify({
@@ -88,7 +103,8 @@ test("assistant widget opens and renders structured product results", async ({ p
               description: "Lightweight sneakers built for daily movement.",
               price: "119",
               currency: "USD",
-              image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
+              image_url:
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
               product_url: "/products/detail?slug=everyday-runner-sneakers",
               available: true,
               color: "Red",
@@ -126,13 +142,16 @@ test("assistant widget opens and renders structured product results", async ({ p
   await expect(assistant.getByText(/^(Variant|Variante): Red \/ 40$/)).toBeVisible();
   await expect(page.getByText("Encontre estas opciones reales en Aether.")).toHaveCount(1);
   await expect(assistant.getByText(/2 (productos|items)/i).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: /abrir carrito|open cart/i })).toHaveAttribute("href", /\/cart/);
+  await expect(page.getByRole("link", { name: /abrir carrito|open cart/i })).toHaveAttribute(
+    "href",
+    /\/cart/
+  );
   await expect(
-    assistant.getByRole("button", { name: /buscar ofertas|search deals/i }).first(),
+    assistant.getByRole("button", { name: /buscar ofertas|search deals/i }).first()
   ).toBeVisible();
   await expect(assistant.getByRole("link", { name: /^(ver|view)$/i })).toHaveAttribute(
     "href",
-    /products\/detail\/?\?slug=everyday-runner-sneakers/
+    /products\/everyday-runner-sneakers\//
   );
 
   await assistant.getByRole("button", { name: /^agregar$|^add$/i }).click();
@@ -140,13 +159,13 @@ test("assistant widget opens and renders structured product results", async ({ p
 });
 
 test("assistant widget sends current product context from detail pages", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -161,8 +180,8 @@ test("assistant widget sends current product context from detail pages", async (
       };
     };
 
-    expect(payload.client_context?.current_path).toMatch(/^\/products\/detail\/?\?slug=current-shoes$/);
-    expect(payload.client_context?.current_product_slug).toBe("current-shoes");
+    expect(payload.client_context?.current_path).toMatch(/^\/products\/funda-slim-grip\/?$/);
+    expect(payload.client_context?.current_product_slug).toBe("funda-slim-grip");
     expect(payload.client_context?.current_category).toBeNull();
 
     await route.fulfill({
@@ -191,7 +210,7 @@ test("assistant widget sends current product context from detail pages", async (
     });
   });
 
-  await page.goto("/products/detail?slug=current-shoes");
+  await page.goto("/products/funda-slim-grip/");
   const assistant = await openAssistant(page);
   await assistant.getByPlaceholder(/buscar|search/i).fill("Muestrame alternativas similares");
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
@@ -200,13 +219,13 @@ test("assistant widget sends current product context from detail pages", async (
 });
 
 test("assistant widget renders product cards from streaming product events", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -221,7 +240,7 @@ test("assistant widget renders product cards from streaming product events", asy
         "data: {}",
         "",
         "event: assistant.status",
-        "data: {\"message\":\"Buscando productos\"}",
+        'data: {"message":"Buscando productos"}',
         "",
         "event: assistant.products",
         `data: ${JSON.stringify([
@@ -242,7 +261,7 @@ test("assistant widget renders product cards from streaming product events", asy
         ])}`,
         "",
         "event: assistant.token",
-        "data: {\"text\":\"Estas opciones ya estan disponibles.\"}",
+        'data: {"text":"Estas opciones ya estan disponibles."}',
         "",
         ""
       ].join("\n")
@@ -260,13 +279,13 @@ test("assistant widget renders product cards from streaming product events", asy
 });
 
 test("assistant widget renders cart summary from streaming cart events", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -289,7 +308,7 @@ test("assistant widget renders cart summary from streaming cart events", async (
         })}`,
         "",
         "event: assistant.token",
-        "data: {\"text\":\"Agregue el producto al carrito.\"}",
+        'data: {"text":"Agregue el producto al carrito."}',
         "",
         ""
       ].join("\n")
@@ -303,7 +322,10 @@ test("assistant widget renders cart summary from streaming cart events", async (
 
   await expect(assistant.getByText("Agregue el producto al carrito.")).toBeVisible();
   await expect(assistant.getByText(/1 (productos|items)/i)).toBeVisible();
-  await expect(assistant.getByRole("link", { name: /abrir carrito|open cart/i })).toHaveAttribute("href", /\/cart/);
+  await expect(assistant.getByRole("link", { name: /abrir carrito|open cart/i })).toHaveAttribute(
+    "href",
+    /\/cart/
+  );
 });
 
 test("assistant widget supports keyboard close and returns focus", async ({ page }) => {
@@ -321,13 +343,13 @@ test("assistant widget supports keyboard close and returns focus", async ({ page
 });
 
 test("assistant widget handles malformed stream events safely", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -337,7 +359,12 @@ test("assistant widget handles malformed stream events safely", async ({ page })
     await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
-      body: ["event: assistant.completed", "data: {invalid-json: stacktrace GEMINI_API_KEY}", "", ""].join("\n")
+      body: [
+        "event: assistant.completed",
+        "data: {invalid-json: stacktrace GEMINI_API_KEY}",
+        "",
+        ""
+      ].join("\n")
     });
   });
 
@@ -352,13 +379,13 @@ test("assistant widget handles malformed stream events safely", async ({ page })
 });
 
 test("assistant widget ignores malformed streaming cart summaries", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -378,7 +405,7 @@ test("assistant widget ignores malformed streaming cart summaries", async ({ pag
         })}`,
         "",
         "event: assistant.token",
-        "data: {\"text\":\"Estoy revisando el carrito con datos seguros.\"}",
+        'data: {"text":"Estoy revisando el carrito con datos seguros."}',
         "",
         ""
       ].join("\n")
@@ -395,14 +422,16 @@ test("assistant widget ignores malformed streaming cart summaries", async ({ pag
   await expect(assistant.getByText(/1 (productos|items)/i)).toHaveCount(0);
 });
 
-test("assistant widget renders unavailable product cards without cart mutation", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+test("assistant widget renders unavailable product cards without cart mutation", async ({
+  page
+}) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -464,13 +493,13 @@ test("assistant widget renders unavailable product cards without cart mutation",
 });
 
 test("assistant widget sends current category context from category pages", async ({ page }) => {
-  await page.route("**/api/v1/cart/*/token", async (route) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         success: true,
-        data: { token: "test-cart-token" },
+        data: { cartId: "cart-1", token: "test-cart-token" },
         meta: { requestId: "req_cart_token" }
       })
     });
@@ -486,7 +515,7 @@ test("assistant widget sends current category context from category pages", asyn
     };
 
     expect(payload.client_context?.current_path).toMatch(
-      /^\/categories\/smartphones\/?\?category=smartphones$/,
+      /^\/categories\/smartphones\/?\?category=smartphones$/
     );
     expect(payload.client_context?.current_category).toBe("smartphones");
     expect(payload.client_context?.current_product_slug).toBeNull();
@@ -523,6 +552,71 @@ test("assistant widget sends current category context from category pages", asyn
   await assistant.getByRole("button", { name: /enviar|send/i }).click();
 
   await expect(page.getByText("Busque productos dentro de esta categoria.")).toBeVisible();
+});
+
+test("assistant widget renders authenticated order summaries", async ({ page }) => {
+  await page.route("**/api/v1/cart/session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { cartId: "cart-1", token: "test-cart-token" },
+        meta: { requestId: "req_cart_token" }
+      })
+    });
+  });
+
+  await page.route("http://localhost:8090/v1/assistant/messages/stream", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        "event: assistant.completed",
+        `data: ${JSON.stringify({
+          request_id: "req_orders",
+          thread_id: "00000000-0000-4000-8000-000000000005",
+          message: "Encontre tu pedido mas reciente.",
+          intent: "GET_ORDER_STATUS",
+          products: [],
+          cart: null,
+          orders: [
+            {
+              id: "ord_5001",
+              number: "AET-5001",
+              state: "shipped",
+              item_count: 2,
+              total: "149.99",
+              currency: "USD",
+              created_at: "2026-08-10T12:00:00.000Z"
+            }
+          ],
+          action: {
+            type: "OPEN_ORDERS",
+            status: "SUCCEEDED",
+            entity_id: "ord_5001",
+            message: null
+          },
+          suggested_replies: ["Ver mis pedidos"]
+        })}`,
+        "",
+        ""
+      ].join("\n")
+    });
+  });
+
+  await page.goto("/");
+  const assistant = await openAssistant(page);
+  await assistant.getByPlaceholder(/buscar|search/i).fill("Estado de mi compra");
+  await assistant.getByRole("button", { name: /enviar|send/i }).click();
+
+  await expect(assistant.getByText("AET-5001")).toBeVisible();
+  await expect(assistant.getByText("shipped")).toBeVisible();
+  await expect(assistant.getByText(/2 (productos|items)/i)).toBeVisible();
+  await expect(assistant.getByRole("link", { name: /ver pedidos|view orders/i })).toHaveAttribute(
+    "href",
+    /\/account\/orders/
+  );
 });
 
 test("assistant widget opens as a full screen mobile dialog", async ({ page, isMobile }) => {
@@ -602,7 +696,7 @@ test("assistant widget closes when a product's View link is clicked", async ({ p
   await expect(viewLink).toBeVisible();
   await viewLink.click();
 
-  await page.waitForURL(/products\/detail\/?\?slug=everyday-runner-sneakers/);
+  await page.waitForURL(/\/products\/everyday-runner-sneakers\/?$/);
   await expect(page.getByRole("dialog", { name: /assistant|asistente/i })).toHaveCount(0);
 });
 

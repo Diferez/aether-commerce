@@ -1,31 +1,37 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
 import { formatMoney } from "@aether/core";
 import { createCommerceClient } from "@aether/api-client";
 import type { Order } from "@aether/schemas";
-import { apiBaseUrl, storefrontPath } from "../../../components/config";
+import { apiBaseUrl } from "../../../components/config";
 import { useCustomerSession } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
+import { StorefrontLink } from "../../../components/StorefrontLink";
+import { useAetherAuth } from "../../../components/ClerkAuthProvider";
 
 type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
 
 export default function OrdersPage() {
   const { locale, t } = useLanguage();
   const { customer, isLoaded } = useCustomerSession();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAetherAuth();
+  const customerId = customer?.id ?? "";
+  const customerEmail = customer?.email ?? "";
   const [orders, setOrders] = useState<Order[]>([]);
   const [status, setStatus] = useState<OrderStatus>("loading");
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!customer) {
+    if (!isLoaded || !isAuthLoaded) return;
+    if (!customerId || !isSignedIn) {
+      setOrders([]);
       setStatus("signed-out");
       return;
     }
 
+    let active = true;
     setStatus("loading");
     const client = createCommerceClient({
       baseUrl: apiBaseUrl,
@@ -34,6 +40,7 @@ export default function OrdersPage() {
     client
       .orders()
       .then((payload) => {
+        if (!active) return;
         if (!payload.success) {
           setStatus("error");
           return;
@@ -42,8 +49,14 @@ export default function OrdersPage() {
         setOrders(nextOrders);
         setStatus(nextOrders.length > 0 ? "ready" : "empty");
       })
-      .catch(() => setStatus("error"));
-  }, [isLoaded, customer, getToken]);
+      .catch(() => {
+        if (active) setStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isAuthLoaded, isSignedIn, customerId, customerEmail, getToken]);
 
   return (
     <main className="aether-shell py-8">
@@ -66,13 +79,13 @@ export default function OrdersPage() {
                 : "Sign in to view your orders."}
           </p>
         </div>
-        <a
-          href={storefrontPath("/products")}
+        <StorefrontLink
+          href="/products"
           className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white"
         >
           <ShoppingBag size={17} aria-hidden />
           {t.browseProducts}
-        </a>
+        </StorefrontLink>
       </div>
 
       {status === "loading" ? (
@@ -85,12 +98,12 @@ export default function OrdersPage() {
       {status === "signed-out" ? (
         <section className="rounded-lg border border-zinc-200 bg-white p-6">
           <p className="text-zinc-600">{t.accountRequiredDescription}</p>
-          <a
-            href={storefrontPath("/login")}
+          <StorefrontLink
+            href="/login"
             className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white"
           >
             {t.signIn}
-          </a>
+          </StorefrontLink>
         </section>
       ) : null}
 
@@ -132,7 +145,7 @@ export default function OrdersPage() {
               <div className="mt-4 grid gap-3">
                 {order.items.map((item) => (
                   <div key={`${order.id}-${item.productId}-${item.variantId ?? "default"}`} className="flex items-center gap-3 rounded-md bg-zinc-50 p-3">
-                    <img src={item.imageUrl} alt={item.name} className="h-14 w-14 rounded object-cover" />
+                    <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded object-cover" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-zinc-950">{item.name}</p>
                       <p className="text-sm text-zinc-500">

@@ -7,11 +7,13 @@ import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
 import { themeTokensToCssVariables } from "@aether/ui/theme";
 import { aetherThemeTokens } from "../config/theme";
+import { CookieNotice } from "../components/CookieNotice";
+import { SiteFooter } from "../components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Aether | Premium Commerce Demo",
   description: "A bilingual premium technology commerce demo powered by a Cloudflare Worker API.",
-  metadataBase: new URL("https://aether-demo.example"),
+  metadataBase: new URL("https://aether-storefront.pickofwow.workers.dev"),
   openGraph: {
     title: "Aether Premium Commerce Demo",
     description: "Premium technology shopping demo with static storefront and Worker API.",
@@ -50,6 +52,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LanguageProvider>
             <SiteHeader />
             {children}
+            <SiteFooter />
+            <CookieNotice />
             <AssistantWidget />
             <FloatingCart />
           </LanguageProvider>

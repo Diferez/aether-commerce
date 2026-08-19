@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import type { Product } from "@aether/schemas";
-import { apiBaseUrl, storefrontPath } from "./config";
+import { apiBaseUrl } from "./config";
 import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
 export function Hero() {
   const { t } = useLanguage();
@@ -29,17 +31,17 @@ export function Hero() {
           <h1 className="mt-2 text-3xl font-semibold leading-tight text-zinc-950 sm:mt-3 sm:text-4xl lg:text-5xl">{t.heroTitle}</h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-zinc-600">{t.heroDescription}</p>
           <div className="mt-5 flex flex-wrap gap-3 sm:mt-7">
-            <a
-              href={storefrontPath("/products")}
+            <StorefrontLink
+              href="/products"
               className="focus-ring inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-5 text-sm font-semibold text-white transition hover:bg-accent-hover"
             >
               {t.heroCtaPrimary}
               <ArrowRight size={16} aria-hidden />
-            </a>
+            </StorefrontLink>
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("aether-open-assistant"))}
-              className="focus-ring inline-flex min-h-12 items-center gap-2 rounded-md border border-zinc-300 px-5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100"
+              className="focus-ring inline-flex min-h-12 items-center gap-2 rounded-md border border-border-strong bg-surface px-5 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent hover:text-white active:border-accent-hover active:bg-accent-hover active:text-white"
             >
               <MessageCircle size={16} aria-hidden />
               {t.heroCtaSecondary}
@@ -48,19 +50,26 @@ export function Hero() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           {(products.length > 0 ? products : Array.from<Product | undefined>({ length: 4 })).slice(0, 4).map((product, index) => (
-            <a
-              key={product?.id ?? index}
-              href={product ? storefrontPath(`/products/detail?slug=${encodeURIComponent(product.slug)}`) : undefined}
-              className={`relative overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 ${
-                index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
-              }`}
-            >
-              {product ? (
-                <img src={product.thumbnail} alt={product.name} loading="lazy" className="h-full w-full object-contain p-3" />
-              ) : (
+            product ? (
+              <StorefrontLink
+                key={product.id}
+                href={`/products/${encodeURIComponent(product.slug)}`}
+                className={`relative overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 ${
+                  index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
+                }`}
+              >
+                <Image src={product.thumbnail} alt={product.name} fill sizes="(min-width: 1024px) 22vw, 50vw" className="object-contain p-3" />
+              </StorefrontLink>
+            ) : (
+              <div
+                key={index}
+                className={`relative overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 ${
+                  index === 0 ? "col-span-2 aspect-[7/3] sm:aspect-[2/1]" : "aspect-square"
+                }`}
+              >
                 <div className="skeleton h-full w-full" />
-              )}
-            </a>
+              </div>
+            )
           ))}
         </div>
       </div>

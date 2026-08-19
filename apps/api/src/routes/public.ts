@@ -15,6 +15,29 @@ function cachePublicCatalog(c: Context<AppBindings>) {
   c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
 }
 
+export function clerkPublishableKey(issuer: string | undefined, secretKey: string | undefined) {
+  if (!issuer) return null;
+
+  const frontendApi = (() => {
+    try {
+      return new URL(issuer).host;
+    } catch {
+      return issuer.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    }
+  })();
+
+  if (!frontendApi) return null;
+  const prefix = secretKey?.startsWith("sk_live_") ? "pk_live" : "pk_test";
+  return `${prefix}_${btoa(`${frontendApi}$`)}`;
+}
+
+publicRoutes.get("/runtime-config", (c) => {
+  c.header("Cache-Control", "public, max-age=300, s-maxage=300");
+  return ok(c, {
+    clerkPublishableKey: clerkPublishableKey(c.env.CLERK_JWT_ISSUER, c.env.CLERK_SECRET_KEY)
+  });
+});
+
 publicRoutes.get("/products", zValidator("query", productQuerySchema), async (c) => {
   const result = await getCatalogProducts(c.env, c.req.valid("query"));
   cachePublicCatalog(c);

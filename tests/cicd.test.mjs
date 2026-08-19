@@ -1,0 +1,83 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+const requiredRuntime = {
+  CLOUDFLARE_DEPLOY_ENABLED: "true",
+  AETHER_D1_DATABASE_ID: "00000000-0000-4000-8000-000000000000",
+  APP_ORIGIN_STORE: "https://store.example.com",
+  APP_ORIGIN_ADMIN: "https://admin.example.com",
+  NEXT_PUBLIC_AETHER_API_URL: "https://api.example.com",
+  NEXT_PUBLIC_AETHER_AI_URL: "https://ai.example.com",
+  NEXT_PUBLIC_PORTFOLIO_URL: "https://portfolio.example.com",
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_example",
+  CLOUDFLARE_API_TOKEN: "cloudflare-token",
+  CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+  AETHER_CART_TOKEN_SECRET: "cart-secret",
+  CLERK_SECRET_KEY: "clerk-secret",
+  CLERK_JWT_ISSUER: "https://clerk.example.com",
+  GEMINI_API_KEY: "gemini-key",
+  AI_OPERATIONS_TOKEN: "operations-token"
+};
+
+test("validate includes Vitest and contract tests", () => {
+  const packageJson = JSON.parse(read("package.json"));
+  assert.match(packageJson.scripts.validate, /pnpm test:unit/);
+  assert.match(packageJson.scripts.validate, /pnpm test/);
+});
+
+test("CI secret scan requires a credential-shaped value", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(workflow, /sk\|rk\)_\(live\|test\)_\[A-Za-z0-9\]\{16,/);
+  assert.match(workflow, /AIza\[0-9A-Za-z_-\]\{30,/);
+  assert.match(workflow, /AKIA\[0-9A-Z\]\{16\}/);
+  assert.match(workflow, /PRIVATE KEY/);
+});
+
+test("deployments wait for a successful CI run and deploy its exact SHA", () => {
+  for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
+    const workflow = read(`.github/workflows/${file}`);
+    assert.match(workflow, /workflow_run:/);
+    assert.match(workflow, /workflow_run\.event == 'push'/);
+    assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+    assert.match(workflow, /workflow_run\.head_sha \|\| github\.sha/);
+    assert.match(workflow, /check-deploy-runtime\.mjs/);
+    assert.doesNotMatch(workflow, /^\s{2}push:/m);
+  }
+});
+
+test("CI builds and tests the Cloudflare LangGraph assistant", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(workflow, /@aether\/ai-assistant typecheck/);
+  assert.match(workflow, /@aether\/ai-assistant test/);
+  assert.match(workflow, /@aether\/ai-assistant build/);
+  assert.doesNotMatch(workflow, /docker build -t aether-ai-assistant/);
+});
+
+test("runtime deployment preflight accepts a complete configuration", () => {
+  const result = spawnSync(process.execPath, ["scripts/check-deploy-runtime.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+    env: { ...process.env, ...requiredRuntime }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /deploy_runtime_config_ok/);
+});
+
+test("runtime deployment preflight names missing values", () => {
+  const env = { ...process.env, ...requiredRuntime };
+  delete env.GEMINI_API_KEY;
+
+  const result = spawnSync(process.execPath, ["scripts/check-deploy-runtime.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+    env
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /GEMINI_API_KEY/);
+});

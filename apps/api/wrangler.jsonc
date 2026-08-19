@@ -20,6 +20,14 @@
       }
     },
     {
+      "name": "RATE_LIMITER_ACCOUNT",
+      "namespace_id": "4104",
+      "simple": {
+        "limit": 600,
+        "period": 60
+      }
+    },
+    {
       "name": "RATE_LIMITER_MUTATION",
       "namespace_id": "4102",
       "simple": {

@@ -5,6 +5,7 @@ import {
 } from "../../../config/aether";
 
 const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
+const productionAiAssistantUrl = "https://aether-ai.pickofwow.workers.dev";
 
 // Next.js only exposes public environment variables to browser bundles when
 // their names are statically analyzable. The allowlist also makes it impossible
@@ -31,9 +32,21 @@ function resolveApiBaseUrl() {
   return aetherIntegrationConfig.api.localBaseUrl;
 }
 
+function resolveAiAssistantUrl() {
+  const configured = process.env.NEXT_PUBLIC_AETHER_AI_URL?.trim();
+  if (configured) return configured;
+
+  if (typeof window !== "undefined" && window.location.hostname.endsWith("pickofwow.workers.dev")) {
+    return productionAiAssistantUrl;
+  }
+
+  return "";
+}
+
 export const apiBaseUrl = resolveApiBaseUrl();
 
-export const aiAssistantUrl = resolvePublicRuntimeValue(aetherAgentConfig.publicUrlEnv)?.trim() || "";
+export const aiAssistantUrl =
+  resolvePublicRuntimeValue(aetherAgentConfig.publicUrlEnv)?.trim() || resolveAiAssistantUrl();
 
 export const storefrontBasePath = (process.env.NEXT_PUBLIC_AETHER_BASE_PATH || "").replace(/\/$/, "");
 

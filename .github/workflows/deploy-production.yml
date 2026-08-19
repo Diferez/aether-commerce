@@ -1,7 +1,9 @@
 name: Deploy Aether production
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Aether CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -15,12 +17,24 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && vars.AETHER_D1_DATABASE_ID != '' && vars.APP_ORIGIN_STORE != '' && vars.APP_ORIGIN_ADMIN != '' }}
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    environment: production
+    environment:
+      name: production
+      url: ${{ vars.APP_ORIGIN_STORE }}
     env:
+      AETHER_DEPLOY_ENV: production
+      CLOUDFLARE_DEPLOY_ENABLED: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED }}
+      AI_TOOL_CALLING_ENABLED: ${{ vars.AI_TOOL_CALLING_ENABLED }}
+      AI_MUTATIONS_ENABLED: ${{ vars.AI_MUTATIONS_ENABLED }}
       AETHER_API_WORKER_NAME: ${{ vars.AETHER_API_WORKER_NAME || 'aether-api' }}
+      AETHER_AI_WORKER_NAME: ${{ vars.AETHER_AI_WORKER_NAME || 'aether-ai' }}
+      AETHER_FRONT_WORKER_NAME: ${{ vars.AETHER_FRONT_WORKER_NAME || 'aether-storefront' }}
       AETHER_ADMIN_PAGES_PROJECT: ${{ vars.AETHER_ADMIN_PAGES_PROJECT || 'aether-admin' }}
       AETHER_D1_DATABASE_NAME: ${{ vars.AETHER_D1_DATABASE_NAME || 'aether-production' }}
       AETHER_D1_DATABASE_ID: ${{ vars.AETHER_D1_DATABASE_ID }}
@@ -32,29 +46,32 @@ jobs:
       NEXT_PUBLIC_PORTFOLIO_URL: ${{ vars.NEXT_PUBLIC_PORTFOLIO_URL }}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: pnpm/action-setup@v4
         with:
-          version: 8.6.0
-      - uses: actions/setup-node@v4
+          version: 8.15.9
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify deployment settings
-        run: |
-          test -n "${AETHER_D1_DATABASE_ID}"
-          test -n "${APP_ORIGIN_STORE}"
-          test -n "${APP_ORIGIN_ADMIN}"
-          test -n "${NEXT_PUBLIC_AETHER_API_URL}"
-          test -n "${NEXT_PUBLIC_AETHER_AI_URL}"
-          test -n "${NEXT_PUBLIC_PORTFOLIO_URL}"
-          test -n "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_JWT_ISSUER: ${{ secrets.CLERK_JWT_ISSUER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
+        run: node scripts/check-deploy-runtime.mjs
       - name: Validate workspace
         run: pnpm validate
       - name: Build storefront, admin and Workers
@@ -63,24 +80,18 @@ jobs:
         run: |
           node scripts/write-api-wrangler-config.mjs
           node scripts/write-ai-wrangler-config.mjs
+          node scripts/write-storefront-wrangler-config.mjs
       - name: Apply D1 migrations
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/api
-          wranglerVersion: "4"
-          command: d1 migrations apply DB --remote --config wrangler.production.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config apps/api/wrangler.production.json
       - name: Deploy API Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/api
-          wranglerVersion: "4"
-          command: deploy --config wrangler.production.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config apps/api/wrangler.production.json
       - name: Configure API secrets
-        working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -93,17 +104,16 @@ jobs:
           CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
         run: |
+          umask 077
+          trap 'rm -f .api-secrets.json' EXIT
           node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
-          npx wrangler secret bulk .api-secrets.json --config wrangler.production.json
-          rm .api-secrets.json
+          pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.production.json
       - name: Deploy AI assistant Worker
-        working-directory: apps/ai-assistant
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config wrangler.production.json --keep-vars
+        run: pnpm exec wrangler deploy --config apps/ai-assistant/wrangler.production.json --keep-vars
       - name: Configure AI assistant secrets
-        working-directory: apps/ai-assistant
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -111,25 +121,20 @@ jobs:
           AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
         run: |
+          umask 077
+          trap 'rm -f .ai-secrets.json' EXIT
           node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AETHER_CART_TOKEN_SECRET','AI_OPERATIONS_TOKEN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
-          pnpm exec wrangler secret bulk .ai-secrets.json --config wrangler.production.json
-          rm .ai-secrets.json
+          pnpm exec wrangler secret bulk .ai-secrets.json --config apps/ai-assistant/wrangler.production.json
       - name: Deploy storefront Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/storefront
-          wranglerVersion: "4"
-          command: deploy --config wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config apps/storefront/wrangler.production.json
       - name: Deploy admin Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4"
-          command: pages deploy apps/admin/out --project-name=${{ env.AETHER_ADMIN_PAGES_PROJECT }} --branch=main
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${AETHER_ADMIN_PAGES_PROJECT}" --branch=main
       - name: Verify public services
         run: |
           curl --fail --retry 3 --retry-delay 5 "${APP_ORIGIN_STORE}"
