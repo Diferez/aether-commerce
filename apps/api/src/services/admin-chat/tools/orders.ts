@@ -209,6 +209,10 @@ export const getOrderTimelineTool = defineAdminChatTool({
       targetType: "order",
       targetId: row.id,
       actorId: entry.actor_id,
+      // order_status_history never recorded a role (see order_status_history
+      // schema) - the card's actor clause still recognizes a provider name
+      // like "stripe" as an automated change without one.
+      actorRole: null,
       createdAt: entry.created_at
     }));
     return {

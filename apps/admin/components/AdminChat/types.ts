@@ -55,6 +55,7 @@ export type ActivityItemArtifact = {
   targetType: string;
   targetId: string | null;
   actorId: string;
+  actorRole: string | null;
   createdAt: string;
 };
 
