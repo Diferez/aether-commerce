@@ -34,7 +34,7 @@ export type StripeWebhookPayload = {
       currency?: string;
       customer_details?: { email?: string };
       customer_email?: string;
-      metadata?: { cartId?: string; userId?: string };
+      metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
       payment_intent?: string;
     };
   };

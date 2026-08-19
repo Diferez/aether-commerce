@@ -131,8 +131,10 @@ export function AssistantWidget() {
             openCart: "Abrir carrito",
             busy: "Buscando...",
             error: "No pude conectar con el asistente. La tienda sigue funcionando normalmente.",
+            privacyQuestion: "¿Autorizas el tratamiento de este chat?",
             privacyNotice:
-              "Autorizo el tratamiento del chat. Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluiré datos sensibles.",
+              "Se guarda hasta 30 días y el mensaje puede enviarse a Gemini. No incluyas datos sensibles.",
+            privacyAccept: "Sí, continuar",
             privacyLink: "Privacidad",
             deleteChat: "Eliminar chat",
             deleteError:
@@ -160,8 +162,10 @@ export function AssistantWidget() {
             openCart: "Open cart",
             busy: "Searching...",
             error: "I could not reach the assistant. The store still works normally.",
+            privacyQuestion: "Do you authorize processing this chat?",
             privacyNotice:
-              "I authorize chat processing. It is stored for up to 30 days and the message may be sent to Gemini. I will not include sensitive data.",
+              "It is stored for up to 30 days and the message may be sent to Gemini. Please don't include sensitive data.",
+            privacyAccept: "Yes, continue",
             privacyLink: "Privacy",
             deleteChat: "Delete chat",
             deleteError: "I could not delete the server chat. Try again before closing this tab."
@@ -298,8 +302,8 @@ export function AssistantWidget() {
 
   useEffect(() => {
     if (isOpen) {
-      const selector = privacyAccepted ? "input[placeholder]" : 'input[type="checkbox"]';
-      panelRef.current?.querySelector<HTMLInputElement>(selector)?.focus();
+      const selector = privacyAccepted ? "input[placeholder]" : "button[data-privacy-confirm]";
+      panelRef.current?.querySelector<HTMLInputElement | HTMLButtonElement>(selector)?.focus();
     } else {
       triggerRef.current?.focus();
     }
@@ -925,30 +929,32 @@ export function AssistantWidget() {
                 {formatUsd(footerTotal, locale === "es" ? "es-CO" : "en-US")}
               </span>
             </div>
-            <label className="flex items-start gap-2 border-b border-chat-border px-4 py-2.5 text-[11px] leading-4 text-chat-text-muted">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(event) => {
-                  const accepted = event.target.checked;
-                  setPrivacyAccepted(accepted);
-                  if (accepted)
+            {!privacyAccepted ? (
+              <div className="border-b border-chat-border px-4 py-3 text-[11px] leading-4 text-chat-text-muted">
+                <p className="text-[13px] font-semibold text-chat-text">{copy.privacyQuestion}</p>
+                <p className="mt-1">
+                  {copy.privacyNotice}{" "}
+                  <StorefrontLink
+                    href="/privacy"
+                    onClick={() => setIsOpen(false)}
+                    className="focus-ring font-semibold text-chat-text underline decoration-chat-accent underline-offset-2"
+                  >
+                    {copy.privacyLink}
+                  </StorefrontLink>
+                </p>
+                <button
+                  type="button"
+                  data-privacy-confirm
+                  onClick={() => {
+                    setPrivacyAccepted(true);
                     window.sessionStorage.setItem(privacyStorageKey, legalPolicyVersion);
-                  else window.sessionStorage.removeItem(privacyStorageKey);
-                }}
-                className="mt-0.5 shrink-0"
-              />
-              <span>
-                {copy.privacyNotice}{" "}
-                <StorefrontLink
-                  href="/privacy"
-                  onClick={() => setIsOpen(false)}
-                  className="focus-ring font-semibold text-chat-text underline decoration-chat-accent underline-offset-2"
+                  }}
+                  className="focus-ring mt-2 rounded-chat bg-chat-accent px-3 py-1.5 text-[13px] font-semibold text-white"
                 >
-                  {copy.privacyLink}
-                </StorefrontLink>
-              </span>
-            </label>
+                  {copy.privacyAccept}
+                </button>
+              </div>
+            ) : null}
             <form
               className="flex items-center gap-2 px-3 py-3"
               onSubmit={(event) => {

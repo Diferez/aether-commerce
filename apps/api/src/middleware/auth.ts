@@ -1,8 +1,9 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { MiddlewareHandler } from "hono";
 import type { Actor, Permission, Role } from "@aether/schemas";
-import { permissionsForRoles } from "@aether/core";
+import { OBSERVABILITY_EVENTS, permissionsForRoles } from "@aether/core";
 import type { AppBindings } from "../types";
+import { getLogger } from "../services/observability";
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -28,6 +29,12 @@ function parseRoles(value: unknown): Role[] {
   return parsed.length > 0 ? parsed : ["customer"];
 }
 
+function authorizedParties(c: Parameters<MiddlewareHandler<AppBindings>>[0]): string[] {
+  return [c.env.APP_ORIGIN_STORE, c.env.APP_ORIGIN_ADMIN]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .map((value) => value.replace(/\/$/, ""));
+}
+
 export const auth = (): MiddlewareHandler<AppBindings> => async (c, next) => {
   const token = getBearerToken(c.req.header("authorization"));
   const guest: Actor = {
@@ -51,6 +58,41 @@ export const auth = (): MiddlewareHandler<AppBindings> => async (c, next) => {
     }
 
     const { payload } = await jwtVerify(token, jwks, { issuer });
+    const allowedParties = authorizedParties(c);
+    const azp = typeof payload.azp === "string" ? payload.azp.replace(/\/$/, "") : undefined;
+    if (allowedParties.length > 0 && (!azp || !allowedParties.includes(azp))) {
+      throw new Error("Token authorized party is not allowed");
+    }
+
+    // A suspended account loses access on its very next request, not just
+    // future logins - this is a real block, not an advisory label. Only
+    // runs on the already-token-verified path (never for anonymous/guest
+    // traffic), and fails open both when no users row exists yet (the
+    // registry is sparse until the Clerk webhook backfills it - absence
+    // isn't suspension). A database error, however, fails closed: a
+    // suspended account must never regain access during a D1 outage.
+    if (c.env.DB) {
+      try {
+        const row = await c.env.DB.prepare("select status from users where clerk_id = ? limit 1")
+          .bind(payload.sub)
+          .first<{ status: string }>();
+        if (row?.status === "suspended") {
+          c.set("actor", guest);
+          await next();
+          return;
+        }
+      } catch (error) {
+        getLogger(c.env).warn(OBSERVABILITY_EVENTS.databaseQueryFailed, {
+          requestId: c.get("requestId"),
+          metadata: { query: "suspension_lookup", failOpen: false },
+          error
+        });
+        c.set("actor", guest);
+        await next();
+        return;
+      }
+    }
+
     const metadata = payload.public_metadata as { roles?: Role[]; permissions?: Permission[] } | undefined;
     const roles = parseRoles(metadata?.roles ?? payload.roles);
     const permissions = [...new Set([...(metadata?.permissions ?? []), ...permissionsForRoles(roles)])];

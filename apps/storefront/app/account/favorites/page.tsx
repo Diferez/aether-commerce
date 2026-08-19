@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
 import { formatMoney } from "@aether/core";
 import type { Product } from "@aether/schemas";
@@ -16,7 +15,6 @@ import { StorefrontLink } from "../../../components/StorefrontLink";
 
 export default function FavoritesPage() {
   const { locale, t } = useLanguage();
-  const router = useRouter();
   const { customer } = useCustomerSession();
   const [favorites, setFavorites] = useState<Product[]>([]);
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -38,7 +36,9 @@ export default function FavoritesPage() {
     try {
       await addProductToCart(product);
       remove(product.id);
-      router.push("/cart/");
+      // Open the quick-view drawer instead of navigating to /cart - confirms
+      // the move without pulling the shopper off the favorites page.
+      window.dispatchEvent(new Event("aether-open-cart"));
     } finally {
       setMovingId(null);
     }

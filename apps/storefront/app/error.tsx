@@ -1,6 +1,13 @@
 "use client";
 
-export default function ErrorBoundary({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+import { useEffect } from "react";
+import { reportError } from "../components/SentryProvider";
+
+export default function ErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => {
+    reportError(error, { boundary: "route-segment" });
+  }, [error]);
+
   return (
     <main className="aether-shell py-8">
       <section className="rounded-lg border border-rose-200 bg-rose-50 p-6">

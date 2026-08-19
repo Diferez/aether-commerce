@@ -272,8 +272,9 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.match(middleware, /localLimit/);
   assert.match(middleware, /profile === "account" && !actor\.userId/);
   assert.match(middleware, /user:\$\{await digest\(actor\.userId\)\}/);
-  assert.match(middleware, /digest\(authorization\)/);
-  assert.match(middleware, /digest\(cartToken\)/);
+  assert.doesNotMatch(middleware, /digest\(authorization\)/);
+  assert.doesNotMatch(middleware, /digest\(cartToken\)/);
+  assert.match(middleware, /Only verified identities receive their own bucket/);
   assert.ok(index.indexOf('app.use("*", auth())') < index.indexOf('app.use("*", rateLimit())'));
 });
 
@@ -295,4 +296,74 @@ test("storefront exports a branded custom 404 through Cloudflare static assets",
   assert.match(notFoundPage, /returnHome/);
   assert.match(notFoundPage, /exploreCatalog/);
   assert.match(storefrontWrangler, /"not_found_handling": "404-page"/);
+});
+
+test("admin product management routes are real (not the old orphaned override stubs)", () => {
+  const admin = read("apps/api/src/routes/admin.ts");
+
+  // The old PATCH/PUT/DELETE .../override routes wrote to product_overrides
+  // but catalog.ts never read that table back - "editing" a product from
+  // admin never changed what a shopper saw. Confirms that dead path is gone.
+  assert.doesNotMatch(admin, /product_overrides/);
+
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.patch\(\s*"\/products\/:id",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/publish", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/products\/:id\/archive", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/bulk",\s*requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.delete\("\/products\/:id", requirePermission\("products\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\(\s*"\/products\/:id\/inventory-adjustment",\s*requirePermission\("inventory\.write"\)/);
+  assert.match(admin, /adminRoutes\.post\("\/uploads\/signature", requirePermission\("products\.write"\)/);
+});
+
+test("products table is the catalog's source of truth, not the bundled JSON snapshot", () => {
+  const migration = read("database/core/migrations/0013_products_table.sql");
+  const seed = read("database/core/migrations/0014_seed_products_from_json.sql");
+  const catalog = read("apps/api/src/services/catalog.ts");
+
+  for (const column of ["sku TEXT NOT NULL UNIQUE", "slug TEXT NOT NULL UNIQUE", "visibility TEXT NOT NULL", "details_json TEXT NOT NULL"]) {
+    assert.match(migration, new RegExp(column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(seed, /INSERT OR IGNORE INTO products/);
+  assert.match(catalog, /select \* from products order by updated_at desc/);
+  assert.doesNotMatch(catalog, /typedLocalProducts/);
+});
+
+test("Cloudinary upload signing never sends the api_secret to the browser", () => {
+  const cloudinary = read("apps/api/src/services/cloudinary.ts");
+  const form = read("apps/admin/components/ProductForm.tsx");
+
+  assert.match(cloudinary, /CLOUDINARY_API_SECRET/);
+  assert.doesNotMatch(form, /CLOUDINARY_API_SECRET/);
+  assert.match(form, /api\.cloudinary\.com\/v1_1\//);
+  assert.match(form, /signature/);
+});
+
+test("security headers prevent framing and unsafe content sniffing on both static applications", () => {
+  for (const path of ["apps/storefront/public/_headers", "apps/admin/public/_headers"]) {
+    const headers = read(path);
+    assert.match(headers, /Strict-Transport-Security:/);
+    assert.match(headers, /X-Content-Type-Options: nosniff/);
+    assert.match(headers, /X-Frame-Options: DENY/);
+    assert.match(headers, /Content-Security-Policy:/);
+    assert.match(headers, /frame-ancestors 'none'/);
+  }
+});
+
+test("checkout orders require an immutable server-side snapshot", () => {
+  const migration = read("database/core/migrations/0021_security_hardening.sql");
+  const checkout = read("apps/api/src/routes/checkout.ts");
+  const orders = read("apps/api/src/services/orders.ts");
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS checkout_snapshots/);
+  assert.match(checkout, /createCheckoutSnapshot/);
+  assert.match(orders, /loadCheckoutSnapshot/);
+  assert.match(orders, /amount does not match the immutable snapshot/);
+  assert.doesNotMatch(orders, /await readCart\(env, cartId\)/);
+});
+
+test("assistant consent and Gemini credential transport are enforced server-side", () => {
+  const worker = read("apps/ai-assistant/worker.ts");
+  assert.match(worker, /CONSENT_REQUIRED/);
+  assert.match(worker, /"x-goog-api-key": env\.GEMINI_API_KEY/);
+  assert.doesNotMatch(worker, /generateContent\?key=/);
 });

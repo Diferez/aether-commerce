@@ -1,7 +1,10 @@
 import type { Cart } from "@aether/schemas";
 import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession } from "@aether/api-core";
+import { ExternalServiceError, OBSERVABILITY_EVENTS, PaymentError } from "@aether/core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
+import { getLogger } from "./observability";
+import { incrementMetric } from "./metrics";
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
@@ -69,7 +72,7 @@ type StripeSessionResponse = {
   currency?: string;
   customer_details?: { email?: string };
   customer_email?: string;
-  metadata?: { cartId?: string; userId?: string };
+  metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
   payment_intent?: string;
 };
 
@@ -91,8 +94,9 @@ async function createStripeCheckoutSession(
   env: Env,
   secretKey: string | undefined,
   cart: Cart,
-  customerEmail?: string
-): Promise<{ checkoutUrl: string }> {
+  customerEmail?: string,
+  checkoutSnapshotId?: string
+): Promise<{ checkoutUrl: string; sessionId?: string }> {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
     checkoutUrl: storefrontUrl(
@@ -118,6 +122,9 @@ async function createStripeCheckoutSession(
   );
   params.set("cancel_url", storefrontUrl(origin, env.APP_STORE_BASE_PATH, "/cart?checkout=cancelled"));
   params.set("metadata[cartId]", cart.id);
+  if (checkoutSnapshotId) {
+    params.set("metadata[checkoutSnapshotId]", checkoutSnapshotId);
+  }
   if (cart.userId) {
     params.set("metadata[userId]", cart.userId);
   }
@@ -144,45 +151,50 @@ async function createStripeCheckoutSession(
     });
   } catch (error) {
     if (env.AETHER_ENV !== "production") {
-      console.info("Stripe checkout unavailable in development. Using simulated checkout.", {
-        error: error instanceof Error ? error.name : "unknown"
+      getLogger(env).info(OBSERVABILITY_EVENTS.paymentFailed, {
+        metadata: { provider: "stripe", operation: "create_checkout_session", simulated: true },
+        error
       });
       return simulatedCheckout;
     }
-    console.error("Stripe checkout request failed", {
-      error: error instanceof Error ? error.name : "unknown"
-    });
-    throw new Error("Stripe session could not be created");
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, { metadata: { provider: "stripe", operation: "create_checkout_session" }, error });
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError("Stripe checkout session request failed", { code: "PAYMENT_SESSION_FAILED", cause: error });
   }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
     const stripeError = parseStripeError(errorBody);
     if (env.AETHER_ENV !== "production") {
-      console.info("Stripe checkout unavailable in development. Using simulated checkout.", {
-        status: response.status,
-        statusText: response.statusText,
-        stripeError
+      getLogger(env).info(OBSERVABILITY_EVENTS.paymentFailed, {
+        statusCode: response.status,
+        metadata: { provider: "stripe", operation: "create_checkout_session", simulated: true, stripeError }
       });
       return simulatedCheckout;
     }
-    console.error("Stripe checkout failed", {
-      status: response.status,
-      statusText: response.statusText,
-      stripeError
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, {
+      statusCode: response.status,
+      metadata: { provider: "stripe", operation: "create_checkout_session", stripeError }
     });
-    throw new Error("Stripe session could not be created");
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError("Stripe checkout session request was rejected", { code: "PAYMENT_SESSION_FAILED", metadata: { stripeError } });
   }
 
   const payload: unknown = await response.json();
-  const checkoutUrl =
-    payload && typeof payload === "object" && "url" in payload && typeof payload.url === "string"
-      ? payload.url
-      : storefrontUrl(origin, env.APP_STORE_BASE_PATH, "/cart?checkout=missing-url");
-  return { checkoutUrl };
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("id" in payload) ||
+    typeof payload.id !== "string" ||
+    !("url" in payload) ||
+    typeof payload.url !== "string"
+  ) {
+    throw new PaymentError("Stripe returned an incomplete checkout session", { code: "PAYMENT_SESSION_INVALID" });
+  }
+  return { checkoutUrl: payload.url, sessionId: payload.id };
 }
 
-async function retrieveStripeCheckoutSession(secretKey: string | undefined, sessionId: string): Promise<PaidCheckoutSession> {
+async function retrieveStripeCheckoutSession(env: Env, secretKey: string | undefined, sessionId: string): Promise<PaidCheckoutSession> {
   if (!secretKey) {
     throw new Error("Stripe secret key is not configured");
   }
@@ -195,29 +207,78 @@ async function retrieveStripeCheckoutSession(secretKey: string | undefined, sess
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    console.error("Stripe session retrieval failed", {
-      status: response.status,
-      statusText: response.statusText,
-      stripeError: parseStripeError(errorBody)
+    const stripeError = parseStripeError(errorBody);
+    getLogger(env).error(OBSERVABILITY_EVENTS.externalApiFailed, {
+      statusCode: response.status,
+      metadata: { service: "stripe", operation: "retrieve_checkout_session", stripeError }
     });
-    throw new Error("Stripe session could not be retrieved");
+    throw new ExternalServiceError("Stripe session could not be retrieved", { code: "PAYMENT_SESSION_LOOKUP_FAILED", metadata: { stripeError } });
   }
 
   return mapStripeSessionToPaidCheckoutSession(await response.json());
+}
+
+export type StripeRefund = {
+  id: string;
+  status?: string;
+  amount?: number;
+};
+
+// Same fetch + form-encoded + Bearer pattern as createCheckoutSession -
+// deliberately not a new client abstraction. Sandbox-safe: STRIPE_SECRET_KEY
+// in this deployment is a test-mode (sk_test_) key, so real money never
+// moves - confirmed via getStripeSecretKeyStatus, which every admin route
+// calling this already surfaces to the UI.
+export async function createRefund(env: Env, paymentIntentId: string, amountCents?: number): Promise<StripeRefund> {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new Error("Stripe secret key is not configured");
+  }
+
+  const params = new URLSearchParams();
+  params.set("payment_intent", paymentIntentId);
+  if (amountCents !== undefined) {
+    params.set("amount", String(amountCents));
+  }
+
+  const response = await fetch("https://api.stripe.com/v1/refunds", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: params
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    const stripeError = parseStripeError(errorBody);
+    getLogger(env).error(OBSERVABILITY_EVENTS.paymentFailed, {
+      statusCode: response.status,
+      metadata: { provider: "stripe", operation: "create_refund", stripeError }
+    });
+    await incrementMetric(env, "payments_failed");
+    throw new PaymentError(stripeError.message ?? "Stripe refund could not be created", {
+      code: "PAYMENT_REFUND_FAILED",
+      metadata: { stripeError }
+    });
+  }
+
+  return response.json();
 }
 
 /** Cloudflare/Stripe adapter for the provider-neutral checkout port. Credentials fall back to env vars when omitted. */
 export function createStripeCheckoutProvider(env: Env, credentials?: CheckoutProviderCredentials): CheckoutProvider {
   const secretKey = credentials?.secretKey ?? env.STRIPE_SECRET_KEY;
   return {
-    createCheckoutSession: (cart, customerEmail) => createStripeCheckoutSession(env, secretKey, cart, customerEmail),
-    retrieveCheckoutSession: (sessionId) => retrieveStripeCheckoutSession(secretKey, sessionId)
+    createCheckoutSession: (cart, customerEmail, checkoutSnapshotId) =>
+      createStripeCheckoutSession(env, secretKey, cart, customerEmail, checkoutSnapshotId),
+    retrieveCheckoutSession: (sessionId) => retrieveStripeCheckoutSession(env, secretKey, sessionId)
   };
 }
 
-/** @deprecated Use createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail). */
-export function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string) {
-  return createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail);
+/** @deprecated Use createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail, checkoutSnapshotId). */
+export function createCheckoutSession(env: Env, cart: Cart, customerEmail?: string, checkoutSnapshotId?: string) {
+  return createStripeCheckoutProvider(env).createCheckoutSession(cart, customerEmail, checkoutSnapshotId);
 }
 
 /** @deprecated Use createStripeCheckoutProvider(env).retrieveCheckoutSession(sessionId). */

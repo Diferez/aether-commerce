@@ -7,6 +7,7 @@ import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { createCartToken, verifyCartToken } from "../services/cart-token";
 import { withIdempotency } from "../services/idempotency";
+import { InsufficientStockError } from "../services/inventory";
 import {
   addItem,
   applyCoupon,
@@ -20,6 +21,9 @@ export const cartRoutes = new Hono<AppBindings>();
 
 async function purgeInactiveAnonymousCarts(c: Context<AppBindings>) {
   try {
+    await c.env.DB.prepare(
+      "delete from inventory_reservations where cart_id in (select id from carts where user_id is null and updated_at <= datetime('now', '-90 days'))"
+    ).run();
     await c.env.DB.prepare(
       "delete from cart_items where cart_id in (select id from carts where user_id is null and updated_at <= datetime('now', '-90 days'))"
     ).run();
@@ -69,7 +73,10 @@ cartRoutes.post("/:id/items", zValidator("json", cartItemInputSchema), async (c)
     async () => {
       try {
         return ok(c, await addItem(c.env, c.req.param("id"), c.req.valid("json")), 201);
-      } catch {
+      } catch (error) {
+        if (error instanceof InsufficientStockError) {
+          return fail(c, 409, "INSUFFICIENT_STOCK", error.message, { available: error.available });
+        }
         return fail(c, 404, "PRODUCT_NOT_FOUND", "Product not found.");
       }
     }
@@ -110,16 +117,24 @@ cartRoutes.patch(
       "PATCH /cart/:id/items/:itemId",
       c.req.header("x-idempotency-key"),
       { cartId: c.req.param("id"), itemId: c.req.param("itemId"), ...c.req.valid("json") },
-      async () =>
-        ok(
-          c,
-          await updateItemQuantity(
-            c.env,
-            c.req.param("id"),
-            decodeURIComponent(c.req.param("itemId")),
-            c.req.valid("json").quantity
-          )
-        )
+      async () => {
+        try {
+          return ok(
+            c,
+            await updateItemQuantity(
+              c.env,
+              c.req.param("id"),
+              decodeURIComponent(c.req.param("itemId")),
+              c.req.valid("json").quantity
+            )
+          );
+        } catch (error) {
+          if (error instanceof InsufficientStockError) {
+            return fail(c, 409, "INSUFFICIENT_STOCK", error.message, { available: error.available });
+          }
+          throw error;
+        }
+      }
     );
   }
 );

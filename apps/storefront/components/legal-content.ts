@@ -26,7 +26,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       title: "Política de tratamiento de datos personales y privacidad",
       summary:
         "Explica qué información usa la demo Aether, cómo funciona el asistente con IA y cómo ejercer tus derechos.",
-      updated: "Última actualización: 12 de agosto de 2026 · Versión 2026-08-12",
+      updated: "Última actualización: 15 de agosto de 2026 · Versión 2026-08-15",
       sections: [
         {
           title: "1. Responsable y canales",
@@ -75,6 +75,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
             "Clerk: autenticación y gestión de la cuenta.",
             "Stripe: checkout y pagos únicamente en entorno de prueba.",
             "Google Gemini: procesamiento de algunas consultas del asistente.",
+            "Sentry: diagnóstico de errores y rendimiento con datos minimizados. La grabación de sesiones está desactivada.",
             "Resend: entrega del mensaje de contacto cuando el servicio está configurado."
           ],
           paragraphs: [
@@ -86,6 +87,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
           items: [
             "Chats: 30 días desde el inicio de la conversación, salvo eliminación anterior. La depuración automática elimina mensajes y metadatos vencidos.",
             "Bitácoras de acciones y métricas agregadas del asistente: hasta 12 meses para seguridad y diagnóstico; no contienen el texto completo del mensaje.",
+            "Eventos técnicos de Sentry: durante el período de retención configurado para el proyecto, exclusivamente para diagnóstico y seguridad.",
             "Mensajes de contacto y prueba de autorización: hasta 12 meses, salvo obligación legal o reclamación vigente.",
             "Carritos anónimos del servidor: se depuran después de 90 días de inactividad. Carrito, favoritos, tema e idioma locales permanecen hasta que los borres desde el navegador.",
             "Cuenta, favoritos asociados y direcciones: mientras la cuenta esté activa o hasta una solicitud procedente. Pedidos y eventos sandbox permanecen durante la vida operativa de la demo o el tiempo necesario para seguridad, auditoría o una reclamación."
@@ -122,13 +124,13 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       eyebrow: "Legal / Navegador",
       title: "Política de cookies y almacenamiento local",
       summary:
-        "Aether no usa publicidad ni analítica. Estas son las tecnologías funcionales que mantienen la cuenta, el carrito y tus preferencias.",
-      updated: "Última actualización: 12 de agosto de 2026",
+        "Aether no usa publicidad ni analítica de marketing. Estas tecnologías funcionales y de diagnóstico mantienen y protegen el servicio.",
+      updated: "Última actualización: 15 de agosto de 2026",
       sections: [
         {
           title: "1. Uso actual",
           paragraphs: [
-            "La tienda no instala cookies publicitarias, de perfiles ni de analítica. El aviso es informativo porque las tecnologías actuales son necesarias o funcionales para prestar las características solicitadas."
+            "La tienda no instala cookies publicitarias, de perfiles ni de analítica de marketing. Sentry puede recibir eventos técnicos minimizados de errores y rendimiento; la grabación de sesiones está desactivada."
           ]
         },
         {
@@ -301,7 +303,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       title: "Personal data processing and privacy policy",
       summary:
         "Explains what the Aether demo uses, how the AI assistant works, and how to exercise your rights.",
-      updated: "Last updated: August 12, 2026 · Version 2026-08-12",
+      updated: "Last updated: August 15, 2026 · Version 2026-08-15",
       sections: [
         {
           title: "1. Controller and channels",
@@ -350,6 +352,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
             "Clerk: authentication and account management.",
             "Stripe: sandbox checkout and test payments only.",
             "Google Gemini: processing of some assistant queries.",
+            "Sentry: minimized error and performance diagnostics. Session replay is disabled.",
             "Resend: delivery of contact messages when configured."
           ],
           paragraphs: [
@@ -361,6 +364,7 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
           items: [
             "Chats: 30 days from conversation creation unless deleted sooner. Automated cleanup removes expired messages and metadata.",
             "Assistant action logs and aggregate usage metrics: up to 12 months for security and diagnostics; they do not contain the full message text.",
+            "Sentry technical events: for the retention period configured for the project, exclusively for diagnostics and security.",
             "Contact messages and authorization evidence: up to 12 months unless a legal duty or active claim requires longer retention.",
             "Server-side anonymous carts: cleaned after 90 days of inactivity. Local cart, favorites, theme, and language remain until you clear browser data.",
             "Account, associated favorites, and addresses: while the account remains active or until a valid request. Sandbox orders and events remain for the demo's operational life or as needed for security, audit, or a claim."
@@ -397,13 +401,13 @@ export const legalDocuments: Record<Locale, Record<LegalDocumentKey, LegalDocume
       eyebrow: "Legal / Browser",
       title: "Cookie and local storage policy",
       summary:
-        "Aether uses no advertising or analytics. These functional technologies maintain the account, cart, and preferences.",
-      updated: "Last updated: August 12, 2026",
+        "Aether uses no advertising or marketing analytics. Functional and diagnostic technologies maintain and protect the service.",
+      updated: "Last updated: August 15, 2026",
       sections: [
         {
           title: "1. Current use",
           paragraphs: [
-            "The store does not install advertising, profiling, or analytics cookies. The notice is informational because current technologies are necessary or functional for requested features."
+            "The store does not install advertising, profiling, or marketing analytics cookies. Sentry may receive minimized technical error and performance events; session replay is disabled."
           ]
         },
         {

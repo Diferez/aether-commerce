@@ -12,7 +12,7 @@ export type CompletedPaymentSession = {
 export type CreatePaidOrderInput = {
   cart: Cart;
   payment: CompletedPaymentSession;
-  paymentProvider: string;
+  paymentProvider: Order["channel"];
   orderNumberPrefix: string;
   shippingAddress: Address;
   now?: string;
@@ -38,6 +38,9 @@ export function createPaidOrder(input: CreatePaidOrderInput): Order {
     ...(input.cart.userId || input.payment.userId ? { userId: input.cart.userId ?? input.payment.userId } : {}),
     email: input.payment.email ?? "customer@example.com",
     state: "paid",
+    channel: input.paymentProvider,
+    paymentStatus: "paid",
+    fulfillmentStatus: "unfulfilled",
     items: input.cart.items,
     totals: { ...input.cart.totals, total: amount, currency },
     shippingAddress: input.shippingAddress,
@@ -49,6 +52,8 @@ export function createPaidOrder(input: CreatePaidOrderInput): Order {
       amount,
       currency
     },
+    internalNotes: null,
+    tracking: null,
     createdAt: now,
     updatedAt: now
   };

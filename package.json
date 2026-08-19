@@ -2,6 +2,7 @@
   "name": "aether-commerce",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "packageManager": "pnpm@8.15.9",
   "engines": {
@@ -48,14 +49,19 @@
   "devDependencies": {
     "@aether/agent-core": "workspace:^",
     "@aether/observability": "workspace:^",
+    "@axe-core/playwright": "^4.13.0",
     "@changesets/cli": "^2.29.0",
     "@playwright/test": "^1.57.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^22.19.0",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.49.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.3.0",
+    "jsdom": "^25.0.1",
     "prettier": "^3.7.0",
     "turbo": "^2.9.14",
     "typescript": "^5.9.0",
@@ -70,7 +76,7 @@
       "brace-expansion@^2.0.0": "2.1.4",
       "js-yaml": "4.3.1",
       "read-yaml-file>js-yaml": "3.14.1",
-      "nanoid": "3.3.17",
+      "nanoid": "3.3.18",
       "postcss": "8.5.26"
     }
   }

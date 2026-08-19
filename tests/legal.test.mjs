@@ -36,7 +36,7 @@ test("assistant privacy notice matches storage and deletion behavior", () => {
   assert.match(widget, /method: "DELETE"/);
   assert.match(worker, /AI_CONVERSATION_RETENTION_DAYS/);
   assert.match(worker, /purgeExpiredAssistantData/);
-  assert.match(worker, /redactPii\(data\.message\)/);
+  assert.match(worker, /redactPii\(String\(data\.body\.message/);
   assert.match(legal, /Chats: 30 días/);
   assert.match(legal, /Google Gemini/);
 });

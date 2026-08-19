@@ -1,7 +1,7 @@
 import type { Cart } from "@aether/schemas";
 
-/** Portable result returned by a hosted payment checkout. */
-export type CheckoutRedirect = { checkoutUrl: string };
+/** Portable result returned by a hosted payment checkout. sessionId is Stripe-only (returned so its immutable checkout snapshot can be bound to it). */
+export type CheckoutRedirect = { checkoutUrl: string; sessionId?: string };
 
 /** Provider-neutral payment status. Adapters map their own vocabulary onto this. */
 export type CheckoutSessionStatus = "paid" | "pending" | "failed" | "unknown";
@@ -13,14 +13,16 @@ export type PaidCheckoutSession = {
   amountTotal?: number;
   currency?: string;
   customerEmail?: string;
-  metadata?: { cartId?: string; userId?: string };
+  /** checkoutSnapshotId: Stripe-only immutable checkout snapshot binding (see apps/api/src/services/checkout-snapshots.ts). */
+  metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
   /** Provider-specific charge/transaction reference (Stripe payment_intent, Wompi transaction id, ...). */
   providerReference?: string;
 };
 
 /** Infrastructure boundary. Provider SDKs, HTTP clients and secrets stay in app adapters. */
 export interface CheckoutProvider {
-  createCheckoutSession(cart: Cart, customerEmail?: string): Promise<CheckoutRedirect>;
+  /** checkoutSnapshotId is Stripe-only (see PaidCheckoutSession.metadata.checkoutSnapshotId); other adapters ignore it. */
+  createCheckoutSession(cart: Cart, customerEmail?: string, checkoutSnapshotId?: string): Promise<CheckoutRedirect>;
   retrieveCheckoutSession(sessionId: string): Promise<PaidCheckoutSession>;
 }
 
