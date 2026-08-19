@@ -5,7 +5,6 @@ import { zValidator } from "@hono/zod-validator";
 import { checkoutProviderIds } from "@aether/api-core";
 import {
   canTransitionFulfillment,
-  canTransitionOrder,
   canTransitionPayment,
   isValidHexColor,
   isValidWhatsappNumber
@@ -15,13 +14,13 @@ import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
-import { createInventoryService } from "../services/inventory";
 import { createCouponService } from "../services/coupons";
+import { computeDashboardSummary } from "../services/dashboard-summary";
 import { createReviewModerationService } from "../services/review-moderation";
 import { createCheckoutSettingsService } from "../services/checkout-settings";
 import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import { createUploadSignature } from "../services/cloudinary";
-import { createManualOrder } from "../services/orders";
+import { changeOrderState, createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
@@ -127,40 +126,8 @@ adminRoutes.get("/demo/summary", (c) =>
 );
 
 adminRoutes.get("/summary", requirePermission("orders.read"), async (c) => {
-  const lowStock = await c.env.DB.prepare(
-    "select count(*) as count from products where stock > 0 and stock <= low_stock_threshold"
-  ).first<{ count: number }>();
-  return ok(c, {
-    mode: "private",
-    revenue: 1842500,
-    orders: 128,
-    conversionRate: 4.8,
-    lowStock: lowStock?.count ?? 0
-  });
-});
-
-adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
-  const lowStock = await createInventoryService(c.env.DB).countLowStock();
-  return ok(c, {
-    revenue: 1842500,
-    orders: 128,
-    averageTicket: 14395,
-    productsSold: 344,
-    conversionRate: 4.8,
-    lowStock,
-    orderStates: [
-      { state: "paid", count: 18 },
-      { state: "processing", count: 22 },
-      { state: "shipped", count: 31 },
-      { state: "delivered", count: 57 }
-    ],
-    serviceStatus: {
-      d1: "ok",
-      dummyjson: "cached",
-      stripe: c.env.STRIPE_SECRET_KEY ? "configured" : "sandbox_placeholder",
-      resend: c.env.RESEND_API_KEY ? "configured" : "not_configured"
-    }
-  });
+  const summary = await computeDashboardSummary(c.env);
+  return ok(c, { mode: "private", ...summary });
 });
 
 const productListQuerySchema = z.object({
@@ -696,53 +663,28 @@ adminRoutes.patch(
   async (c) => {
     const orderId = c.req.param("id");
     const body = c.req.valid("json");
-    const current = await c.env.DB.prepare("select state, payload_json from orders where id = ?")
-      .bind(orderId)
-      .first<{ state: string; payload_json: string }>();
+    const result = await changeOrderState(c.env, orderId, body.state, {
+      actorId: c.get("actor").userId ?? "admin",
+      reason: body.reason,
+      requestId: c.get("requestId")
+    });
 
-    if (!current) {
-      return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+    if (!result.ok) {
+      switch (result.error) {
+        case "not_found":
+          return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+        case "invalid_current_state":
+          return fail(c, 409, "ORDER_STATE_INVALID", "The stored order state is invalid.");
+        case "invalid_transition":
+          return fail(c, 409, "ORDER_TRANSITION_INVALID", `Cannot transition ${result.previousState} to ${body.state}.`);
+        case "invalid_payload":
+          return fail(c, 409, "ORDER_PAYLOAD_INVALID", "The stored order payload is invalid.");
+        case "conflict":
+          return fail(c, 409, "ORDER_STATE_CONFLICT", "The order state changed while the update was being applied.");
+      }
     }
 
-    const currentState = orderStateSchema.safeParse(current.state);
-    if (!currentState.success) {
-      return fail(c, 409, "ORDER_STATE_INVALID", "The stored order state is invalid.");
-    }
-    if (!canTransitionOrder(currentState.data, body.state)) {
-      return fail(c, 409, "ORDER_TRANSITION_INVALID", `Cannot transition ${currentState.data} to ${body.state}.`);
-    }
-
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(current.payload_json) as Record<string, unknown>;
-    } catch {
-      return fail(c, 409, "ORDER_PAYLOAD_INVALID", "The stored order payload is invalid.");
-    }
-
-    const updatedAt = new Date().toISOString();
-    const results = await c.env.DB.batch([
-      c.env.DB.prepare(
-        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-         select ?, id, state, ?, ?, ?, ? from orders where id = ? and state = ?`
-      ).bind(
-        crypto.randomUUID(),
-        body.state,
-        c.get("actor").userId ?? "admin",
-        body.reason ?? null,
-        c.get("requestId"),
-        orderId,
-        currentState.data
-      ),
-      c.env.DB.prepare(
-        "update orders set state = ?, payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ? and state = ?"
-      ).bind(body.state, JSON.stringify({ ...payload, state: body.state, updatedAt }), orderId, currentState.data)
-    ]);
-
-    if ((results[1]?.meta.changes ?? 0) !== 1) {
-      return fail(c, 409, "ORDER_STATE_CONFLICT", "The order state changed while the update was being applied.");
-    }
-
-    return ok(c, { orderId, previousState: currentState.data, state: body.state, updatedAt });
+    return ok(c, { orderId, previousState: result.previousState, state: result.state, updatedAt: result.updatedAt });
   }
 );
 
@@ -819,19 +761,26 @@ adminRoutes.patch(
   }
 );
 
+const couponCreateSchema = z.object({
+  code: z.string().trim().min(3).max(32),
+  type: z.enum(["percentage", "fixed"]),
+  value: z.number().int().positive(),
+  minimumSubtotal: z.number().int().min(0).default(0)
+});
+
 adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, await createCouponService(c.env.DB).list()));
-adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {
+adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", couponCreateSchema), async (c) => {
   const body = c.req.valid("json");
   const code = body.code.toUpperCase();
-  await c.env.DB.prepare("insert or replace into coupons (code, type, value, active, minimum_subtotal) values (?, ?, ?, 1, 0)")
-    .bind(code, body.type, body.value)
+  await c.env.DB.prepare("insert or replace into coupons (code, type, value, active, minimum_subtotal) values (?, ?, ?, 1, ?)")
+    .bind(code, body.type, body.value, body.minimumSubtotal)
     .run();
   await writeAuditLog(c.env, {
     actorId: c.get("actor").userId ?? "admin",
     action: "coupon.created",
     targetType: "coupon",
     targetId: code,
-    payload: { type: body.type, value: body.value }
+    payload: { type: body.type, value: body.value, minimumSubtotal: body.minimumSubtotal }
   });
   return ok(c, { code }, 201);
 });
@@ -841,8 +790,8 @@ adminRoutes.patch(
   zValidator(
     "json",
     z.object({
-      type: z.string().optional(),
-      value: z.number().int().optional(),
+      type: z.enum(["percentage", "fixed"]).optional(),
+      value: z.number().int().positive().optional(),
       active: z.boolean().optional(),
       minimumSubtotal: z.number().int().min(0).optional()
     })
@@ -904,8 +853,6 @@ adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (
   ).all<Record<string, unknown>>();
   return ok(c, rows.results);
 });
-
-adminRoutes.post("/refunds", requirePermission("refunds.create"), (c) => ok(c, { simulated: true, provider: "stripe_sandbox" }, 201));
 
 const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

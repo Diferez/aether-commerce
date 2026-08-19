@@ -41,7 +41,7 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
         run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
       };
     }),
-    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true }))))
+    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))))
   };
   const env = {
     DB: db,
@@ -382,5 +382,119 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/system-health", { token: "tok" }), env, ctx);
 
     expect(response.status).toBe(403);
+  });
+
+  it("creates a coupon with the real minimumSubtotal value, not the old hardcoded zero", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      {}, // coupons insert or replace
+      {} // audit_logs insert
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/coupons", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "welcome10", type: "percentage", value: 10, minimumSubtotal: 5000 })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(201);
+    const couponInsert = statements.find((s) => s.sql.includes("insert or replace into coupons"));
+    expect(couponInsert?.args).toEqual(["WELCOME10", "percentage", 10, 5000]);
+  });
+
+  it("rejects a coupon with an invalid type before touching the database", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, db } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(
+      adminRequest("/coupons", {
+        method: "POST",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "BAD1", type: "buy_one_get_one", value: 10 })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(400);
+    expect(db.prepare).not.toHaveBeenCalledWith(expect.stringContaining("insert or replace into coupons"));
+  });
+
+  it("PATCH /admin/orders/:id/status transitions the order via the shared changeOrderState helper", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, db } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { state: "paid", payload_json: JSON.stringify({ state: "paid" }) } } // changeOrderState's current-row read
+    ]);
+    db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 1 } }]);
+
+    const response = await worker.fetch(
+      adminRequest("/orders/ord_1/status", {
+        method: "PATCH",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: "processing" })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json<{ success: boolean; data?: { previousState: string; state: string } }>();
+    expect(body.data).toMatchObject({ previousState: "paid", state: "processing" });
+  });
+
+  it("PATCH /admin/orders/:id/status returns 409 ORDER_TRANSITION_INVALID for an illegal move", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { state: "cancelled", payload_json: "{}" } } // terminal state, no transitions out
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/orders/ord_1/status", {
+        method: "PATCH",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: "paid" })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+    expect(body.error?.code).toBe("ORDER_TRANSITION_INVALID");
+  });
+
+  it("no longer exposes the removed fake POST /admin/refunds stub", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(adminRequest("/refunds", { method: "POST", token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(404);
+  });
+
+  it("GET /admin/summary computes real revenue/orders from the orders table", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { revenue: 543200, orders: 12 } }, // computeDashboardSummary revenue/orders
+      { first: { count: 2 } } // computeDashboardSummary low-stock count
+    ]);
+
+    const response = await worker.fetch(adminRequest("/summary", { token: "tok" }), env, ctx);
+    const body = await response.json<{ success: boolean; data: { revenue: number; orders: number; lowStock: number } }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({ revenue: 543200, orders: 12, lowStock: 2 });
   });
 });

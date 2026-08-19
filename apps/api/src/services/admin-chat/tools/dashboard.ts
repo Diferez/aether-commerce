@@ -1,31 +1,18 @@
 import { z } from "zod";
 import { defineAdminChatTool } from "../define-tool";
 import { pick } from "../language";
+import { computeDashboardSummary } from "../../dashboard-summary";
 
-// Mirrors GET /admin/dashboard's own numbers exactly (routes/admin.ts) -
-// including the fact that revenue/orders/averageTicket/productsSold/
-// conversionRate are still fixed placeholder figures in this codebase (no
-// real sales-aggregation pipeline exists yet). The chat must not invent
-// numbers the rest of the panel doesn't already show, so this tool reads
-// the same values rather than computing anything new; only lowStock is a
-// real, live count, same as the REST route.
+// Reads the exact same computeDashboardSummary() as GET /admin/summary
+// (routes/admin.ts) - the chat must never show a different revenue/orders
+// figure than the dashboard the operator is looking at.
 export const getDashboardSummaryTool = defineAdminChatTool({
   name: "get_dashboard_summary",
   description: "Gets the admin dashboard's headline numbers (revenue, orders, conversion rate, low-stock count).",
   schema: z.object({}),
   requires: { permission: "orders.read" },
   run: async (_args, ctx) => {
-    const lowStock = await ctx.env.DB.prepare(
-      "select count(*) as count from products where stock > 0 and stock <= low_stock_threshold"
-    ).first<{ count: number }>();
-    const summary = {
-      revenue: 1842500,
-      orders: 128,
-      averageTicket: 14395,
-      productsSold: 344,
-      conversionRate: 4.8,
-      lowStock: lowStock?.count ?? 0
-    };
+    const summary = await computeDashboardSummary(ctx.env);
     return {
       message: pick(
         ctx.language,
@@ -42,16 +29,16 @@ export const getSalesSummaryTool = defineAdminChatTool({
   description: "Gets revenue and order-volume figures shown on the dashboard.",
   schema: z.object({}),
   requires: { permission: "orders.read" },
-  run: (_args, ctx) => {
-    const summary = { revenue: 1842500, orders: 128, averageTicket: 14395, conversionRate: 4.8 };
-    return Promise.resolve({
+  run: async (_args, ctx) => {
+    const summary = await computeDashboardSummary(ctx.env);
+    return {
       message: pick(
         ctx.language,
         `Revenue: ${(summary.revenue / 100).toFixed(2)} across ${summary.orders} orders.`,
         `Ingresos: ${(summary.revenue / 100).toFixed(2)} en ${summary.orders} pedidos.`
       ),
       artifact: { type: "dashboard_summary" as const, summary }
-    });
+    };
   }
 });
 

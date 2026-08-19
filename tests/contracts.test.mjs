@@ -210,15 +210,20 @@ test("readiness and order status updates fail safely", () => {
   const index = read("apps/api/src/index.ts");
   const http = read("apps/api/src/http.ts");
   const admin = read("apps/api/src/routes/admin.ts");
+  // The state-machine check, history insert, and batched write live in
+  // changeOrderState() (services/orders.ts) - shared by this admin route and
+  // the customer-facing cancel/return/refund-request routes in user.ts, so
+  // this guarantee is checked where the logic actually is, not duplicated.
+  const orders = read("apps/api/src/services/orders.ts");
 
   assert.match(index, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
   assert.match(index, /status: "degraded"/);
   assert.match(http, /\| 503/);
   assert.match(admin, /orderStateSchema/);
-  assert.match(admin, /canTransitionOrder/);
-  assert.match(admin, /previous_state, new_state/);
-  assert.match(admin, /c\.env\.DB\.batch/);
   assert.match(admin, /ORDER_STATE_CONFLICT/);
+  assert.match(orders, /canTransitionOrder/);
+  assert.match(orders, /previous_state, new_state/);
+  assert.match(orders, /env\.DB\.batch/);
 });
 
 test("CI uses deterministic guest auth and the assistant is a LangGraph Worker", () => {

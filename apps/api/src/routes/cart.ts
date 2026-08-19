@@ -12,6 +12,7 @@ import {
   addItem,
   applyCoupon,
   createCart,
+  InvalidCouponError,
   readCart,
   removeItem,
   updateItemQuantity
@@ -89,7 +90,14 @@ cartRoutes.post(
   async (c) => {
     const tokenError = await requireCartToken(c, c.req.param("id"));
     if (tokenError) return tokenError;
-    return ok(c, await applyCoupon(c.env, c.req.param("id"), c.req.valid("json").code));
+    try {
+      return ok(c, await applyCoupon(c.env, c.req.param("id"), c.req.valid("json").code));
+    } catch (error) {
+      if (error instanceof InvalidCouponError) {
+        return fail(c, 404, "COUPON_NOT_FOUND", "That coupon code is not valid.");
+      }
+      throw error;
+    }
   }
 );
 

@@ -3,38 +3,38 @@ import { getDashboardSummaryTool, getRecentActivityTool, getSalesSummaryTool, ge
 import { fakeContext, fakeEnv } from "../test-support";
 
 describe("getDashboardSummaryTool", () => {
-  it("mirrors the placeholder headline figures the rest of the admin panel shows, plus a real live low-stock count", async () => {
-    const { env, db } = fakeEnv([{ first: { count: 7 } }]);
+  it("computes real revenue/order figures from the orders table, plus a real live low-stock count", async () => {
+    const { env, db } = fakeEnv([{ first: { revenue: 543200, orders: 12 } }, { first: { count: 7 } }]);
     const ctx = fakeContext(env);
 
     const result = await getDashboardSummaryTool.run({}, ctx);
 
     expect(result.artifact).toMatchObject({
       type: "dashboard_summary",
-      summary: { revenue: 1842500, orders: 128, averageTicket: 14395, productsSold: 344, conversionRate: 4.8, lowStock: 7 }
+      summary: { revenue: 543200, orders: 12, conversionRate: 4.8, lowStock: 7 }
     });
-    expect(db.prepare).toHaveBeenCalledTimes(1);
+    expect(db.prepare).toHaveBeenCalledTimes(2);
   });
 
-  it("defaults the low-stock count to zero when the query returns nothing", async () => {
-    const { env } = fakeEnv([{ first: null }]);
+  it("defaults revenue/orders/low-stock to zero when their queries return nothing", async () => {
+    const { env } = fakeEnv([{ first: null }, { first: null }]);
     const ctx = fakeContext(env);
 
     const result = await getDashboardSummaryTool.run({}, ctx);
 
-    expect(result.artifact).toMatchObject({ type: "dashboard_summary", summary: { lowStock: 0 } });
+    expect(result.artifact).toMatchObject({ type: "dashboard_summary", summary: { revenue: 0, orders: 0, lowStock: 0 } });
   });
 });
 
 describe("getSalesSummaryTool", () => {
-  it("returns the same fixed revenue/order figures without touching the database", async () => {
-    const { env, db } = fakeEnv();
+  it("returns the same real revenue/order figures computeDashboardSummary produces", async () => {
+    const { env, db } = fakeEnv([{ first: { revenue: 543200, orders: 12 } }, { first: { count: 0 } }]);
     const ctx = fakeContext(env);
 
     const result = await getSalesSummaryTool.run({}, ctx);
 
-    expect(result.artifact).toEqual({ type: "dashboard_summary", summary: { revenue: 1842500, orders: 128, averageTicket: 14395, conversionRate: 4.8 } });
-    expect(db.prepare).not.toHaveBeenCalled();
+    expect(result.artifact).toEqual({ type: "dashboard_summary", summary: { revenue: 543200, orders: 12, conversionRate: 4.8, lowStock: 0 } });
+    expect(db.prepare).toHaveBeenCalledTimes(2);
   });
 });
 
