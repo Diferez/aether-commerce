@@ -39,6 +39,17 @@ try {
   const archivesDirectory = resolve(temporaryParent, "archives");
   const archives = new Map();
   for (const [name, packageDirectory] of distributablePackages) {
+    // turbo's `^build` graph only builds a package as a side effect of `pnpm
+    // typecheck`/`pnpm lint` when something else in the workspace still
+    // depends on it. A distributable package can lose its last in-monorepo
+    // consumer (as @aether/i18n and @aether/agent-core have) while still
+    // needing to work for external client consumers, so build it explicitly
+    // here rather than trusting it was already built.
+    execFileSync("pnpm", ["build"], {
+      cwd: resolve(root, packageDirectory),
+      stdio: "inherit",
+      shell: process.platform === "win32"
+    });
     const existingArchives = new Set(existsSync(archivesDirectory) ? readdirSync(archivesDirectory) : []);
     execFileSync("pnpm", ["pack", "--pack-destination", archivesDirectory], {
       cwd: resolve(root, packageDirectory),
