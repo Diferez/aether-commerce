@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { isCheckoutSessionPaid } from "@aether/api-core";
+import { addressSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { readCart, writeCart } from "../services/cart";
@@ -14,16 +15,28 @@ import { bindCheckoutSnapshotToSession, createCheckoutSnapshot } from "../servic
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
+// Relaxes addressSchema's postalCode (min 3) since Colombian storefront
+// addresses commonly go without one, and fixes country server-side rather
+// than asking the storefront's /checkout form for it - the checkout page
+// only collects what the operator actually asked for (name, phone, address,
+// city, department). Both gaps are filled in below before this rides along
+// on the immutable checkout snapshot, so the value stored on the eventual
+// order still satisfies the stricter schema addressSchema everywhere else
+// expects.
+const checkoutShippingAddressSchema = addressSchema.omit({ postalCode: true, country: true }).extend({
+  postalCode: z.string().optional()
+});
+
 checkoutRoutes.post(
   "/session",
-  zValidator("json", z.object({ cartId: z.string().min(1) })),
+  zValidator("json", z.object({ cartId: z.string().min(1), shippingAddress: checkoutShippingAddressSchema.optional() })),
   async (c) => {
     const actor = c.get("actor");
     if (!actor.userId) {
       return fail(c, 401, "AUTH_REQUIRED", "Sign in before starting checkout.");
     }
 
-    const cartId = c.req.valid("json").cartId;
+    const { cartId, shippingAddress } = c.req.valid("json");
     const hasCartToken = await verifyCartToken(c.env, c.req.header("x-aether-cart-token"), cartId);
     if (!hasCartToken) {
       return fail(c, 401, "CART_TOKEN_REQUIRED", "A valid cart token is required.");
@@ -39,7 +52,11 @@ checkoutRoutes.post(
 
     const { mode, provider } = await resolveActiveCheckoutProvider(c.env);
     try {
-      const checkoutCart = await writeCart(c.env, { ...cart, userId: actor.userId });
+      const checkoutCart = await writeCart(c.env, {
+        ...cart,
+        userId: actor.userId,
+        ...(shippingAddress ? { shippingAddress: { ...shippingAddress, postalCode: shippingAddress.postalCode || "000000", country: "CO" } } : {})
+      });
       await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const customerEmail = await resolveActorEmail(c.env, actor);
       // Every provider gets an immutable checkout snapshot

@@ -30,3 +30,34 @@ export function useCheckoutOptions(): CheckoutOptions | null {
 
   return checkoutOptions;
 }
+
+export type ShippingSettings = { enabled: boolean; amountCents: number };
+
+// Whether the flat shipping fee is on, and how much it is - drives both the
+// cart page's decision to detour through /checkout (see cart/page.tsx's
+// checkout()) and that page's own summary/gate. The fee itself is already
+// reflected in cart.totals.shipping by the time this loads (the API adds it
+// server-side on every cart mutation (see services/cart.ts's
+// getShippingCents) - this is only read to know whether to ask for an address
+// and to render the "Shipping" line's source, not to compute anything.
+export function useShippingSettings(): ShippingSettings | null {
+  const [shippingSettings, setShippingSettings] = useState<ShippingSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiBaseUrl}/api/v1/shipping/settings`)
+      .then((response) => response.json())
+      .then((payload: { success: boolean; data?: ShippingSettings }) => {
+        if (!cancelled && payload.success && payload.data) setShippingSettings(payload.data);
+      })
+      .catch(() => {
+        // Disabled stays the safe default if this read fails - never send a
+        // shopper through the address step for a fee that can't be confirmed.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return shippingSettings;
+}

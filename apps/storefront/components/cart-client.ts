@@ -1,8 +1,37 @@
 "use client";
 
 import { calculateCartTotals } from "@aether/core";
-import type { Cart, CartItem, Product } from "@aether/schemas";
+import type { Address, Cart, CartItem, Product } from "@aether/schemas";
 import { apiBaseUrl } from "./config";
+
+export type CheckoutSessionResult = {
+  success: boolean;
+  data?: { checkoutUrl: string };
+  error?: { code: string; message: string };
+};
+
+// Shared by the cart page (shipping disabled or WhatsApp mode - no address
+// needed) and the /checkout page (shipping enabled - shippingAddress is
+// collected there first). Not wrapped in fetchCartApi's short timeout like
+// the rest of this file's mutations - creating a real Stripe/Wompi session
+// can legitimately take longer than a cart read/write.
+export async function createCheckoutSession(
+  getToken: () => Promise<string | null>,
+  shippingAddress?: Address
+): Promise<CheckoutSessionResult> {
+  const { cartId, token: cartToken } = await getCartCredentials();
+  const authToken = await getToken();
+  const response = await fetch(`${apiBaseUrl}/api/v1/checkout/session`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(cartToken ? { "x-aether-cart-token": cartToken } : {})
+    },
+    body: JSON.stringify({ cartId, ...(shippingAddress ? { shippingAddress } : {}) })
+  });
+  return (await response.json()) as CheckoutSessionResult;
+}
 
 // Versioned so a catalog-source migration (e.g. Platzi -> DummyJSON, where
 // product IDs are not comparable across sources) never resurrects stale

@@ -149,11 +149,7 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
         method: "PATCH",
         token: "tok",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          freeShippingThreshold: 20000,
-          countries: ["US"],
-          options: [{ id: "standard", label: "Standard", amount: 500, currency: "USD", estimatedDays: "3-5" }]
-        })
+        body: JSON.stringify({ enabled: true, amountCents: 20000 })
       }),
       env,
       ctx
