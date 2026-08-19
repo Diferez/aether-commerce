@@ -55,6 +55,9 @@ Opcionales según funciones habilitadas:
 - `CLERK_JWT_ISSUER`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `WOMPI_SECRET_KEY`
+- `WOMPI_EVENTS_SECRET`
+- `AETHER_SETTINGS_ENCRYPTION_KEY` (only needed to manage checkout secrets from the admin panel; see `docs/security.md`)
 - `RESEND_API_KEY`
 - `CONTACT_RECIPIENT_EMAIL`
 - `GEMINI_API_KEY`

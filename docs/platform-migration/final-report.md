@@ -26,7 +26,7 @@ docs/platform
 ## Packages and moved code
 
 - `config-schema`: Zod contracts for brand, store, features, checkout, integrations, agent and navigation.
-- `api-core`: pure cart/catalog (including product overrides)/order (including customer and admin reads), administration users/audit/settings reads, coupon, shipping-settings and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port; `apps/api` remains the D1/Stripe adapter.
+- `api-core`: pure cart/catalog (including product overrides)/order (including customer and admin reads), administration users/audit/settings reads, coupon, shipping-settings and contact-message operations, customer profile, preferences, addresses and public/customer/admin-review operations, inventory operations and a provider-neutral checkout port (`CheckoutProvider`, `PaidCheckoutSession`, `CheckoutSettingsService`); `apps/api` supplies Stripe and Wompi adapters plus the D1/Clerk/Stripe/Wompi-signature specifics (see ADR 0012).
 - `agent-core`: shared intent list, deterministic execution planning, mutable-tool authorization, PII redaction, composable Gemini prompts, provider-neutral model execution, conversation-memory ownership, client-gateway cart tool execution, tool-telemetry policy and a Python/LangGraph graph-assembly primitive; Workers and Python container adapters retain their Cloudflare/Gemini/D1/FastAPI bindings.
 - `observability`: reusable request-ID, error-status and logger helpers used by API middleware.
 - `core`, `schemas`, `api-client`, `ui`, `i18n` and `config-schema` now emit JS/declarations to `dist` and expose package entrypoints. `i18n` provides generic locale/interpolation helpers; the Aether copy is owned by the demo storefront configuration.
@@ -43,7 +43,8 @@ assistant and portfolio settings from explicit client-owned configuration.
 
 ## Main code movements
 
-- `apps/api/src/services/*` -> `packages/api-core/src/{cart,catalog,orders,customers,inventory,webhooks,reviews,contact,coupons,shipping,administration}.ts`, leaving D1, Clerk, Stripe and provider-signature adapters in the API app.
+- `apps/api/src/services/*` -> `packages/api-core/src/{cart,catalog,orders,customers,inventory,webhooks,reviews,contact,coupons,shipping,administration}.ts`, leaving D1, Clerk, and Stripe/Wompi provider-signature adapters in the API app.
+- Checkout provider abstraction (ADR 0012): `packages/api-core/src/checkout.ts` now owns the provider-neutral `CheckoutProvider` port, `PaidCheckoutSession` shape and `CheckoutSettingsService`; `apps/api/src/services/{stripe,wompi}.ts` are the two adapters, selected at request time by `apps/api/src/services/checkout-provider.ts`. Admin-managed secrets (`apps/api/src/services/checkout-settings.ts`, AES-GCM via `settings-crypto.ts`) live in `application_settings` and override deploy-time env vars field by field; `apps/admin/components/CheckoutProviderSettings.tsx` and `PUT /api/v1/admin/checkout-settings` are the admin surface.
 - assistant intent, provider runtime, memory lifecycle, cart-tool gateway execution, execution planning and audit/counter ordering -> `packages/agent-core/src/`; reusable Python LangGraph assembly -> `packages/agent-core/python/`; D1 persistence and the HTTP gateway remain in `apps/ai-assistant/adapters/` and the Worker.
 - package-neutral request IDs, error-status normalization, structured logging and the audit-event contract -> `packages/observability/src/index.ts`.
 - API schema and historical migrations -> `database/core/{schema.ts,migrations}`; demo records -> `database/demo/{fixtures,seeds}`.
@@ -67,8 +68,9 @@ assistant and portfolio settings from explicit client-owned configuration.
 ## Demo status
 
 Storefront, admin static export, Hono API dry-run, AI Worker dry-run, catalog,
-cart, Stripe checkout adapter, auth middleware, webhooks, inventory routes and
-existing observability all build against the same public behavior.
+cart, Stripe and Wompi checkout adapters (with admin-managed secrets), auth
+middleware, webhooks, inventory routes and existing observability all build
+against the same public behavior.
 
 ## Releases and clients
 
