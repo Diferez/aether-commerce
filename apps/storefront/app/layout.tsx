@@ -5,6 +5,8 @@ import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
+import { themeTokensToCssVariables } from "@aether/ui/theme";
+import { aetherThemeTokens } from "../config/theme";
 import { WhatsappBubble } from "../components/WhatsappBubble";
 import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
@@ -41,9 +43,10 @@ const themeInitScript = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <style>{themeTokensToCssVariables(aetherThemeTokens)}</style>
         <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>

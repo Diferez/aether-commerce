@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { cartItemSchema, cartTotalsSchema } from "./cart";
+import { cartItemSchema, cartTotalsSchema, currencyCodeSchema } from "./cart";
 
 export const orderStateSchema = z.enum([
   "draft",
@@ -50,15 +50,15 @@ export const addressSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  provider: z.enum(["stripe", "whatsapp"]),
+  provider: z.string().min(1),
   providerSessionId: z.string().optional(),
   providerPaymentIntentId: z.string().optional(),
   status: z.enum(["created", "requires_payment", "paid", "failed", "refunded"]),
   amount: z.number().int().min(0),
-  currency: z.literal("USD")
+  currency: currencyCodeSchema
 });
 
-export const orderChannelSchema = z.enum(["stripe", "whatsapp"]);
+export const orderChannelSchema = z.enum(["stripe", "wompi", "whatsapp"]);
 export const paymentStatusSchema = z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]);
 export const fulfillmentStatusSchema = z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]);
 

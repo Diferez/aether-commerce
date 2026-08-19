@@ -1,5 +1,6 @@
+import { createCartItem, createEmptyCart, withCoupon } from "@aether/api-core";
 import { calculateCartTotals } from "@aether/core";
-import type { Cart, CartItem, CartItemInput, Coupon } from "@aether/schemas";
+import type { Cart, CartItemInput, Coupon } from "@aether/schemas";
 import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
@@ -38,7 +39,7 @@ export async function readCart(env: Env, id: string): Promise<Cart> {
   }>();
 
   if (!row) {
-    return emptyCart(id);
+    return createEmptyCart(id);
   }
 
   return JSON.parse(row.payload_json) as Cart;
@@ -66,22 +67,7 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
     throw new Error("Product not found");
   }
 
-  const variant = input.variantId
-    ? product.variants.find((candidate) => candidate.id === input.variantId)
-    : product.variants[0];
-  const finalUnitPrice = product.finalPrice + (variant?.priceDelta ?? 0);
-  const item: CartItem = {
-    productId: product.id,
-    variantId: variant?.id,
-    quantity: input.quantity,
-    name: product.name,
-    slug: product.slug,
-    imageUrl: product.images[0]?.url ?? "",
-    unitPrice: product.price,
-    finalUnitPrice,
-    lineTotal: finalUnitPrice * input.quantity,
-    currency: "USD"
-  };
+  const item = createCartItem(product, input);
 
   const cart = await readCart(env, cartId);
   const existing = cart.items.find(
@@ -116,8 +102,7 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
 export async function applyCoupon(env: Env, cartId: string, code: string): Promise<Cart> {
   const cart = await readCart(env, cartId);
   const coupon = code.toUpperCase() === defaultCoupon.code ? defaultCoupon : undefined;
-  const totals = calculateCartTotals(cart.items, coupon);
-  return writeCart(env, { ...cart, couponCode: coupon?.code, totals });
+  return writeCart(env, withCoupon(cart, coupon));
 }
 
 export async function removeItem(env: Env, cartId: string, itemId: string): Promise<Cart> {

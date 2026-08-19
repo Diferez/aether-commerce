@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Trash2, X } from "lucide-react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import type { Cart } from "@aether/schemas";
 import { readLocalCart, removeProductFromCart } from "./cart-client";
 import { useLanguage } from "./LanguageProvider";
@@ -88,7 +88,7 @@ export function FloatingCart() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-chat-text">{item.name}</p>
                 <p className="text-xs text-chat-text-muted">
-                  {t.qty} {item.quantity} · {formatUsd(item.lineTotal, locale === "es" ? "es-CO" : "en-US")}
+                  {t.qty} {item.quantity} · {formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}
                 </p>
               </div>
               <button
@@ -107,7 +107,7 @@ export function FloatingCart() {
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-chat-text-muted">{t.total}</span>
             <strong className="text-lg text-chat-text">
-              {formatUsd(cart.totals.total, locale === "es" ? "es-CO" : "en-US")}
+              {formatMoney(cart.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
             </strong>
           </div>
           <StorefrontLink

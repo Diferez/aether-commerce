@@ -1,4 +1,5 @@
-# Migrations
+# Legacy migration location
 
-Versioned SQL migrations are stored in `apps/api/migrations` so Wrangler can
-apply them directly to the Worker D1 binding.
+The executable, versioned D1 migration source is now
+`database/core/migrations`. Historical filenames and contents were moved
+without renumbering so deployed D1 migration history remains compatible.

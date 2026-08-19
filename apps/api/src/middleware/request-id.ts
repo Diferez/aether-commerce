@@ -1,16 +1,6 @@
 import type { MiddlewareHandler } from "hono";
+import { createRequestId } from "@aether/observability";
 import type { AppBindings } from "../types";
-
-// Deliberately permissive about characters (covers UUIDs, ULIDs, and
-// whatever format an upstream proxy or client SDK generates) but bounded in
-// length - a client-supplied id is never trusted blindly, just accepted if
-// it's shaped like a real correlation id and replaced with a fresh UUID
-// otherwise.
-const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/;
-
-function isValidIncomingRequestId(value: string | undefined | null): value is string {
-  return typeof value === "string" && REQUEST_ID_PATTERN.test(value);
-}
 
 // Establishes the one id every log line, audit entry, Sentry event, and
 // error response for this request will carry. cf-ray (Cloudflare's own
@@ -19,7 +9,7 @@ function isValidIncomingRequestId(value: string | undefined | null): value is st
 // primary requestId since it isn't present in local/dev requests.
 export const requestId = (): MiddlewareHandler<AppBindings> => async (c, next) => {
   const incoming = c.req.header("x-request-id");
-  const id = isValidIncomingRequestId(incoming) ? incoming : crypto.randomUUID();
+  const id = createRequestId(incoming);
   c.set("requestId", id);
 
   const cfRay = c.req.header("cf-ray");

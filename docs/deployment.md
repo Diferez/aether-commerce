@@ -43,13 +43,15 @@ Según las funciones habilitadas:
 
 - `CLERK_WEBHOOK_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `WOMPI_SECRET_KEY`, `WOMPI_EVENTS_SECRET`
+- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout; ver `docs/security.md`)
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
 
-Usa únicamente Stripe test mode en esta demo.
+Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wompi.
 
 ## D1
 
-Las migraciones versionadas están en `apps/api/migrations`. El workflow genera configuraciones de producción ignoradas por Git y ejecuta:
+Las migraciones versionadas están en `database/core/migrations`. El workflow genera configuraciones de producción ignoradas por Git y ejecuta:
 
 ```bash
 pnpm --filter @aether/api db:migrate:remote

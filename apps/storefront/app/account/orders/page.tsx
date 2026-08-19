@@ -3,8 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
-import { formatUsd } from "@aether/core";
-import { createAetherClient } from "@aether/api-client";
+import { formatMoney } from "@aether/core";
+import { createCommerceClient } from "@aether/api-client";
 import type { Order } from "@aether/schemas";
 import { apiBaseUrl } from "../../../components/config";
 import { useCustomerSession } from "../../../components/customer-client";
@@ -33,7 +33,7 @@ export default function OrdersPage() {
 
     let active = true;
     setStatus("loading");
-    const client = createAetherClient({
+    const client = createCommerceClient({
       baseUrl: apiBaseUrl,
       getToken: async () => (await getToken()) ?? undefined
     });
@@ -139,7 +139,7 @@ export default function OrdersPage() {
                   <p className="mt-1 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleString(locale === "es" ? "es-CO" : "en-US")}</p>
                 </div>
                 <strong className="text-lg text-zinc-950">
-                  {formatUsd(order.totals.total, locale === "es" ? "es-CO" : "en-US")}
+                  {formatMoney(order.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
                 </strong>
               </div>
               <div className="mt-4 grid gap-3">
@@ -149,7 +149,7 @@ export default function OrdersPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-zinc-950">{item.name}</p>
                       <p className="text-sm text-zinc-500">
-                        {t.qty} {item.quantity} · {formatUsd(item.lineTotal, locale === "es" ? "es-CO" : "en-US")}
+                        {t.qty} {item.quantity} · {formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}
                       </p>
                     </div>
                   </div>

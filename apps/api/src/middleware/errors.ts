@@ -1,16 +1,11 @@
 import type { ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { classifyError, OBSERVABILITY_EVENTS } from "@aether/core";
+import { normalizeErrorStatus } from "@aether/observability";
 import type { AppBindings } from "../types";
 import { fail } from "../http";
 import { captureException, getLogger } from "../services/observability";
 import { incrementMetric } from "../services/metrics";
-
-function normalizeStatus(status: number) {
-  return [400, 401, 403, 404, 409, 422, 429, 500, 502, 503].includes(status)
-    ? (status as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503)
-    : 500;
-}
 
 // This MUST be registered via app.onError(errorBoundary()), never as a
 // app.use("*", ...) middleware with its own try/catch around next(). Hono's
@@ -44,7 +39,7 @@ export const errorBoundary = (): ErrorHandler<AppBindings> => (error, c) => {
       errorName: "HTTPException",
       errorMessage: error.message
     });
-    return Promise.resolve(fail(c, normalizeStatus(error.status), "HTTP_ERROR", error.message));
+    return Promise.resolve(fail(c, normalizeErrorStatus(error.status), "HTTP_ERROR", error.message));
   }
 
   const classified = classifyError(error);

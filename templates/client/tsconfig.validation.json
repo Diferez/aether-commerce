@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@aether/config-schema": ["packages/config-schema/src/index.ts"]
+    }
+  }
+}

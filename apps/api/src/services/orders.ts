@@ -1,37 +1,21 @@
-import type { Cart, CartItem } from "@aether/schemas";
 import { OBSERVABILITY_EVENTS } from "@aether/core";
+import type { CheckoutProviderId, PaidCheckoutSession } from "@aether/api-core";
+import type { Address, Cart, CartItem } from "@aether/schemas";
 import type { Env } from "../types";
 import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
 import { getLogger } from "./observability";
 import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
 
-type StripeCheckoutSession = {
-  id: string;
-  payment_status?: string;
-  amount_total?: number;
-  currency?: string;
-  customer_details?: {
-    email?: string;
-  };
-  customer_email?: string;
-  metadata?: {
-    cartId?: string;
-    userId?: string;
-    checkoutSnapshotId?: string;
-  };
-  payment_intent?: string;
-};
-
 function orderNumber(sessionId: string) {
   const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
   return `AETH-${suffix}`;
 }
 
-function demoShippingAddress(email: string) {
+function demoShippingAddress(email: string): Address {
   return {
     fullName: email.split("@")[0] || "Aether Customer",
-    line1: "Stripe sandbox checkout",
+    line1: "Sandbox checkout",
     city: "Demo City",
     region: "Demo",
     postalCode: "00000",
@@ -45,6 +29,9 @@ async function readOrderBySession(env: Env, sessionId: string) {
     .first<{ payload_json: string }>();
 }
 
+// Optimistic-concurrency cart clear: only takes effect if the cart's payload
+// hasn't changed since it was read, so a shopper editing their cart in
+// another tab mid-checkout can't have their edits silently discarded here.
 function clearCartIfUnchangedStatement(env: Env, cart: Cart, originalPayloadJson: string) {
   return env.DB.prepare(
     "update carts set payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ? and payload_json = ?"
@@ -55,20 +42,30 @@ function clearCartIfUnchangedStatement(env: Env, cart: Cart, originalPayloadJson
   );
 }
 
-export async function createOrderFromStripeSession(env: Env, session: StripeCheckoutSession) {
+export async function createOrderFromPaidSession(env: Env, session: PaidCheckoutSession, provider: CheckoutProviderId) {
   const existing = await readOrderBySession(env, session.id);
   if (existing) {
     return { order: JSON.parse(existing.payload_json) as Record<string, unknown>, created: false };
   }
 
-  if (session.payment_status !== "paid") {
-    throw new Error("Stripe session is not paid");
+  if (session.status !== "paid") {
+    throw new Error(`${provider} session is not paid`);
   }
 
   const cartId = session.metadata?.cartId;
+  if (!cartId) {
+    throw new Error(`${provider} session is missing cartId metadata`);
+  }
+
+  // The immutable checkout snapshot (services/checkout-snapshots.ts) is what
+  // order creation trusts for cart contents/amount/currency - checkout.ts
+  // creates one for every provider before starting the provider session, so
+  // a shopper can't alter their cart after the price is quoted and before
+  // payment clears. There is no fallback to the live (still-editable) cart:
+  // a session missing one is rejected outright rather than silently trusted.
   const snapshotId = session.metadata?.checkoutSnapshotId;
-  if (!cartId || !snapshotId) {
-    throw new Error("Stripe session is missing immutable checkout metadata");
+  if (!snapshotId) {
+    throw new Error(`${provider} session is missing immutable checkout metadata`);
   }
 
   const snapshot = await loadCheckoutSnapshot(env, snapshotId);
@@ -79,43 +76,43 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
     throw new Error("Checkout snapshot has expired");
   }
   if (snapshot.providerSessionId && snapshot.providerSessionId !== session.id) {
-    throw new Error("Checkout snapshot belongs to a different Stripe session");
+    throw new Error("Checkout snapshot belongs to a different checkout session");
   }
   if (snapshot.cartId !== cartId || snapshot.userId !== session.metadata?.userId) {
-    throw new Error("Stripe checkout metadata does not match the immutable snapshot");
+    throw new Error(`${provider} checkout metadata does not match the immutable snapshot`);
   }
-  if (session.amount_total !== snapshot.amountTotal) {
-    throw new Error("Stripe checkout amount does not match the immutable snapshot");
+  if (session.amountTotal !== snapshot.amountTotal) {
+    throw new Error(`${provider} checkout amount does not match the immutable snapshot`);
   }
   if (!session.currency || session.currency.toUpperCase() !== snapshot.currency) {
-    throw new Error("Stripe checkout currency does not match the immutable snapshot");
+    throw new Error(`${provider} checkout currency does not match the immutable snapshot`);
   }
-
-  const cart = snapshot.cart;
+  const cart: Cart = snapshot.cart;
   if (cart.items.length === 0) {
     throw new Error("Checkout snapshot is empty");
   }
-
-  const email = session.customer_details?.email ?? session.customer_email ?? "customer@example.com";
-  const now = new Date().toISOString();
   const total = snapshot.amountTotal;
   const currency = snapshot.currency;
+  const originalCartPayloadJson = snapshot.cartPayloadJson;
+
+  const email = session.customerEmail ?? "customer@example.com";
+  const now = new Date().toISOString();
   const order = {
     id: `ord_${session.id}`,
     number: orderNumber(session.id),
     userId: cart.userId ?? session.metadata?.userId,
     email,
     state: "paid",
-    channel: "stripe",
+    channel: provider,
     paymentStatus: "paid",
     fulfillmentStatus: "unfulfilled",
     items: cart.items,
     totals: { ...cart.totals, total, currency },
     shippingAddress: demoShippingAddress(email),
     payment: {
-      provider: "stripe",
+      provider,
       providerSessionId: session.id,
-      providerPaymentIntentId: session.payment_intent,
+      ...(session.providerReference ? { providerPaymentIntentId: session.providerReference } : {}),
       status: "paid",
       amount: total,
       currency
@@ -131,9 +128,9 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
   // id, not the real SKU - that convention predates this and stays as-is).
   // A product referenced by the cart can be missing here if it was deleted
   // between being added to the cart and this webhook firing (a product with
-  // no order_items yet is still hard-deletable) - the Stripe payment has
-  // already succeeded at this point, so a missing product only skips that
-  // one line's stock/movement bookkeeping rather than failing order creation.
+  // no order_items yet is still hard-deletable) - the payment has already
+  // succeeded at this point, so a missing product only skips that one line's
+  // stock/movement bookkeeping rather than failing order creation.
   const productIds = [...new Set(cart.items.map((item) => item.productId))];
   const skuRows = await env.DB.prepare(
     `select id, sku from products where id in (${productIds.map(() => "?").join(",")})`
@@ -161,27 +158,27 @@ export async function createOrderFromStripeSession(env: Env, session: StripeChec
   await env.DB.batch([
     env.DB.prepare(
       `insert into orders (id, number, user_id, email, state, channel, payment_status, fulfillment_status, payload_json, total, currency, created_at, updated_at)
-       values (?, ?, ?, ?, 'paid', 'stripe', 'paid', 'unfulfilled', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       values (?, ?, ?, ?, 'paid', ?, 'paid', 'unfulfilled', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        on conflict(id) do nothing`
-    ).bind(order.id, order.number, order.userId ?? null, order.email, JSON.stringify(order), total, currency),
+    ).bind(order.id, order.number, order.userId ?? null, order.email, provider, JSON.stringify(order), total, currency),
     env.DB.prepare(
       `insert into payments (id, order_id, provider, provider_ref, status, amount, currency, created_at, updated_at)
-       values (?, ?, 'stripe', ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).bind(`pay_${session.id}`, order.id, session.payment_intent ?? session.id, total, currency),
+       values (?, ?, ?, ?, 'paid', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).bind(`pay_${session.id}`, order.id, provider, session.providerReference ?? session.id, total, currency),
     env.DB.prepare(
       `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-       values (?, ?, null, 'paid', 'stripe', 'checkout.session.completed', ?)`
-    ).bind(crypto.randomUUID(), order.id, session.id),
+       values (?, ?, null, 'paid', ?, 'checkout.session.completed', ?)`
+    ).bind(crypto.randomUUID(), order.id, provider, session.id),
     ...cart.items.map((item) =>
       env.DB.prepare(
         `insert into order_items (id, order_id, product_id, sku, payload_json, created_at)
          values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       ).bind(crypto.randomUUID(), order.id, item.productId, item.variantId ?? item.productId, JSON.stringify(item))
     ),
-    ...buildStockDecrementStatements(env, stockItems, { actorId: "stripe", requestId: session.id, reason: `order:${order.id}` }),
+    ...buildStockDecrementStatements(env, stockItems, { actorId: provider, requestId: session.id, reason: `order:${order.id}` }),
     convertCartReservations(env, cartId),
-    completeCheckoutSnapshotStatement(env, snapshot.id, session.id),
-    clearCartIfUnchangedStatement(env, cart, snapshot.cartPayloadJson)
+    completeCheckoutSnapshotStatement(env, snapshotId, session.id),
+    clearCartIfUnchangedStatement(env, cart, originalCartPayloadJson)
   ]);
 
   await clearCatalogCache(env);

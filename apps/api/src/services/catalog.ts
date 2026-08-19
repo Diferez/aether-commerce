@@ -1,4 +1,5 @@
 import { getInventoryStatus, humanizeCategorySlug } from "@aether/core";
+import { foldCatalogText, queryCatalog } from "@aether/api-core";
 import { productSchema, type Product, type ProductQuery } from "@aether/schemas";
 import type { Env } from "../types";
 
@@ -240,92 +241,11 @@ async function getCatalogSource(env: Env): Promise<Product[]> {
 
 // Strips diacritics for accent-insensitive search (e.g. "camara" matches "cámara").
 function foldText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+  return foldCatalogText(value);
 }
 
 export async function getCatalogProducts(env: Env, query: ProductQuery) {
-  let products = await getCatalogSource(env);
-
-  const search = query.search ?? query.q;
-  if (search) {
-    const needle = foldText(search);
-    products = products.filter((product) => {
-      const haystack = [product.name, product.brand ?? "", product.shortDescription, ...product.tags].join(" ");
-      return foldText(haystack).includes(needle);
-    });
-  }
-
-  if (query.category) {
-    products = products.filter((product) => product.category.slug === query.category);
-  }
-
-  if (query.brand) {
-    const needle = query.brand.toLowerCase();
-    products = products.filter((product) => (product.brand ?? "").toLowerCase() === needle);
-  }
-
-  const flag = query.flag;
-  if (flag) {
-    products = products.filter((product) => product.flags.includes(flag));
-  }
-  if (query.featured) {
-    products = products.filter((product) => product.featured);
-  }
-  if (query.deal) {
-    products = products.filter((product) => product.deal);
-  }
-  if (query.newArrival) {
-    products = products.filter((product) => product.newArrival);
-  }
-  if (query.inStock) {
-    products = products.filter((product) => product.availableStock > 0);
-  }
-  if (query.hasDiscount) {
-    products = products.filter((product) => product.discountPercentage > 0);
-  }
-
-  const minPrice = query.minPrice;
-  if (minPrice !== undefined) {
-    products = products.filter((product) => product.finalPrice >= minPrice);
-  }
-
-  const maxPrice = query.maxPrice;
-  if (maxPrice !== undefined) {
-    products = products.filter((product) => product.finalPrice <= maxPrice);
-  }
-
-  const minRating = query.minRating;
-  if (minRating !== undefined) {
-    products = products.filter((product) => product.rating.average >= minRating);
-  }
-
-  products = products.sort((a, b) => {
-    if (query.sort === "price_asc") return a.finalPrice - b.finalPrice;
-    if (query.sort === "price_desc") return b.finalPrice - a.finalPrice;
-    if (query.sort === "rating") return b.rating.average - a.rating.average;
-    if (query.sort === "name") return a.name.localeCompare(b.name);
-    if (query.sort === "discount") return b.discountPercentage - a.discountPercentage;
-    if (query.sort === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    return Number(b.flags.includes("featured")) - Number(a.flags.includes("featured"));
-  });
-
-  const total = products.length;
-  const pageSize = query.limit ?? query.pageSize;
-  const start = (query.page - 1) * pageSize;
-  const data = products.slice(start, start + pageSize);
-
-  return {
-    data,
-    pagination: {
-      page: query.page,
-      pageSize,
-      total,
-      pageCount: Math.ceil(total / pageSize)
-    }
-  };
+  return queryCatalog(await getCatalogSource(env), query);
 }
 
 export async function getProductBySlug(env: Env, slug: string) {

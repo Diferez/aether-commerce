@@ -1,5 +1,4 @@
-# Database Schema
+# Legacy schema location
 
-The executable D1 schema lives in `apps/api/migrations`. This folder mirrors the
-requested project organization and documents that D1 is the source of truth for
-commerce state, inventory, orders, audit logs, email events, and idempotency.
+The Drizzle schema source is `database/core/schema.ts`. Database consumers use
+that file and `database/core/migrations` as the single source of truth.

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { checkoutProviderIds } from "@aether/api-core";
 import {
   canTransitionFulfillment,
   canTransitionOrder,
@@ -14,6 +15,11 @@ import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";
 import { clearCatalogCache } from "../services/catalog";
+import { createInventoryService } from "../services/inventory";
+import { createCouponService } from "../services/coupons";
+import { createReviewModerationService } from "../services/review-moderation";
+import { createCheckoutSettingsService } from "../services/checkout-settings";
+import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import { createUploadSignature } from "../services/cloudinary";
 import { createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
@@ -74,6 +80,36 @@ const productPatchSchema = productWriteSchema.partial().refine(
   { message: "compareAtPriceCents must be greater than priceCents", path: ["compareAtPriceCents"] }
 );
 
+const checkoutCredentialsUpdateSchema = z.object({
+  secretKey: z.string().min(1).optional(),
+  webhookSecret: z.string().min(1).optional()
+});
+
+const checkoutSettingsUpdateSchema = z.object({
+  mode: z.enum(checkoutProviderIds).optional(),
+  stripe: checkoutCredentialsUpdateSchema.optional(),
+  wompi: checkoutCredentialsUpdateSchema.optional()
+});
+
+function sanitizeCredentials(credentials?: z.infer<typeof checkoutCredentialsUpdateSchema>) {
+  if (!credentials) return undefined;
+  return {
+    ...(credentials.secretKey !== undefined ? { secretKey: credentials.secretKey } : {}),
+    ...(credentials.webhookSecret !== undefined ? { webhookSecret: credentials.webhookSecret } : {})
+  };
+}
+
+/** zod's .optional() output type carries explicit `| undefined`; strip it so exactOptionalPropertyTypes accepts the merge input. */
+function sanitizeCheckoutSettingsUpdate(input: z.infer<typeof checkoutSettingsUpdateSchema>) {
+  const stripe = sanitizeCredentials(input.stripe);
+  const wompi = sanitizeCredentials(input.wompi);
+  return {
+    ...(input.mode !== undefined ? { mode: input.mode } : {}),
+    ...(stripe !== undefined ? { stripe } : {}),
+    ...(wompi !== undefined ? { wompi } : {})
+  };
+}
+
 export const adminRoutes = new Hono<AppBindings>();
 
 adminRoutes.get("/demo/summary", (c) =>
@@ -104,16 +140,14 @@ adminRoutes.get("/summary", requirePermission("orders.read"), async (c) => {
 });
 
 adminRoutes.get("/dashboard", requirePermission("orders.read"), async (c) => {
-  const lowStock = await c.env.DB.prepare("select count(*) as count from inventory where available <= low_stock_threshold").first<{
-    count: number;
-  }>();
+  const lowStock = await createInventoryService(c.env.DB).countLowStock();
   return ok(c, {
     revenue: 1842500,
     orders: 128,
     averageTicket: 14395,
     productsSold: 344,
     conversionRate: 4.8,
-    lowStock: lowStock?.count ?? 7,
+    lowStock,
     orderStates: [
       { state: "paid", count: 18 },
       { state: "processing", count: 22 },
@@ -322,7 +356,7 @@ adminRoutes.get(
 
 const orderListQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
-  channel: z.enum(["stripe", "whatsapp"]).optional(),
+  channel: z.enum(["stripe", "wompi", "whatsapp"]).optional(),
   paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]).optional(),
   fulfillmentStatus: z.enum(["unfulfilled", "processing", "shipped", "delivered", "cancelled"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -519,9 +553,9 @@ adminRoutes.patch(
       .first<{ channel: string; payment_status: string }>();
     if (!current) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 
-    // Stripe orders' payment_status only moves through POST .../refund,
-    // which calls the real Stripe API - this route would let someone mark
-    // a Stripe order "refunded" without any money actually moving.
+    // Stripe/Wompi orders' payment_status only moves through POST .../refund,
+    // which calls the real provider API - this route would let someone mark
+    // a provider order "refunded" without any money actually moving.
     // WhatsApp orders have no payment reference to reconcile against, so
     // the admin confirming payment by hand here is the intended flow.
     if (current.channel !== "whatsapp") {
@@ -785,7 +819,7 @@ adminRoutes.patch(
   }
 );
 
-adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, (await c.env.DB.prepare("select * from coupons").all()).results));
+adminRoutes.get("/coupons", requirePermission("coupons.manage"), async (c) => ok(c, await createCouponService(c.env.DB).list()));
 adminRoutes.post("/coupons", requirePermission("coupons.manage"), zValidator("json", z.object({ code: z.string(), type: z.string(), value: z.number().int() })), async (c) => {
   const body = c.req.valid("json");
   const code = body.code.toUpperCase();
@@ -853,12 +887,9 @@ adminRoutes.delete("/coupons/:id", requirePermission("coupons.manage"), async (c
   return ok(c, { code, active: false });
 });
 
-adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, (await c.env.DB.prepare("select * from reviews order by created_at desc limit 100").all()).results));
+adminRoutes.get("/reviews", requirePermission("reviews.moderate"), async (c) => ok(c, await createReviewModerationService(c.env.DB).list()));
 adminRoutes.patch("/reviews/:id/moderation", requirePermission("reviews.moderate"), zValidator("json", z.object({ status: z.enum(["pending", "approved", "rejected", "hidden"]) })), async (c) => {
-  await c.env.DB.prepare("update reviews set status = ?, updated_at = CURRENT_TIMESTAMP where id = ?")
-    .bind(c.req.valid("json").status, c.req.param("id"))
-    .run();
-  return ok(c, { id: c.req.param("id"), status: c.req.valid("json").status });
+  return ok(c, await createReviewModerationService(c.env.DB).moderate(c.req.param("id"), c.req.valid("json").status));
 });
 
 adminRoutes.get("/contact-messages", requirePermission("contacts.read"), async (c) => {
@@ -989,6 +1020,34 @@ adminRoutes.patch(
     const value = c.req.valid("json");
     await saveApplicationSetting(c, "checkout", value);
     return ok(c, value);
+  }
+);
+
+// Provider-neutral checkout settings (which provider is active, and its
+// encrypted secret material) - a different concern from settings/checkout
+// above, which only toggles the storefront between Stripe and WhatsApp
+// checkout. This is the admin-managed Stripe/Wompi credentials layer
+// (see services/checkout-provider.ts and services/checkout-settings.ts).
+adminRoutes.get("/checkout-settings", requirePermission("settings.manage"), async (c) =>
+  ok(c, await summarizeCheckoutSettings(c.env))
+);
+adminRoutes.put(
+  "/checkout-settings",
+  requirePermission("settings.manage"),
+  zValidator("json", checkoutSettingsUpdateSchema),
+  async (c) => {
+    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+      return fail(
+        c,
+        500,
+        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing checkout secrets from the admin panel."
+      );
+    }
+
+    const input = c.req.valid("json");
+    await createCheckoutSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeCheckoutSettingsUpdate(input));
+    return ok(c, await summarizeCheckoutSettings(c.env));
   }
 );
 

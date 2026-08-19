@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
+import { aetherBrandConfig, aetherThemeTokens } from "../components/configuration";
 import { SentryProvider } from "../components/SentryProvider";
 import { AdminLanguageProvider } from "../components/AdminLanguageProvider";
 
@@ -14,8 +15,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aether Admin",
-  description: "Private and public demo administration for Aether commerce."
+  title: `${aetherBrandConfig.name} Admin`,
+  description: `Private and public demo administration for ${aetherBrandConfig.name} commerce.`
 };
 
 const themeInitScript = `
@@ -41,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
+        <style>{`html[data-locale-pending] body { visibility: hidden; } :root { --color-accent: ${aetherThemeTokens.primary}; }`}</style>
       </head>
       <body>
         <a

@@ -20,7 +20,7 @@ beforeAll(() => {
 });
 
 vi.mock("../services/orders", () => ({
-  createOrderFromStripeSession: vi.fn(() => Promise.resolve({ created: true, order: {} }))
+  createOrderFromPaidSession: vi.fn(() => Promise.resolve({ created: true, order: {} }))
 }));
 
 const { captureExceptionMock } = vi.hoisted(() => ({ captureExceptionMock: vi.fn() }));
@@ -38,9 +38,25 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
     prepare: vi.fn((sql: string) => {
       const response = responses[callIndex] ?? {};
       callIndex += 1;
+      const record = (args: unknown[]) => statements.push({ sql, args });
       return {
+        // Statements with no bound params (e.g. checkout-settings' read())
+        // call .first()/.all()/.run() directly on the prepared statement,
+        // never through .bind() - matches real D1's D1PreparedStatement.
+        first: vi.fn(() => {
+          record([]);
+          return Promise.resolve(response.first ?? null);
+        }),
+        all: vi.fn(() => {
+          record([]);
+          return Promise.resolve({ results: response.all ?? [] });
+        }),
+        run: vi.fn(() => {
+          record([]);
+          return Promise.resolve({ success: true, meta: { changes: response.run?.changes ?? 1 } });
+        }),
         bind: vi.fn((...args: unknown[]) => {
-          statements.push({ sql, args });
+          record(args);
           return {
             first: vi.fn(() => Promise.resolve(response.first ?? null)),
             all: vi.fn(() => Promise.resolve({ results: response.all ?? [] })),
@@ -87,20 +103,24 @@ describe("POST /webhooks/stripe", () => {
     expect(response.status).toBe(401);
   });
 
-  it("rejects an invalid signature without ever touching D1", async () => {
-    const { env, db } = fakeEnv();
+  it("rejects an invalid signature without ever touching the webhook_events table", async () => {
+    // The webhook secret itself is admin-configurable (checkout-settings, D1
+    // backed) - resolving it costs one read even for a garbage signature.
+    // What still must never happen is any write to webhook_events.
+    const { env, db } = fakeEnv([{ first: null }]);
     const response = await worker.fetch(stripeRequest("{}", "t=123,v1=deadbeef"), env, ctx);
     expect(response.status).toBe(401);
-    expect(db.prepare).not.toHaveBeenCalled();
+    expect(db.prepare).toHaveBeenCalledTimes(1);
   });
 
   it("records a new event, processes it, and marks it processed", async () => {
     const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env, statements } = fakeEnv([
+      { first: null }, // resolveCheckoutSettings: no stored settings, falls back to env
       { run: { changes: 1 } }, // recordWebhookReceived insert - new row
       { run: { changes: 1 } } // markWebhookProcessing update
-      // createOrderFromStripeSession is mocked, no D1 call from it
+      // createOrderFromPaidSession is mocked, no D1 call from it
       // markWebhookProcessed update
     ].concat([{ run: { changes: 1 } }]));
 
@@ -119,10 +139,11 @@ describe("POST /webhooks/stripe", () => {
   });
 
   it("short-circuits a duplicate event without reprocessing it", async () => {
-    const { createOrderFromStripeSession } = await import("../services/orders");
+    const { createOrderFromPaidSession } = await import("../services/orders");
     const body = JSON.stringify({ id: "evt_dup", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env } = fakeEnv([
+      { first: null }, // resolveCheckoutSettings
       { run: { changes: 0 } }, // recordWebhookReceived: already exists
       { run: { changes: 0 } } // not failed/stale, so it cannot be reclaimed
     ]);
@@ -132,14 +153,15 @@ describe("POST /webhooks/stripe", () => {
 
     expect(response.status).toBe(200);
     expect(responseBody.data.duplicate).toBe(true);
-    expect(createOrderFromStripeSession).not.toHaveBeenCalled();
+    expect(createOrderFromPaidSession).not.toHaveBeenCalled();
   });
 
   it("reclaims a previously failed event so Stripe can retry it", async () => {
-    const { createOrderFromStripeSession } = await import("../services/orders");
+    const { createOrderFromPaidSession } = await import("../services/orders");
     const body = JSON.stringify({ id: "evt_retry", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
     const { env } = fakeEnv([
+      { first: null }, // resolveCheckoutSettings
       { run: { changes: 0 } }, // duplicate insert
       { run: { changes: 1 } }, // failed row atomically reclaimed
       { run: { changes: 1 } }, // processing
@@ -148,16 +170,21 @@ describe("POST /webhooks/stripe", () => {
 
     const response = await worker.fetch(stripeRequest(body, signature), env, ctx);
     expect(response.status).toBe(200);
-    expect(createOrderFromStripeSession).toHaveBeenCalledTimes(1);
+    expect(createOrderFromPaidSession).toHaveBeenCalledTimes(1);
   });
 
   it("marks the event failed, reports to Sentry, and returns a non-2xx so Stripe retries", async () => {
-    const { createOrderFromStripeSession } = await import("../services/orders");
-    vi.mocked(createOrderFromStripeSession).mockRejectedValueOnce(new Error("D1 write failed"));
+    const { createOrderFromPaidSession } = await import("../services/orders");
+    vi.mocked(createOrderFromPaidSession).mockRejectedValueOnce(new Error("D1 write failed"));
 
     const body = JSON.stringify({ id: "evt_fail", type: "checkout.session.completed", data: { object: { id: "cs_1" } } });
     const signature = await signStripe("whsec_test_secret", body);
-    const { env, statements } = fakeEnv([{ run: { changes: 1 } }, { run: { changes: 1 } }, { run: { changes: 1 } }]);
+    const { env, statements } = fakeEnv([
+      { first: null }, // resolveCheckoutSettings
+      { run: { changes: 1 } },
+      { run: { changes: 1 } },
+      { run: { changes: 1 } }
+    ]);
 
     const response = await worker.fetch(stripeRequest(body, signature), env, ctx);
 

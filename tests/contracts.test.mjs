@@ -11,9 +11,9 @@ function read(path) {
 
 function readMigrations() {
   return [
-    read("apps/api/migrations/0001_initial.sql"),
-    read("apps/api/migrations/0003_required_commerce_schema.sql"),
-    read("apps/api/migrations/0004_demo_operational_data.sql")
+    read("database/core/migrations/0001_initial.sql"),
+    read("database/core/migrations/0003_required_commerce_schema.sql"),
+    read("database/core/migrations/0004_demo_operational_data.sql")
   ].join("\n");
 }
 
@@ -146,6 +146,7 @@ test("cart reads and mutations require signed cart token", () => {
 test("sensitive signatures and account order lookup avoid enumeration paths", () => {
   const secureCompare = read("apps/api/src/services/secure-compare.ts");
   const stripeService = read("apps/api/src/services/stripe.ts");
+  const wompiService = read("apps/api/src/services/wompi.ts");
   const accountRoutes = read("apps/api/src/routes/account.ts");
   const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
   const cartPage = read("apps/storefront/app/cart/page.tsx");
@@ -157,6 +158,7 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(secureCompare, /timingSafeEqual/);
   assert.match(stripeService, /STRIPE_SIGNATURE_TOLERANCE_SECONDS/);
   assert.match(stripeService, /timingSafeEqualText/);
+  assert.match(wompiService, /timingSafeEqualText/);
   assert.match(stripeService, /metadata\[userId\]/);
   assert.match(stripeService, /customer_email/);
   assert.match(checkoutRoutes, /AUTH_REQUIRED/);
@@ -182,6 +184,22 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
   assert.doesNotMatch(accountRoutes, /lower\(email\)/);
   assert.doesNotMatch(cors, /x-aether-customer-email/);
+});
+
+test("checkout provider abstraction covers Stripe and Wompi behind one port", () => {
+  const checkoutCore = read("packages/api-core/src/checkout.ts");
+  const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
+  const checkoutSettings = read("apps/api/src/services/checkout-settings.ts");
+  const adminRoutes = read("apps/api/src/routes/admin.ts");
+
+  assert.match(checkoutCore, /export interface CheckoutProvider/);
+  assert.match(checkoutCore, /checkoutProviderIds = \["stripe", "wompi"\]/);
+  assert.doesNotMatch(checkoutRoutes, /createStripeCheckoutProvider/);
+  assert.match(checkoutRoutes, /resolveActiveCheckoutProvider/);
+  assert.match(checkoutSettings, /encryptSecret/);
+  assert.match(checkoutSettings, /decryptSecret/);
+  assert.match(adminRoutes, /requirePermission\("settings.manage"\)/);
+  assert.match(adminRoutes, /checkout-settings/);
 });
 
 test("readiness and order status updates fail safely", () => {
@@ -299,8 +317,8 @@ test("admin product management routes are real (not the old orphaned override st
 });
 
 test("products table is the catalog's source of truth, not the bundled JSON snapshot", () => {
-  const migration = read("apps/api/migrations/0013_products_table.sql");
-  const seed = read("apps/api/migrations/0014_seed_products_from_json.sql");
+  const migration = read("database/core/migrations/0013_products_table.sql");
+  const seed = read("database/core/migrations/0014_seed_products_from_json.sql");
   const catalog = read("apps/api/src/services/catalog.ts");
 
   for (const column of ["sku TEXT NOT NULL UNIQUE", "slug TEXT NOT NULL UNIQUE", "visibility TEXT NOT NULL", "details_json TEXT NOT NULL"]) {
@@ -333,7 +351,7 @@ test("security headers prevent framing and unsafe content sniffing on both stati
 });
 
 test("checkout orders require an immutable server-side snapshot", () => {
-  const migration = read("apps/api/migrations/0021_security_hardening.sql");
+  const migration = read("database/core/migrations/0021_security_hardening.sql");
   const checkout = read("apps/api/src/routes/checkout.ts");
   const orders = read("apps/api/src/services/orders.ts");
   assert.match(migration, /CREATE TABLE IF NOT EXISTS checkout_snapshots/);

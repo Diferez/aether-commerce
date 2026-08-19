@@ -1,6 +1,25 @@
-const productionApiBaseUrl = "https://aether-api.pickofwow.workers.dev";
+import {
+  aetherAgentConfig,
+  aetherIntegrationConfig,
+  aetherNavigationConfig
+} from "../../../config/aether";
+
+const productionApiBaseUrl = aetherIntegrationConfig.api.productionBaseUrl;
 const productionAiAssistantUrl = "https://aether-ai.pickofwow.workers.dev";
-const productionPortfolioUrl = "https://portafolio-aether-commerce.pickofwow.workers.dev";
+
+// Next.js only exposes public environment variables to browser bundles when
+// their names are statically analyzable. The allowlist also makes it impossible
+// for implementation config to resolve a server-only variable in the browser.
+function resolvePublicRuntimeValue(name: string | undefined): string | undefined {
+  switch (name) {
+    case "NEXT_PUBLIC_AETHER_AI_URL":
+      return process.env.NEXT_PUBLIC_AETHER_AI_URL;
+    case "NEXT_PUBLIC_PORTFOLIO_URL":
+      return process.env.NEXT_PUBLIC_PORTFOLIO_URL;
+    default:
+      return undefined;
+  }
+}
 
 function resolveApiBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_AETHER_API_URL?.trim();
@@ -10,7 +29,7 @@ function resolveApiBaseUrl() {
     return productionApiBaseUrl;
   }
 
-  return "http://localhost:8787";
+  return aetherIntegrationConfig.api.localBaseUrl;
 }
 
 function resolveAiAssistantUrl() {
@@ -26,7 +45,8 @@ function resolveAiAssistantUrl() {
 
 export const apiBaseUrl = resolveApiBaseUrl();
 
-export const aiAssistantUrl = resolveAiAssistantUrl();
+export const aiAssistantUrl =
+  resolvePublicRuntimeValue(aetherAgentConfig.publicUrlEnv)?.trim() || resolveAiAssistantUrl();
 
 export const storefrontBasePath = (process.env.NEXT_PUBLIC_AETHER_BASE_PATH || "").replace(/\/$/, "");
 
@@ -44,6 +64,8 @@ export function storefrontPath(path = "/") {
   return `${storefrontBasePath}${pathnameWithSlash}${suffix}` || "/";
 }
 
-const configuredPortfolioUrl = process.env.NEXT_PUBLIC_PORTFOLIO_URL?.trim();
+const configuredPortfolioUrl = aetherNavigationConfig.portfolioUrlEnv
+  ? resolvePublicRuntimeValue(aetherNavigationConfig.portfolioUrlEnv)?.trim()
+  : undefined;
 
-export const portfolioUrl = configuredPortfolioUrl || productionPortfolioUrl;
+export const portfolioUrl = configuredPortfolioUrl || aetherNavigationConfig.portfolioUrl;

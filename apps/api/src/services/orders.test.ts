@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cart } from "@aether/schemas";
+import type { PaidCheckoutSession } from "@aether/api-core";
 import type { Env } from "../types";
-import { createManualOrder, createOrderFromStripeSession } from "./orders";
+import { createManualOrder, createOrderFromPaidSession } from "./orders";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,11 +93,11 @@ async function mockActiveSnapshot(cart = fakeCart()) {
   });
 }
 
-function paidSession(overrides: Record<string, unknown> = {}) {
+function paidSession(overrides: Partial<PaidCheckoutSession> = {}): PaidCheckoutSession {
   return {
     id: "cs_1",
-    payment_status: "paid",
-    amount_total: 3800,
+    status: "paid",
+    amountTotal: 3800,
     currency: "usd",
     metadata: { cartId: "cart_1", userId: "usr_1", checkoutSnapshotId: "chk_1" },
     ...overrides
@@ -243,12 +244,12 @@ describe("createManualOrder", () => {
   });
 });
 
-describe("createOrderFromStripeSession", () => {
+describe("createOrderFromPaidSession", () => {
   it("short-circuits on an existing order without decrementing stock again (idempotency)", async () => {
     const { buildStockDecrementStatements } = await import("./inventory");
 
     const { env, db } = fakeEnv([{ first: { payload_json: JSON.stringify({ id: "ord_cs_1" }) } }]);
-    const result = await createOrderFromStripeSession(env, paidSession());
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
 
     expect(result.created).toBe(false);
     expect(db.batch).not.toHaveBeenCalled();
@@ -261,7 +262,7 @@ describe("createOrderFromStripeSession", () => {
     await mockActiveSnapshot();
 
     const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
-    const result = await createOrderFromStripeSession(env, paidSession());
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
 
     expect(result.created).toBe(true);
     expect(buildStockDecrementStatements).toHaveBeenCalledWith(
@@ -280,7 +281,7 @@ describe("createOrderFromStripeSession", () => {
 
     // sku lookup returns zero rows - the cart's one product is "missing"
     const { env } = fakeEnv([{ first: null }, { all: [] }]);
-    const result = await createOrderFromStripeSession(env, paidSession());
+    const result = await createOrderFromPaidSession(env, paidSession(), "stripe");
 
     expect(result.created).toBe(true);
     expect(buildStockDecrementStatements).toHaveBeenCalledWith(env, [], expect.any(Object));
@@ -291,21 +292,25 @@ describe("createOrderFromStripeSession", () => {
   it("rejects a paid session whose amount differs from the immutable snapshot", async () => {
     await mockActiveSnapshot();
     const { env } = fakeEnv([{ first: null }]);
-    await expect(createOrderFromStripeSession(env, paidSession({ amount_total: 1 }))).rejects.toThrow(
+    await expect(createOrderFromPaidSession(env, paidSession({ amountTotal: 1 }), "stripe")).rejects.toThrow(
       "amount does not match"
     );
   });
 
-  it("rejects legacy sessions without immutable checkout metadata", async () => {
+  it("rejects legacy Stripe sessions without immutable checkout metadata", async () => {
     const { env } = fakeEnv([{ first: null }]);
     await expect(
-      createOrderFromStripeSession(env, {
-        id: "cs_legacy",
-        payment_status: "paid",
-        amount_total: 3800,
-        currency: "usd",
-        metadata: { cartId: "cart_1", userId: "usr_1" }
-      })
+      createOrderFromPaidSession(
+        env,
+        {
+          id: "cs_legacy",
+          status: "paid",
+          amountTotal: 3800,
+          currency: "usd",
+          metadata: { cartId: "cart_1", userId: "usr_1" }
+        },
+        "stripe"
+      )
     ).rejects.toThrow("immutable checkout metadata");
   });
 });

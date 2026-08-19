@@ -1,9 +1,12 @@
 import { Hono } from "hono";
 import type { AppBindings } from "../types";
 import { ExternalServiceError, OBSERVABILITY_EVENTS } from "@aether/core";
+import { parseStripeWebhookPayload, parseWompiWebhookPayload } from "@aether/api-core";
 import { fail, ok } from "../http";
-import { verifyStripeSignature } from "../services/stripe";
-import { createOrderFromStripeSession } from "../services/orders";
+import { verifyStripeSignature, mapStripeSessionToPaidCheckoutSession } from "../services/stripe";
+import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession } from "../services/wompi";
+import { createOrderFromPaidSession } from "../services/orders";
+import { resolveCheckoutSettings } from "../services/checkout-provider";
 import { type ClerkUser, primaryEmailFromUser, verifyClerkSignature } from "../services/clerk";
 import { markWebhookFailed, markWebhookProcessing, markWebhookProcessed, recordWebhookReceived } from "../services/webhooks";
 import { captureException, getLogger } from "../services/observability";
@@ -17,32 +20,26 @@ webhookRoutes.post("/stripe", async (c) => {
   const requestId = c.get("requestId");
   const logger = getLogger(c.env);
 
-  if (!c.env.STRIPE_WEBHOOK_SECRET || !signature) {
+  if (!signature) {
     return fail(c, 401, "WEBHOOK_NOT_CONFIGURED", "Stripe webhook secret is not configured.");
   }
 
-  const valid = await verifyStripeSignature(c.env.STRIPE_WEBHOOK_SECRET, body, signature);
+  // Only resolved once a signature header is actually present - an
+  // unauthenticated request with no signature at all shouldn't cost a D1
+  // read just to look up the (possibly admin-configured) webhook secret.
+  const settings = await resolveCheckoutSettings(c.env);
+  const webhookSecret = settings.stripe.webhookSecret;
+  if (!webhookSecret) {
+    return fail(c, 401, "WEBHOOK_NOT_CONFIGURED", "Stripe webhook secret is not configured.");
+  }
+
+  const valid = await verifyStripeSignature(webhookSecret, body, signature);
   if (!valid) {
     logger.warn(OBSERVABILITY_EVENTS.securitySuspiciousActivity, { requestId, metadata: { reason: "invalid_stripe_signature" } });
     return fail(c, 401, "INVALID_SIGNATURE", "Invalid Stripe webhook signature.");
   }
 
-  const payload = JSON.parse(body) as {
-    id: string;
-    type: string;
-    data?: {
-      object?: {
-        id: string;
-        payment_status?: string;
-        amount_total?: number;
-        currency?: string;
-        customer_details?: { email?: string };
-        customer_email?: string;
-        metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
-        payment_intent?: string;
-      };
-    };
-  };
+  const payload = parseStripeWebhookPayload(body);
 
   const { shouldProcess } = await recordWebhookReceived(c.env, {
     provider: "stripe",
@@ -62,16 +59,26 @@ webhookRoutes.post("/stripe", async (c) => {
   let orderCreated = false;
   try {
     if (payload.type === "checkout.session.completed" && payload.data?.object) {
-      const result = await createOrderFromStripeSession(c.env, payload.data.object);
+      const session = mapStripeSessionToPaidCheckoutSession(payload.data.object);
+      const result = await createOrderFromPaidSession(c.env, session, "stripe");
       orderCreated = result.created;
     }
     await markWebhookProcessed(c.env, "stripe", payload.id);
-    logger.info(OBSERVABILITY_EVENTS.webhookProcessed, { requestId, webhookEventId: payload.id, metadata: { provider: "stripe", type: payload.type, orderCreated } });
+    logger.info(OBSERVABILITY_EVENTS.webhookProcessed, {
+      requestId,
+      webhookEventId: payload.id,
+      metadata: { provider: "stripe", type: payload.type, orderCreated }
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error processing webhook";
     await markWebhookFailed(c.env, "stripe", payload.id, { message });
     await incrementMetric(c.env, "webhooks_failed");
-    logger.error(OBSERVABILITY_EVENTS.webhookFailed, { requestId, webhookEventId: payload.id, metadata: { provider: "stripe", type: payload.type }, error });
+    logger.error(OBSERVABILITY_EVENTS.webhookFailed, {
+      requestId,
+      webhookEventId: payload.id,
+      metadata: { provider: "stripe", type: payload.type },
+      error
+    });
     captureException(c.env, error, { requestId, route: "/api/v1/webhooks/stripe", method: "POST", code: "WEBHOOK_PROCESSING_FAILED" });
     // Throws (not a safe fail() response) so this returns a non-2xx and
     // Stripe's own retry schedule kicks in - swallowing it here would look
@@ -83,6 +90,72 @@ webhookRoutes.post("/stripe", async (c) => {
   }
 
   return ok(c, { received: true, type: payload.type, orderCreated });
+});
+
+webhookRoutes.post("/wompi", async (c) => {
+  const body = await c.req.text();
+  const requestId = c.get("requestId");
+  const logger = getLogger(c.env);
+  const settings = await resolveCheckoutSettings(c.env);
+  const eventsSecret = settings.wompi.webhookSecret;
+
+  if (!eventsSecret) {
+    return fail(c, 401, "WEBHOOK_NOT_CONFIGURED", "Wompi events secret is not configured.");
+  }
+
+  const payload = parseWompiWebhookPayload(body);
+  const valid = await verifyWompiSignature(eventsSecret, payload);
+  if (!valid) {
+    logger.warn(OBSERVABILITY_EVENTS.securitySuspiciousActivity, { requestId, metadata: { reason: "invalid_wompi_signature" } });
+    return fail(c, 401, "INVALID_SIGNATURE", "Invalid Wompi webhook signature.");
+  }
+
+  const transaction = payload.data?.transaction;
+  const eventId = transaction?.id ?? payload.event;
+
+  const { shouldProcess } = await recordWebhookReceived(c.env, {
+    provider: "wompi",
+    eventId,
+    requestId,
+    summary: { event: payload.event, transactionId: transaction?.id }
+  });
+
+  if (!shouldProcess) {
+    logger.info(OBSERVABILITY_EVENTS.webhookDuplicate, { requestId, webhookEventId: eventId, metadata: { provider: "wompi", type: payload.event } });
+    return ok(c, { received: true, type: payload.event, duplicate: true });
+  }
+
+  logger.info(OBSERVABILITY_EVENTS.webhookReceived, { requestId, webhookEventId: eventId, metadata: { provider: "wompi", type: payload.event } });
+  await markWebhookProcessing(c.env, "wompi", eventId);
+
+  let orderCreated = false;
+  try {
+    if (payload.event === "transaction.updated" && transaction) {
+      const session = mapWompiTransactionToPaidCheckoutSession(transaction);
+      const result = await createOrderFromPaidSession(c.env, session, "wompi");
+      orderCreated = result.created;
+    }
+    await markWebhookProcessed(c.env, "wompi", eventId);
+    logger.info(OBSERVABILITY_EVENTS.webhookProcessed, {
+      requestId,
+      webhookEventId: eventId,
+      metadata: { provider: "wompi", type: payload.event, orderCreated }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error processing webhook";
+    await markWebhookFailed(c.env, "wompi", eventId, { message });
+    await incrementMetric(c.env, "webhooks_failed");
+    logger.error(OBSERVABILITY_EVENTS.webhookFailed, {
+      requestId,
+      webhookEventId: eventId,
+      metadata: { provider: "wompi", type: payload.event },
+      error
+    });
+    captureException(c.env, error, { requestId, route: "/api/v1/webhooks/wompi", method: "POST", code: "WEBHOOK_PROCESSING_FAILED" });
+    throw new ExternalServiceError(message, { code: "WEBHOOK_PROCESSING_FAILED", reportable: false, cause: error });
+  }
+
+  return ok(c, { received: true, type: payload.event, orderCreated });
 });
 
 webhookRoutes.post("/clerk", async (c) => {

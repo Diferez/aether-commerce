@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/react";
 import { AlertTriangle, Boxes, ChevronDown, Download, History, Mail, PackageCheck, Settings, Shield, TicketPercent, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
+import { CheckoutProviderSettings } from "./CheckoutProviderSettings";
 import { Metric } from "./Metric";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
@@ -24,7 +25,7 @@ type OrderSummary = {
   id: string;
   number: string;
   email: string;
-  channel: "stripe" | "whatsapp";
+  channel: "stripe" | "wompi" | "whatsapp";
   payment_status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
   fulfillment_status: "unfulfilled" | "processing" | "shipped" | "delivered" | "cancelled";
   total: number;
@@ -492,6 +493,8 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           })
         )}
       </section>
+
+      {!demo ? <CheckoutProviderSettings /> : null}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-border bg-surface p-5">

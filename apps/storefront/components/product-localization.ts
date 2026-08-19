@@ -1,5 +1,5 @@
 import type { Product } from "@aether/schemas";
-import type { Locale } from "@aether/i18n";
+import type { Locale } from "../config/dictionaries";
 
 const spanishProductCopy: Record<string, { category?: string; description?: string }> = {
   "aether-arc-laptop": {

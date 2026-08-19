@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useLayoutEffect, useMemo, useState } from "react";
-import { dictionaries, type Locale } from "@aether/i18n";
+import { dictionaries, type Locale } from "../config/dictionaries";
 
 type Dictionary = (typeof dictionaries)[Locale];
 
