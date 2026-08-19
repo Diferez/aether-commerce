@@ -44,9 +44,10 @@ function openUserMenuUnlessAlreadyOnTrigger(event: React.MouseEvent<HTMLElement>
 
 function useModuleCounts() {
   const { getToken } = useAuth();
-  const [counts, setCounts] = useState<{ pendingOrders: number | null; lowStock: number | null }>({
+  const [counts, setCounts] = useState<{ pendingOrders: number | null; lowStock: number | null; pendingReviews: number | null }>({
     pendingOrders: null,
-    lowStock: null
+    lowStock: null,
+    pendingReviews: null
   });
 
   useEffect(() => {
@@ -54,19 +55,27 @@ function useModuleCounts() {
     void (async () => {
       const token = await getToken().catch(() => null);
       const headers = token ? { authorization: `Bearer ${token}` } : {};
-      const [ordersRes, stockRes] = await Promise.all([
+      const [ordersRes, stockRes, reviewsRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/admin/orders?fulfillmentStatus=unfulfilled&pageSize=1`, { headers }).catch(() => null),
-        fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=1`, { headers }).catch(() => null)
+        fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=1`, { headers }).catch(() => null),
+        // No pageSize/pagination on this endpoint (see routes/admin.ts's
+        // GET /reviews) - the count is just the array length. A 403 here
+        // (an actor without reviews.moderate) falls through to null exactly
+        // like the other two counts already do, hiding the badge rather
+        // than showing a wrong number.
+        fetch(`${apiBaseUrl}/api/v1/admin/reviews?status=pending`, { headers }).catch(() => null)
       ]);
       if (cancelled) return;
-      const [ordersPayload, stockPayload] = await Promise.all([
+      const [ordersPayload, stockPayload, reviewsPayload] = await Promise.all([
         ordersRes?.ok ? (ordersRes.json() as Promise<{ success: boolean; data?: { pagination: { total: number } } }>) : null,
-        stockRes?.ok ? (stockRes.json() as Promise<{ success: boolean; data?: { pagination: { total: number } } }>) : null
+        stockRes?.ok ? (stockRes.json() as Promise<{ success: boolean; data?: { pagination: { total: number } } }>) : null,
+        reviewsRes?.ok ? (reviewsRes.json() as Promise<{ success: boolean; data?: unknown[] }>) : null
       ]);
       if (cancelled) return;
       setCounts({
         pendingOrders: ordersPayload?.success ? (ordersPayload.data?.pagination.total ?? null) : null,
-        lowStock: stockPayload?.success ? (stockPayload.data?.pagination.total ?? null) : null
+        lowStock: stockPayload?.success ? (stockPayload.data?.pagination.total ?? null) : null,
+        pendingReviews: reviewsPayload?.success ? (reviewsPayload.data?.length ?? null) : null
       });
     })();
     return () => {

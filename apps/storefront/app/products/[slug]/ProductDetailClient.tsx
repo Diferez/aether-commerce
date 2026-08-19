@@ -19,6 +19,7 @@ import { getLocalizedProduct } from "../../../components/product-localization";
 import { StorefrontLink } from "../../../components/StorefrontLink";
 import { buildProductWhatsappMessage, buildWhatsappUrl } from "../../../components/whatsapp-checkout";
 import { useCheckoutOptions } from "../../../components/checkout-options";
+import { ReviewsSection } from "./ReviewsSection";
 
 export function ProductDetailClient({ slug }: { slug: string }) {
   const { locale, t } = useLanguage();
@@ -334,42 +335,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
             </div>
           ) : null}
 
-          {brand?.features.reviews === false ? null : (
-            <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-lg font-semibold text-zinc-950">{t.reviewsHeading}</h2>
-                <span className="flex items-center gap-1 text-sm text-zinc-600">
-                  <Star size={15} className="fill-amber-400 text-amber-400" aria-hidden />
-                  {product.rating.average.toFixed(1)} · {t.basedOnReviews.replace("{count}", String(product.reviewCount))}
-                </span>
-              </div>
-              {product.reviews.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-600">{t.noReviewsYet}</p>
-              ) : (
-                <ul className="mt-4 grid gap-4">
-                  {product.reviews.map((review, index) => (
-                    <li key={`${review.reviewerName}-${index}`} className="border-b border-zinc-100 pb-4 last:border-b-0">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-zinc-950">{review.reviewerName}</p>
-                        <span className="text-xs text-zinc-500">{new Date(review.date).toLocaleDateString(locale === "es" ? "es-CO" : "en-US")}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, starIndex) => (
-                          <Star
-                            key={starIndex}
-                            size={13}
-                            className={starIndex < Math.round(review.rating) ? "fill-amber-400 text-amber-400" : "text-zinc-300"}
-                            aria-hidden
-                          />
-                        ))}
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-zinc-600">{review.comment}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          {brand?.features.reviews === false ? null : <ReviewsSection productId={product.id} slug={product.slug} />}
           </section>
         )}
       </div>

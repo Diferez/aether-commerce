@@ -70,7 +70,7 @@ export type ReviewModerationStatus = "pending" | "approved" | "rejected" | "hidd
 export type AdminReviewRecord = Record<string, unknown>;
 
 export interface ReviewModerationRepository {
-  listAll(): Promise<AdminReviewRecord[]>;
+  listAll(status?: ReviewModerationStatus): Promise<AdminReviewRecord[]>;
   setStatus(reviewId: string, status: ReviewModerationStatus): Promise<void>;
 }
 
@@ -78,8 +78,8 @@ export interface ReviewModerationRepository {
 export class ReviewModerationService {
   constructor(private readonly repository: ReviewModerationRepository) {}
 
-  list(): Promise<AdminReviewRecord[]> {
-    return this.repository.listAll();
+  list(status?: ReviewModerationStatus): Promise<AdminReviewRecord[]> {
+    return this.repository.listAll(status);
   }
 
   async moderate(reviewId: string, status: ReviewModerationStatus): Promise<{ id: string; status: ReviewModerationStatus }> {
