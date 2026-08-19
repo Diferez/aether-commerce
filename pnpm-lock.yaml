@@ -9,6 +9,7 @@ overrides:
   brace-expansion@^1.0.0: 1.1.18
   brace-expansion@^2.0.0: 2.1.4
   js-yaml: 4.3.1
+  read-yaml-file>js-yaml: 3.14.1
   nanoid: 3.3.17
   postcss: 8.5.26
 
@@ -3234,6 +3235,12 @@ packages:
       color-convert: 2.0.1
     dev: true
 
+  /argparse@1.0.10:
+    resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
+    dependencies:
+      sprintf-js: 1.0.3
+    dev: true
+
   /argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
     dev: true
@@ -4300,6 +4307,12 @@ packages:
       eslint-visitor-keys: 4.2.1
     dev: true
 
+  /esprima@4.0.1:
+    resolution: {integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==}
+    engines: {node: '>=4'}
+    hasBin: true
+    dev: true
+
   /esquery@1.7.0:
     resolution: {integrity: sha512-Ap6G0WQwcU/LHsvLwON1fAQX9Zp0A2Y6Y/cJBl9r/JbW90Zyg4/zbG6zzKa2OTALELarYHmKu0GhpM5EO+7T0g==}
     engines: {node: '>=0.10'}
@@ -4987,6 +5000,14 @@ packages:
 
   /js-tokens@9.0.1:
     resolution: {integrity: sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ==}
+    dev: true
+
+  /js-yaml@3.14.1:
+    resolution: {integrity: sha512-okMH7OXXJ7YrN9Ok3/SXrnu4iX9yOk+25nqX4imS2npuvTYDmo/QEZoqwZkYaIDk3jVvBOTOIEgEhaLOynBS9g==}
+    hasBin: true
+    dependencies:
+      argparse: 1.0.10
+      esprima: 4.0.1
     dev: true
 
   /js-yaml@4.3.1:
@@ -5758,7 +5779,7 @@ packages:
     engines: {node: '>=6'}
     dependencies:
       graceful-fs: 4.2.11
-      js-yaml: 4.3.1
+      js-yaml: 3.14.1
       pify: 4.0.1
       strip-bom: 3.0.0
     dev: true
@@ -6103,6 +6124,10 @@ packages:
     dependencies:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
+    dev: true
+
+  /sprintf-js@1.0.3:
+    resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
     dev: true
 
   /stable-hash@0.0.5:
