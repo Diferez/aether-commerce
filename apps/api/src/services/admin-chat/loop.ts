@@ -309,7 +309,7 @@ const adminAgentGraph = new StateGraph(AdminAgentState)
 // contract, never on LangGraph's types directly, so the SSE route and the
 // entire frontend needed zero changes for this migration.
 export async function* runAdminChatLoop(ctx: AdminChatContext, history: BaseMessage[]): AsyncGenerator<LoopEvent> {
-  const models = resolveChatModelChain(ctx.env);
+  const models = await resolveChatModelChain(ctx.env);
   if (!models || models.length === 0 || !models[0]?.bindTools) {
     yield { type: "error", message: "Aether Chat is not configured on this environment." };
     return;

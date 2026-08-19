@@ -6,6 +6,7 @@ import { AlertTriangle, Boxes, ChevronDown, Download, History, Mail, PackageChec
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
 import { CheckoutProviderSettings } from "./CheckoutProviderSettings";
+import { IntegrationSecretsSettings } from "./IntegrationSecretsSettings";
 import { Metric } from "./Metric";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
@@ -495,6 +496,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
       </section>
 
       {!demo ? <CheckoutProviderSettings /> : null}
+      {!demo ? <IntegrationSecretsSettings /> : null}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-border bg-surface p-5">

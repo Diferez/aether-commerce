@@ -47,7 +47,14 @@ function fakeEnv(responses: QueuedResponse[] = []) {
             all: vi.fn(() => Promise.resolve({ results: response.all ?? [] })),
             run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
           };
-        })
+        }),
+        // integration-settings.ts's read() has no bind parameters (a plain
+        // `where key = 'integrations'` literal) and calls .first() directly -
+        // same extension admin.integration.test.ts's and inventory.test.ts's
+        // own fakeEnv already carry for the same reason (e.g. GET /coupons).
+        first: vi.fn(() => Promise.resolve(response.first ?? null)),
+        all: vi.fn(() => Promise.resolve({ results: response.all ?? [] })),
+        run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
       };
     }),
     batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))))

@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
 import { createUploadSignature, sha1Hex } from "./cloudinary";
+
+// createUploadSignature resolves its credentials via integration-settings.ts
+// (D1-backed, admin-managed settings layered over these env vars) - a bare
+// D1 mock returning "no row" so these tests exercise the plain env-var
+// fallback path, same as before that resolution layer existed.
+function fakeEnv(overrides: Partial<Env> = {}): Env {
+  const db = { prepare: vi.fn(() => ({ first: vi.fn(() => Promise.resolve(null)) })) };
+  return { DB: db, ...overrides } as unknown as Env;
+}
 
 describe("cloudinary.sha1Hex", () => {
   // Standard, independently-published SHA-1 test vectors (FIPS 180-1) - not
@@ -21,19 +30,19 @@ describe("cloudinary.sha1Hex", () => {
 
 describe("cloudinary.createUploadSignature", () => {
   it("returns null when any credential is missing", async () => {
-    expect(await createUploadSignature({} as Env)).toBeNull();
-    expect(await createUploadSignature({ CLOUDINARY_CLOUD_NAME: "demo" } as Env)).toBeNull();
+    expect(await createUploadSignature(fakeEnv())).toBeNull();
+    expect(await createUploadSignature(fakeEnv({ CLOUDINARY_CLOUD_NAME: "demo" }))).toBeNull();
     expect(
-      await createUploadSignature({ CLOUDINARY_CLOUD_NAME: "demo", CLOUDINARY_API_KEY: "key" } as Env)
+      await createUploadSignature(fakeEnv({ CLOUDINARY_CLOUD_NAME: "demo", CLOUDINARY_API_KEY: "key" }))
     ).toBeNull();
   });
 
   it("returns a well-formed signature when all credentials are present", async () => {
-    const env = {
+    const env = fakeEnv({
       CLOUDINARY_CLOUD_NAME: "demo",
       CLOUDINARY_API_KEY: "123456",
       CLOUDINARY_API_SECRET: "secret"
-    } as Env;
+    });
     const result = await createUploadSignature(env);
     expect(result).not.toBeNull();
     expect(result?.cloudName).toBe("demo");
@@ -43,11 +52,11 @@ describe("cloudinary.createUploadSignature", () => {
   });
 
   it("never lets the api_secret leak into the returned signature payload", async () => {
-    const env = {
+    const env = fakeEnv({
       CLOUDINARY_CLOUD_NAME: "demo",
       CLOUDINARY_API_KEY: "123456",
       CLOUDINARY_API_SECRET: "super-secret-value"
-    } as Env;
+    });
     const result = await createUploadSignature(env);
     expect(JSON.stringify(result)).not.toContain("super-secret-value");
   });

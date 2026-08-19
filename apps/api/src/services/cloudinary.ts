@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { resolveIntegrationSecrets } from "./integration-settings";
 
 // Cloudinary's signed-upload algorithm: sort every param that will be sent
 // to the upload API (except file/api_key/signature themselves) alphabetically
@@ -21,18 +22,19 @@ export type CloudinaryUploadSignature = {
 };
 
 export async function createUploadSignature(env: Env): Promise<CloudinaryUploadSignature | null> {
-  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+  const { cloudinary } = await resolveIntegrationSecrets(env);
+  if (!cloudinary.cloudName || !cloudinary.apiKey || !cloudinary.apiSecret) {
     return null;
   }
 
   const timestamp = Math.floor(Date.now() / 1000);
   const folder = "aether/products";
   const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
-  const signature = await sha1Hex(`${paramsToSign}${env.CLOUDINARY_API_SECRET}`);
+  const signature = await sha1Hex(`${paramsToSign}${cloudinary.apiSecret}`);
 
   return {
-    cloudName: env.CLOUDINARY_CLOUD_NAME,
-    apiKey: env.CLOUDINARY_API_KEY,
+    cloudName: cloudinary.cloudName,
+    apiKey: cloudinary.apiKey,
     timestamp,
     folder,
     signature

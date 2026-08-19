@@ -5,13 +5,18 @@ import { fakeContext, fakeEnv } from "./test-support";
 import { ADMIN_CHAT_SYSTEM_PROMPT } from "../../prompts/admin-chat-system-prompt";
 import { runAdminChatLoop } from "./loop";
 
-type ChatModelChain = ReturnType<typeof AiProviderModule.resolveChatModelChain>;
+type ChatModelChain = Awaited<ReturnType<typeof AiProviderModule.resolveChatModelChain>>;
 type ChatModelCandidate = NonNullable<ChatModelChain>[number];
 
+// The mock itself stays synchronous (every .mockReturnValueOnce(...) call
+// site below hands back a plain array) - only the exported
+// resolveChatModelChain wraps that in a real Promise, matching the actual
+// module's now-async signature (it resolves the effective Gemini API key
+// from integration-settings.ts before building any model).
 const resolveChatModelMock = vi.fn<(...args: unknown[]) => ChatModelChain>();
 vi.mock("../ai-provider", async () => {
   const actual = await vi.importActual<typeof AiProviderModule>("../ai-provider");
-  return { ...actual, resolveChatModelChain: (...args: unknown[]) => resolveChatModelMock(...args) };
+  return { ...actual, resolveChatModelChain: (...args: unknown[]) => Promise.resolve(resolveChatModelMock(...args)) };
 });
 
 // A minimal fake standing in for a LangChain BaseChatModel bound with

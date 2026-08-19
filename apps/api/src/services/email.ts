@@ -1,5 +1,6 @@
 import type { ContactMessage, Order } from "@aether/schemas";
 import type { Env } from "../types";
+import { resolveIntegrationSecrets } from "./integration-settings";
 
 type EmailPayload = {
   to: string;
@@ -8,14 +9,15 @@ type EmailPayload = {
 };
 
 async function send(env: Env, payload: EmailPayload) {
-  if (!env.RESEND_API_KEY) {
+  const { resend } = await resolveIntegrationSecrets(env);
+  if (!resend.apiKey) {
     return { queued: false, provider: "resend", reason: "RESEND_API_KEY missing" };
   }
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      authorization: `Bearer ${resend.apiKey}`,
       "content-type": "application/json"
     },
     body: JSON.stringify({

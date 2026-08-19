@@ -46,6 +46,29 @@
   is treated as not configured and falls back to the deploy-time env var
   rather than breaking checkout.
 
+## Integration secrets (Resend, Gemini, Cloudinary)
+
+- Same mechanism as checkout provider secrets above, same
+  `AETHER_SETTINGS_ENCRYPTION_KEY`, same masked-preview/never-plaintext admin
+  API, same decrypt-failure-falls-back-to-env-var behavior
+  (`services/integration-settings.ts`).
+- Covers `RESEND_API_KEY` (transactional email), `GEMINI_API_KEY` (the admin
+  chat assistant only), and `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/
+  `CLOUDINARY_API_SECRET` (product image uploads) - every secret `aether-api`
+  itself reads at request time.
+- Deliberately **not** covered, for two different architectural reasons:
+  - `apps/ai-assistant`'s own `GEMINI_API_KEY` - a separate Worker
+    deployment with no D1 binding of its own; making it admin-configurable
+    would need either its own binding or a cross-Worker fetch on every chat
+    turn, not just a settings form.
+  - `NEXT_PUBLIC_SENTRY_DSN` (admin/storefront) and `aether-api`'s own
+    `SENTRY_DSN` - the former is inlined into the static-export bundle at
+    build time (no server to read a runtime override from); the latter is
+    read synchronously by `@sentry/cloudflare`'s `withSentry()` wrapper
+    before routing/D1 access is safe to reach for, so resolving it from D1
+    would risk breaking error reporting on exactly the requests most likely
+    to need it.
+
 ## Rate limiting
 
 The API Worker uses Cloudflare Rate Limiting bindings for route-level abuse

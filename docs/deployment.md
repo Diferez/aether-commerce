@@ -44,8 +44,11 @@ Según las funciones habilitadas:
 - `CLERK_WEBHOOK_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `WOMPI_SECRET_KEY`, `WOMPI_EVENTS_SECRET`
-- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout; ver `docs/security.md`)
+- `AETHER_SETTINGS_ENCRYPTION_KEY` (solo si el panel admin va a gestionar los secretos de checkout y de integraciones -Resend, Gemini, Cloudinary-; ver `docs/security.md`)
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (solo si se habilita la carga de imágenes de producto vía Cloudinary)
+
+Estos tres últimos (`RESEND_API_KEY`, `GEMINI_API_KEY`, y los tres de Cloudinary) también se pueden configurar - o rotar - desde el panel admin ("Integraciones" en el inicio), sin volver a desplegar: el valor guardado ahí (cifrado en D1) tiene prioridad sobre la variable de entorno.
 
 Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wompi.
 
