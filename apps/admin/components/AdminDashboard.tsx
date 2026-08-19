@@ -6,6 +6,7 @@ import { AlertTriangle, Boxes, ChevronDown, Download, Mail, PackageCheck, Shield
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
 import { aetherStoreConfig } from "./configuration";
+import { CheckoutProviderSettings } from "./CheckoutProviderSettings";
 
 type Summary = {
   mode: "private" | "demo";
@@ -237,6 +238,8 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           })
         )}
       </section>
+
+      {!demo ? <CheckoutProviderSettings /> : null}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {([
