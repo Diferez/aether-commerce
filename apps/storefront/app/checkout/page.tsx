@@ -26,6 +26,18 @@ type FormState = {
 
 const emptyForm: FormState = { fullName: "", phone: "", line1: "", line2: "", city: "", region: "", postalCode: "" };
 
+function addressToForm(address: Address): FormState {
+  return {
+    fullName: address.fullName,
+    phone: address.phone ?? "",
+    line1: address.line1,
+    line2: address.line2 ?? "",
+    city: address.city,
+    region: address.region,
+    postalCode: address.postalCode
+  };
+}
+
 function fieldClass() {
   return "focus-ring min-h-11 rounded-md border border-zinc-300 bg-white px-3 text-zinc-950";
 }
@@ -41,6 +53,49 @@ export default function CheckoutPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [saveAddress, setSaveAddress] = useState(true);
+
+  useEffect(() => {
+    if (!customer) return;
+    let cancelled = false;
+    void (async () => {
+      const token = await getToken();
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/v1/addresses`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {}
+        });
+        const payload = (await response.json()) as { success: boolean; data?: Address[] };
+        if (cancelled || !payload.success || !payload.data) return;
+        setSavedAddresses(payload.data);
+        // Pre-select the shopper's first saved address so returning
+        // customers see their details already filled in, without having to
+        // click anything - they can still switch to "use a new address".
+        const first = payload.data[0];
+        if (first?.id) {
+          setSelectedAddressId(first.id);
+          setForm(addressToForm(first));
+        }
+      } catch {
+        // Saved addresses are a convenience, not a requirement - the plain
+        // form below still works if this fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customer, getToken]);
+
+  function selectSavedAddress(address: Address) {
+    setSelectedAddressId(address.id ?? null);
+    setForm(addressToForm(address));
+  }
+
+  function useNewAddress() {
+    setSelectedAddressId(null);
+    setForm(emptyForm);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -103,6 +158,26 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     setStatus(t.preparingCheckout);
+
+    // Best-effort: saving the address for next time must never block or
+    // fail checkout itself - only attempted for a freshly-typed address
+    // (selectedAddressId is null), never re-saved when the shopper picked
+    // one already on file.
+    if (saveAddress && !selectedAddressId && customer) {
+      void (async () => {
+        const token = await getToken();
+        try {
+          await fetch(`${apiBaseUrl}/api/v1/addresses`, {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(shippingAddress)
+          });
+        } catch {
+          // Non-fatal - the order still goes through with this address either way.
+        }
+      })();
+    }
+
     try {
       let payload = await createCheckoutSession(getToken, shippingAddress);
 
@@ -138,6 +213,38 @@ export default function CheckoutPage() {
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <form onSubmit={(event) => void submit(event)} className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-5">
+          {savedAddresses.length > 0 ? (
+            <div className="mb-1 grid gap-2">
+              <span className="text-sm font-medium text-zinc-700">{t.savedAddresses}</span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {savedAddresses.map((address) => (
+                  <button
+                    key={address.id}
+                    type="button"
+                    onClick={() => selectSavedAddress(address)}
+                    aria-pressed={selectedAddressId === address.id}
+                    className={`focus-ring rounded-md border px-3 py-2 text-left text-sm ${
+                      selectedAddressId === address.id ? "border-accent bg-accent-soft" : "border-zinc-300 hover:bg-zinc-50"
+                    }`}
+                  >
+                    <p className="font-semibold text-zinc-950">{address.fullName}</p>
+                    <p className="text-zinc-600">
+                      {address.line1}, {address.city}, {address.region}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              {selectedAddressId ? (
+                <button
+                  type="button"
+                  onClick={useNewAddress}
+                  className="focus-ring justify-self-start text-sm font-semibold text-accent underline decoration-accent underline-offset-4"
+                >
+                  {t.useNewAddress}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-zinc-700">{t.shippingFullName}</span>
             <input required value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} className={fieldClass()} />
@@ -168,6 +275,13 @@ export default function CheckoutPage() {
             <span className="font-medium text-zinc-700">{t.shippingPostalCode}</span>
             <input value={form.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} className={fieldClass()} />
           </label>
+
+          {customer && !selectedAddressId ? (
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="h-4 w-4 rounded border-zinc-300" />
+              {t.saveAddressForNextTime}
+            </label>
+          ) : null}
 
           {status ? <p className="text-sm text-zinc-600">{status}</p> : null}
 

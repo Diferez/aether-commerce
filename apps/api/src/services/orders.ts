@@ -7,6 +7,7 @@ import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
 import { getLogger } from "./observability";
 import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
+import { sendOrderEmail } from "./email";
 
 function orderNumber(sessionId: string) {
   const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
@@ -188,6 +189,12 @@ export async function createOrderFromPaidSession(env: Env, session: PaidCheckout
 
   await clearCatalogCache(env);
 
+  // Best-effort: a Resend outage or missing API key must never fail an
+  // already-paid order - sendOrderEmail itself never throws on a failed
+  // send (it resolves { queued: false, ... }), this guards only against
+  // fetch() itself throwing (e.g. a network error).
+  await sendOrderEmail(env, { email: order.email, number: order.number, state: order.state as OrderState }).catch(() => {});
+
   return { order, created: true };
 }
 
@@ -289,6 +296,8 @@ export async function createManualOrder(
 
   await clearCatalogCache(env);
 
+  await sendOrderEmail(env, { email: order.email, number: order.number, state: order.state as OrderState }).catch(() => {});
+
   return { order };
 }
 
@@ -320,9 +329,9 @@ export async function changeOrderState(
   targetState: OrderState,
   actor: ChangeOrderStateActor
 ): Promise<ChangeOrderStateResult> {
-  const current = await env.DB.prepare("select state, payload_json from orders where id = ?")
+  const current = await env.DB.prepare("select state, payload_json, email from orders where id = ?")
     .bind(orderId)
-    .first<{ state: string; payload_json: string }>();
+    .first<{ state: string; payload_json: string; email: string }>();
   if (!current) {
     return { ok: false, error: "not_found" };
   }
@@ -356,6 +365,9 @@ export async function changeOrderState(
   if ((results[1]?.meta.changes ?? 0) !== 1) {
     return { ok: false, error: "conflict", previousState: currentState.data };
   }
+
+  const number = typeof payload.number === "string" ? payload.number : orderId;
+  await sendOrderEmail(env, { email: current.email, number, state: targetState }).catch(() => {});
 
   return { ok: true, previousState: currentState.data, state: targetState, updatedAt };
 }
