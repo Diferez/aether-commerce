@@ -90,14 +90,14 @@ function wompiReference(cart: Cart): string {
   return cart.userId ? `${cart.id}::${cart.userId}` : cart.id;
 }
 
-// customerEmail is accepted for CheckoutProvider interface parity with Stripe
-// (which prefills its hosted checkout's email field); Wompi's payment_links
-// API has no confirmed equivalent field, so it isn't sent.
+// The CheckoutProvider port's createCheckoutSession also accepts a
+// customerEmail (Stripe prefills its hosted checkout's email field with it);
+// Wompi's payment_links API has no confirmed equivalent field, so this
+// adapter intentionally never receives or sends it.
 async function createWompiCheckoutSession(
   env: Env,
   secretKey: string | undefined,
-  cart: Cart,
-  _customerEmail?: string
+  cart: Cart
 ): Promise<{ checkoutUrl: string }> {
   const origin = env.APP_ORIGIN_STORE ?? "http://localhost:3000";
   const simulatedCheckout = {
@@ -201,7 +201,7 @@ async function retrieveWompiCheckoutSession(secretKey: string | undefined, trans
 export function createWompiCheckoutProvider(env: Env, credentials?: CheckoutProviderCredentials): CheckoutProvider {
   const secretKey = credentials?.secretKey ?? env.WOMPI_SECRET_KEY;
   return {
-    createCheckoutSession: (cart, customerEmail) => createWompiCheckoutSession(env, secretKey, cart, customerEmail),
+    createCheckoutSession: (cart) => createWompiCheckoutSession(env, secretKey, cart),
     retrieveCheckoutSession: (transactionId) => retrieveWompiCheckoutSession(secretKey, transactionId)
   };
 }
