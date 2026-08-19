@@ -135,9 +135,96 @@ describe("interview regressions", () => {
     ["Mostrami i miei preferiti", "GET_FAVORITES", "it"],
     ["Recomiéndame algo para viajar", "RECOMMEND_PRODUCTS", "es"],
     ["What do you recommend?", "RECOMMEND_PRODUCTS", "en"],
-    ["Agrega al carrito unos tenis rojos", "ADD_TO_CART", "es"]
+    ["Agrega al carrito unos tenis rojos", "ADD_TO_CART", "es"],
+    ["Cancela mi pedido", "CANCEL_ORDER", "es"],
+    ["Cancel my order 5001", "CANCEL_ORDER", "en"],
+    ["Quiero devolver mi pedido", "REQUEST_RETURN", "es"],
+    ["I want to return my order", "REQUEST_RETURN", "en"],
+    ["Quiero un reembolso", "REQUEST_REFUND", "es"],
+    ["I want a refund", "REQUEST_REFUND", "en"],
+    ["Tengo un cupon WELCOME10", "APPLY_COUPON", "es"],
+    ["Add coupon WELCOME10 to my order", "APPLY_COUPON", "en"]
   ] as const)("classifies %s", (message, intent, language) => {
     expect(heuristicIntent(message)).toMatchObject({ intent, language });
+  });
+
+  it("applies a real coupon code to the cart", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Aplica el cupon WELCOME10", { "x-aether-cart-id": "cart_1", "x-aether-cart-token": "tok_1" }),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        expect(url.pathname).toBe("/api/v1/cart/cart_1/coupon");
+        return Promise.resolve(
+          Response.json({ success: true, data: { items: [], totals: { subtotal: 5000, discount: 500, currency: "USD" } } })
+        );
+      })
+    );
+    const payload = await response.json<{ intent: string; action: { status: string } }>();
+    expect(payload.intent).toBe("APPLY_COUPON");
+    expect(payload.action.status).toBe("SUCCEEDED");
+  });
+
+  it("reports an invalid coupon code without pretending it applied", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Aplica el cupon NOPE10", { "x-aether-cart-id": "cart_1", "x-aether-cart-token": "tok_1" }),
+      env(() => Promise.resolve(new Response(JSON.stringify({ success: false }), { status: 404 })))
+    );
+    const payload = await response.json<{ intent: string; action: { status: string }; message: string }>();
+    expect(payload.intent).toBe("APPLY_COUPON");
+    expect(payload.action.status).toBe("FAILED");
+    expect(payload.message).toMatch(/no es un cupon valido/i);
+  });
+
+  it("cancels the shopper's own order through the real per-order route", async () => {
+    let calledPath = "";
+    const response = await worker.fetch(
+      assistantRequest("Cancela mi pedido", { authorization: "Bearer clerk-token" }),
+      env((request, init) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        if (url.pathname === "/api/v1/orders") {
+          expect(new Headers(init?.headers).get("authorization")).toBe("Bearer clerk-token");
+          return Promise.resolve(Response.json({ success: true, data: [{ ...order, state: "pending_payment" }] }));
+        }
+        calledPath = url.pathname;
+        return Promise.resolve(Response.json({ success: true, data: { orderId: order.id, previousState: "pending_payment", state: "cancelled" } }, { status: 201 }));
+      })
+    );
+    const payload = await response.json<{ intent: string; action: { status: string }; message: string }>();
+    expect(calledPath).toBe(`/api/v1/orders/${order.id}/cancel`);
+    expect(payload.intent).toBe("CANCEL_ORDER");
+    expect(payload.action.status).toBe("SUCCEEDED");
+    expect(payload.message).toMatch(/cancelled/);
+  });
+
+  it("does not cancel another shopper's order and never calls the mutation route without sign-in", async () => {
+    let calls = 0;
+    const response = await worker.fetch(
+      assistantRequest("Cancela mi pedido"),
+      env(() => {
+        calls += 1;
+        return Promise.resolve(Response.json({ success: true, data: [order] }));
+      })
+    );
+    const payload = await response.json<{ intent: string; action: { type: string } }>();
+    expect(payload.intent).toBe("CANCEL_ORDER");
+    expect(payload.action.type).toBe("SIGN_IN_REQUIRED");
+    expect(calls).toBe(0);
+  });
+
+  it("explains an illegal cancellation instead of claiming it happened", async () => {
+    const response = await worker.fetch(
+      assistantRequest("Cancela mi pedido", { authorization: "Bearer clerk-token" }),
+      env((request) => {
+        const url = new URL(request instanceof Request ? request.url : String(request));
+        if (url.pathname === "/api/v1/orders") {
+          return Promise.resolve(Response.json({ success: true, data: [{ ...order, state: "delivered" }] }));
+        }
+        return Promise.resolve(new Response(JSON.stringify({ success: false, error: { code: "ORDER_TRANSITION_INVALID" } }), { status: 409 }));
+      })
+    );
+    const payload = await response.json<{ intent: string; action: { status: string }; message: string }>();
+    expect(payload.action.status).toBe("FAILED");
+    expect(payload.message).not.toMatch(/cancelled/i);
   });
 
   it("looks up only the authenticated shopper's order", async () => {
