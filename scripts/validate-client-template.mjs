@@ -59,6 +59,42 @@ try {
   }
   manifest.pnpm = { ...manifest.pnpm, overrides: { ...manifest.pnpm?.overrides, ...archiveOverrides } };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  // src/adapters.ts and src/configuration.ts only import type-only symbols
+  // from @aether/config-schema, a single-file package - that alone never
+  // exercises the *built* dist/ declarations of a multi-file package (an
+  // `export * from "./x"` chain resolves differently than in-monorepo source
+  // resolution, e.g. #2094). Import one real value export from every packed
+  // package so a client's own tsconfig module resolution is actually proven
+  // against the published output, not just the template's own thin files.
+  writeFileSync(
+    resolve(generated, "src/__package_resolution_smoke__.ts"),
+    [
+      'import { formatMoney } from "@aether/core";',
+      'import { currencyCodeSchema } from "@aether/schemas";',
+      'import { createCommerceClient } from "@aether/api-client";',
+      'import { Button } from "@aether/ui";',
+      'import { interpolateTranslation } from "@aether/i18n";',
+      'import { defineClientConfiguration } from "@aether/config-schema";',
+      'import { isCheckoutSessionPaid } from "@aether/api-core";',
+      'import { supportedAgentIntents } from "@aether/agent-core";',
+      'import { createRequestId } from "@aether/observability";',
+      "",
+      "export const packageResolutionSmoke = [",
+      "  formatMoney,",
+      "  currencyCodeSchema,",
+      "  createCommerceClient,",
+      "  Button,",
+      "  interpolateTranslation,",
+      "  defineClientConfiguration,",
+      "  isCheckoutSessionPaid,",
+      "  supportedAgentIntents,",
+      "  createRequestId",
+      "] as const;",
+      ""
+    ].join("\n")
+  );
+
   execFileSync("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], {
     cwd: generated,
     stdio: "inherit",
