@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
-import { formatMoney } from "@aether/core";
+import { canTransitionOrder, formatMoney } from "@aether/core";
 import { createCommerceClient } from "@aether/api-client";
-import type { Order } from "@aether/schemas";
+import type { Order, OrderState } from "@aether/schemas";
 import { apiBaseUrl } from "../../../components/config";
 import { useCustomerSession } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
@@ -57,6 +57,31 @@ export default function OrdersPage() {
       active = false;
     };
   }, [isLoaded, isAuthLoaded, isSignedIn, customerId, customerEmail, getToken]);
+
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function runOrderAction(orderId: string, action: "cancel" | "return" | "refund-request", targetState: OrderState) {
+    setPendingAction(`${orderId}:${action}`);
+    setActionError(null);
+    try {
+      const token = await getToken();
+      const response = await fetch(`${apiBaseUrl}/api/v1/orders/${encodeURIComponent(orderId)}/${action}`, {
+        method: "POST",
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
+      const payload = (await response.json()) as { success: boolean };
+      if (!payload.success) {
+        setActionError(locale === "es" ? "No se pudo actualizar este pedido." : "This order could not be updated.");
+        return;
+      }
+      setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, state: targetState } : order)));
+    } catch {
+      setActionError(locale === "es" ? "No se pudo actualizar este pedido." : "This order could not be updated.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
 
   return (
     <main className="aether-shell py-8">
@@ -130,33 +155,58 @@ export default function OrdersPage() {
 
       {status === "ready" ? (
         <section className="grid gap-4">
-          {orders.map((order) => (
-            <article key={order.id} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-teal-700">{order.state}</p>
-                  <h2 className="mt-1 text-xl font-semibold text-zinc-950">{order.number}</h2>
-                  <p className="mt-1 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleString(locale === "es" ? "es-CO" : "en-US")}</p>
-                </div>
-                <strong className="text-lg text-zinc-950">
-                  {formatMoney(order.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
-                </strong>
-              </div>
-              <div className="mt-4 grid gap-3">
-                {order.items.map((item) => (
-                  <div key={`${order.id}-${item.productId}-${item.variantId ?? "default"}`} className="flex items-center gap-3 rounded-md bg-zinc-50 p-3">
-                    <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded object-cover" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-zinc-950">{item.name}</p>
-                      <p className="text-sm text-zinc-500">
-                        {t.qty} {item.quantity} · {formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}
-                      </p>
-                    </div>
+          {actionError ? <p className="text-sm text-danger">{actionError}</p> : null}
+          {orders.map((order) => {
+            const allActions: Array<{ action: "cancel" | "return" | "refund-request"; target: OrderState; label: string }> = [
+              { action: "cancel", target: "cancelled", label: locale === "es" ? "Cancelar pedido" : "Cancel order" },
+              { action: "return", target: "return_requested", label: locale === "es" ? "Solicitar devolución" : "Request return" },
+              { action: "refund-request", target: "refund_requested", label: locale === "es" ? "Solicitar reembolso" : "Request refund" }
+            ];
+            const actions = allActions.filter(({ target }) => canTransitionOrder(order.state, target));
+
+            return (
+              <article key={order.id} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-teal-700">{order.state}</p>
+                    <h2 className="mt-1 text-xl font-semibold text-zinc-950">{order.number}</h2>
+                    <p className="mt-1 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleString(locale === "es" ? "es-CO" : "en-US")}</p>
                   </div>
-                ))}
-              </div>
-            </article>
-          ))}
+                  <strong className="text-lg text-zinc-950">
+                    {formatMoney(order.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
+                  </strong>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {order.items.map((item) => (
+                    <div key={`${order.id}-${item.productId}-${item.variantId ?? "default"}`} className="flex items-center gap-3 rounded-md bg-zinc-50 p-3">
+                      <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-14 w-14 rounded object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-zinc-950">{item.name}</p>
+                        <p className="text-sm text-zinc-500">
+                          {t.qty} {item.quantity} · {formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {actions.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-4">
+                    {actions.map(({ action, target, label }) => (
+                      <button
+                        key={action}
+                        type="button"
+                        disabled={pendingAction === `${order.id}:${action}`}
+                        onClick={() => void runOrderAction(order.id, action, target)}
+                        className="focus-ring min-h-9 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </section>
       ) : null}
     </main>

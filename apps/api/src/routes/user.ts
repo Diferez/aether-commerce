@@ -5,13 +5,15 @@ import { zValidator } from "@hono/zod-validator";
 import { addressSchema, cartItemInputSchema, contactMessageSchema } from "@aether/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
-import { addItem, applyCoupon, readCart, updateItemQuantity, writeCart } from "../services/cart";
+import type { OrderState } from "@aether/schemas";
+import { addItem, applyCoupon, InvalidCouponError, readCart, updateItemQuantity, writeCart } from "../services/cart";
 import { createCustomerPreferencesService } from "../services/customer-preferences";
 import { createCustomerAddressService } from "../services/customer-addresses";
 import { createCustomerReviewService } from "../services/customer-reviews";
 import { createCustomerProfileService } from "../services/customer-profile";
 import { resolveActorEmail } from "../services/clerk";
 import { readBrandSettings } from "../services/brand-settings";
+import { changeOrderState } from "../services/orders";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -95,7 +97,14 @@ userRoutes.post(
   async (c) => {
     const userId = requireUserId(c);
     if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to update your cart.");
-    return ok(c, await applyCoupon(c.env, userId, c.req.valid("json").code));
+    try {
+      return ok(c, await applyCoupon(c.env, userId, c.req.valid("json").code));
+    } catch (error) {
+      if (error instanceof InvalidCouponError) {
+        return fail(c, 404, "COUPON_NOT_FOUND", "That coupon code is not valid.");
+      }
+      throw error;
+    }
   }
 );
 
@@ -212,11 +221,59 @@ userRoutes.get("/orders/:id", async (c) => {
   return row ? ok(c, JSON.parse(row.payload_json)) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 });
 
+// Maps each customer-facing action to the order-state machine's target state
+// (packages/core/src/order-state.ts) - reuses the exact same transitions
+// table and changeOrderState() helper the admin PATCH /orders/:id/status
+// route uses, so a customer can never reach a state the admin panel itself
+// couldn't also reach from the order's current state.
+const orderActionTargetState: Record<"cancel" | "return" | "refund-request", OrderState> = {
+  cancel: "cancelled",
+  return: "return_requested",
+  "refund-request": "refund_requested"
+};
+
 for (const action of ["cancel", "return", "refund-request"] as const) {
-  userRoutes.post(`/orders/:id/${action}`, (c) => {
-    const userId = requireUserId(c);
+  userRoutes.post(`/orders/:id/${action}`, async (c) => {
+    const actor = c.get("actor");
+    const userId = actor.userId;
     if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to manage this order.");
-    return ok(c, { orderId: c.req.param("id"), action, status: "requested" }, 201);
+    const orderId = c.req.param("id");
+
+    const email = await resolveActorEmail(c.env, actor);
+    const owned = email
+      ? await c.env.DB.prepare("select 1 from orders where id = ? and (user_id = ? or email = ? collate nocase)")
+          .bind(orderId, userId, email)
+          .first()
+      : await c.env.DB.prepare("select 1 from orders where id = ? and user_id = ?").bind(orderId, userId).first();
+    if (!owned) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+
+    const result = await changeOrderState(c.env, orderId, orderActionTargetState[action], {
+      actorId: userId,
+      reason: `customer_${action.replace("-", "_")}`,
+      requestId: c.get("requestId")
+    });
+
+    if (!result.ok) {
+      switch (result.error) {
+        case "not_found":
+          return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+        case "invalid_current_state":
+          return fail(c, 409, "ORDER_STATE_INVALID", "The stored order state is invalid.");
+        case "invalid_transition":
+          return fail(
+            c,
+            409,
+            "ORDER_TRANSITION_INVALID",
+            `This order can't be ${action === "cancel" ? "cancelled" : action === "return" ? "returned" : "refunded"} from its current status.`
+          );
+        case "invalid_payload":
+          return fail(c, 409, "ORDER_PAYLOAD_INVALID", "The stored order payload is invalid.");
+        case "conflict":
+          return fail(c, 409, "ORDER_STATE_CONFLICT", "The order status changed while the update was being applied.");
+      }
+    }
+
+    return ok(c, { orderId, action, previousState: result.previousState, state: result.state, updatedAt: result.updatedAt }, 201);
   });
 }
 

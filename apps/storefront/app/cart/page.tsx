@@ -36,6 +36,8 @@ export default function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stockBySlug, setStockBySlug] = useState<Record<string, number>>({});
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponStatus, setCouponStatus] = useState<"idle" | "applying" | "error">("idle");
   const checkoutOptions = useCheckoutOptions();
   const shippingSettings = useShippingSettings();
 
@@ -135,11 +137,16 @@ export default function CartPage() {
   }, [cart?.items]);
 
   async function applyCoupon() {
+    if (!couponCode.trim()) return;
+    setCouponStatus("applying");
     try {
-      await applyCartCoupon("AETHER10");
+      await applyCartCoupon(couponCode.trim());
+      setCouponStatus("idle");
+      setCouponCode("");
+      setStatus(t.couponApplied);
       await refresh();
     } catch {
-      setStatus(t.startApiApplyCoupon);
+      setCouponStatus("error");
     }
   }
 
@@ -362,15 +369,31 @@ export default function CartPage() {
             <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatMoney(cart?.totals.total ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
           </dl>
           <div className="mt-5 grid gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void applyCoupon()}
-              disabled={items.length === 0}
-            >
-              <Ticket size={17} aria-hidden />
-              {t.applyCoupon}
-            </Button>
+            <div className="grid gap-1.5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(event) => {
+                    setCouponCode(event.target.value.toUpperCase());
+                    if (couponStatus === "error") setCouponStatus("idle");
+                  }}
+                  placeholder={t.couponPlaceholder}
+                  disabled={items.length === 0}
+                  className="focus-ring min-h-11 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void applyCoupon()}
+                  disabled={items.length === 0 || !couponCode.trim() || couponStatus === "applying"}
+                >
+                  <Ticket size={17} aria-hidden />
+                  {t.applyCoupon}
+                </Button>
+              </div>
+              {couponStatus === "error" ? <p className="text-xs text-danger">{t.couponInvalid}</p> : null}
+            </div>
             <Button type="button" onClick={() => void checkout()} disabled={items.length === 0}>
               {checkoutOptions?.paymentMode === "whatsapp" ? (
                 <MessageCircle size={17} aria-hidden />

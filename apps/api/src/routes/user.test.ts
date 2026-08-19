@@ -32,7 +32,11 @@ function fakeEnv(responses: QueuedResponse[] = [], overrides: Partial<Env> = {})
         all: vi.fn(() => Promise.resolve({ results: response.all ?? [] })),
         run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 1 } }))
       };
-    })
+    }),
+    // changeOrderState() (services/orders.ts) batches its history-insert and
+    // state-update together - only the cancel/return/refund-request tests
+    // below reach this; every other route in this file never calls batch.
+    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))))
   };
   const env = {
     DB: db,
@@ -129,6 +133,67 @@ describe("POST /products/:id/reviews", () => {
       env,
       ctx
     );
+
+    expect(response.status).toBe(401);
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /orders/:id/cancel, /return, /refund-request", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("cancels an order the customer owns when the transition is legal", async () => {
+    await mockVerifiedActor(["customer"], "user_1");
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { 1: 1 } }, // ownership check
+      { first: { state: "pending_payment", payload_json: JSON.stringify({ state: "pending_payment" }) } } // changeOrderState's current-row read
+    ]);
+
+    const response = await worker.fetch(apiRequest("/orders/ord_1/cancel", { method: "POST", token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(201);
+    const body = await response.json<{ success: boolean; data?: { state: string; previousState: string } }>();
+    expect(body.data).toMatchObject({ previousState: "pending_payment", state: "cancelled" });
+    expect(statements.some((s) => s.sql.includes("insert into order_status_history"))).toBe(true);
+  });
+
+  it("rejects a return request for an order the caller does not own, before touching order state", async () => {
+    await mockVerifiedActor(["customer"], "user_1");
+    const { env, db } = fakeEnv([
+      { first: null }, // suspension check
+      { first: null } // ownership check finds nothing
+    ]);
+
+    const response = await worker.fetch(apiRequest("/orders/ord_1/return", { method: "POST", token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(404);
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+    expect(body.error?.code).toBe("ORDER_NOT_FOUND");
+    expect(db.prepare).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a refund request when the order's current state can't legally reach refund_requested", async () => {
+    await mockVerifiedActor(["customer"], "user_1");
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { 1: 1 } }, // ownership check
+      { first: { state: "cancelled", payload_json: JSON.stringify({ state: "cancelled" }) } } // terminal state, no transitions out
+    ]);
+
+    const response = await worker.fetch(apiRequest("/orders/ord_1/refund-request", { method: "POST", token: "tok" }), env, ctx);
+
+    expect(response.status).toBe(409);
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+    expect(body.error?.code).toBe("ORDER_TRANSITION_INVALID");
+  });
+
+  it("requires authentication before touching the database", async () => {
+    const { env, db } = fakeEnv();
+
+    const response = await worker.fetch(apiRequest("/orders/ord_1/cancel", { method: "POST" }), env, ctx);
 
     expect(response.status).toBe(401);
     expect(db.prepare).not.toHaveBeenCalled();

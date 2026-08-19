@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Settings, UsersRound, Warehouse } from "lucide-react";
+import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Settings, TicketPercent, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { AdminDictionary } from "@aether/i18n";
 
@@ -31,7 +31,8 @@ export function getNavGroups(t: AdminDictionary): NavGroup[] {
         { href: "/orders/", label: t.nav.orders, icon: ClipboardList, countKey: "pendingOrders" },
         { href: "/products/", label: t.nav.products, icon: Boxes },
         { href: "/inventory/", label: t.nav.inventory, icon: Warehouse, countKey: "lowStock" },
-        { href: "/reviews/", label: t.nav.reviews, icon: MessageSquareText, countKey: "pendingReviews" }
+        { href: "/reviews/", label: t.nav.reviews, icon: MessageSquareText, countKey: "pendingReviews" },
+        { href: "/coupons/", label: t.nav.coupons, icon: TicketPercent }
       ]
     },
     { label: null, items: [{ href: "/customers/", label: t.nav.customers, icon: UsersRound }] },

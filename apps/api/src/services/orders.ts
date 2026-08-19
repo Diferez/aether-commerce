@@ -1,6 +1,7 @@
-import { OBSERVABILITY_EVENTS } from "@aether/core";
+import { canTransitionOrder, OBSERVABILITY_EVENTS } from "@aether/core";
 import type { CheckoutProviderId, PaidCheckoutSession } from "@aether/api-core";
-import type { Address, Cart, CartItem } from "@aether/schemas";
+import { orderStateSchema } from "@aether/schemas";
+import type { Address, Cart, CartItem, OrderState } from "@aether/schemas";
 import type { Env } from "../types";
 import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
@@ -289,4 +290,72 @@ export async function createManualOrder(
   await clearCatalogCache(env);
 
   return { order };
+}
+
+export type ChangeOrderStateError =
+  | "not_found"
+  | "invalid_current_state"
+  | "invalid_transition"
+  | "invalid_payload"
+  | "conflict";
+
+export type ChangeOrderStateResult =
+  | { ok: true; previousState: OrderState; state: OrderState; updatedAt: string }
+  | { ok: false; error: ChangeOrderStateError; previousState?: OrderState };
+
+export type ChangeOrderStateActor = {
+  actorId: string;
+  reason?: string | undefined;
+  requestId: string;
+};
+
+// Shared by the admin PATCH /orders/:id/status route and the customer-facing
+// cancel/return/refund-request routes in user.ts - both need the exact same
+// canTransitionOrder check, order_status_history insert, and optimistic-
+// concurrency orders update, just with different actors and callers deciding
+// what "not found" or "invalid transition" means for their own response shape.
+export async function changeOrderState(
+  env: Env,
+  orderId: string,
+  targetState: OrderState,
+  actor: ChangeOrderStateActor
+): Promise<ChangeOrderStateResult> {
+  const current = await env.DB.prepare("select state, payload_json from orders where id = ?")
+    .bind(orderId)
+    .first<{ state: string; payload_json: string }>();
+  if (!current) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const currentState = orderStateSchema.safeParse(current.state);
+  if (!currentState.success) {
+    return { ok: false, error: "invalid_current_state" };
+  }
+  if (!canTransitionOrder(currentState.data, targetState)) {
+    return { ok: false, error: "invalid_transition", previousState: currentState.data };
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(current.payload_json) as Record<string, unknown>;
+  } catch {
+    return { ok: false, error: "invalid_payload", previousState: currentState.data };
+  }
+
+  const updatedAt = new Date().toISOString();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
+       select ?, id, state, ?, ?, ?, ? from orders where id = ? and state = ?`
+    ).bind(crypto.randomUUID(), targetState, actor.actorId, actor.reason ?? null, actor.requestId, orderId, currentState.data),
+    env.DB.prepare(
+      "update orders set state = ?, payload_json = ?, updated_at = CURRENT_TIMESTAMP where id = ? and state = ?"
+    ).bind(targetState, JSON.stringify({ ...payload, state: targetState, updatedAt }), orderId, currentState.data)
+  ]);
+
+  if ((results[1]?.meta.changes ?? 0) !== 1) {
+    return { ok: false, error: "conflict", previousState: currentState.data };
+  }
+
+  return { ok: true, previousState: currentState.data, state: targetState, updatedAt };
 }

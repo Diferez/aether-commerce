@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cart } from "@aether/schemas";
 import type { PaidCheckoutSession } from "@aether/api-core";
 import type { Env } from "../types";
-import { createManualOrder, createOrderFromPaidSession } from "./orders";
+import { changeOrderState, createManualOrder, createOrderFromPaidSession } from "./orders";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -50,7 +50,7 @@ function fakeEnv(responses: QueuedResponse[] = []) {
         })
       };
     }),
-    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true }))))
+    batch: vi.fn((stmts: unknown[]) => Promise.resolve(stmts.map(() => ({ success: true, meta: { changes: 1 } }))))
   };
   return { env: { DB: db } as unknown as Env, db, statements };
 }
@@ -340,5 +340,48 @@ describe("createOrderFromPaidSession", () => {
         "stripe"
       )
     ).rejects.toThrow("immutable checkout metadata");
+  });
+});
+
+describe("changeOrderState", () => {
+  it("returns not_found when the order does not exist", async () => {
+    const { env } = fakeEnv([{ first: null }]);
+    const result = await changeOrderState(env, "ord_missing", "cancelled", { actorId: "usr_1", requestId: "req_1" });
+    expect(result).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("returns invalid_transition without writing anything when the target state isn't reachable", async () => {
+    const { env, db } = fakeEnv([{ first: { state: "cancelled", payload_json: "{}" } }]);
+    const result = await changeOrderState(env, "ord_1", "paid", { actorId: "usr_1", requestId: "req_1" });
+    expect(result).toEqual({ ok: false, error: "invalid_transition", previousState: "cancelled" });
+    expect(db.batch).not.toHaveBeenCalled();
+  });
+
+  it("returns invalid_payload when the stored payload_json can't be parsed", async () => {
+    const { env } = fakeEnv([{ first: { state: "paid", payload_json: "not json" } }]);
+    const result = await changeOrderState(env, "ord_1", "processing", { actorId: "usr_1", requestId: "req_1" });
+    expect(result).toEqual({ ok: false, error: "invalid_payload", previousState: "paid" });
+  });
+
+  it("returns conflict when the order state changed between the read and the write", async () => {
+    const { env, db } = fakeEnv([{ first: { state: "paid", payload_json: JSON.stringify({ state: "paid" }) } }]);
+    db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 0 } }]);
+    const result = await changeOrderState(env, "ord_1", "processing", { actorId: "usr_1", requestId: "req_1" });
+    expect(result).toEqual({ ok: false, error: "conflict", previousState: "paid" });
+  });
+
+  it("transitions the order and records status history when the move is legal", async () => {
+    const { env, db } = fakeEnv([{ first: { state: "paid", payload_json: JSON.stringify({ state: "paid" }) } }]);
+    db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 1 } }]);
+
+    const result = await changeOrderState(env, "ord_1", "processing", { actorId: "usr_1", reason: "customer_cancel", requestId: "req_1" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.previousState).toBe("paid");
+      expect(result.state).toBe("processing");
+    }
+    const batchStatements = db.batch.mock.calls[0]?.[0] as Array<{ sql: string; args: unknown[] }> | undefined;
+    expect(batchStatements?.[0]?.sql).toContain("insert into order_status_history");
   });
 });
