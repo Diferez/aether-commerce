@@ -43,7 +43,11 @@ export async function sendContactEmail(env: Env, message: ContactMessage) {
   });
 }
 
-export async function sendOrderEmail(env: Env, order: Order) {
+// Only the 3 fields the template actually needs, not the full Order record -
+// every call site below already has these on hand (either a freshly built
+// order object, or a fresh DB row) without also having to reassemble a
+// complete, schema-valid Order just to send a status email.
+export async function sendOrderEmail(env: Env, order: Pick<Order, "email" | "number" | "state">) {
   return send(env, {
     to: order.email,
     subject: `Aether order ${order.number}`,

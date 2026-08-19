@@ -152,6 +152,8 @@ type IntentName =
   | "CANCEL_ORDER"
   | "REQUEST_RETURN"
   | "REQUEST_REFUND"
+  | "GET_PRODUCT_REVIEWS"
+  | "SUBMIT_REVIEW"
   | "GENERAL_STORE_QUESTION"
   | "UNSUPPORTED";
 
@@ -1729,6 +1731,63 @@ async function removeFavorite(
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+type ProductReview = { id: string; rating: number; title: string; body: string; created_at: string };
+
+type ProductReviewsResult = { status: "ok"; reviews: ProductReview[] } | { status: "unavailable" };
+
+// GET /products/:id/reviews (routes/public.ts) - no auth needed, only
+// approved reviews come back (moderation-filtered server-side, same feed
+// ReviewsSection.tsx renders on the product page).
+async function fetchProductReviews(env: Env, productId: string): Promise<ProductReviewsResult> {
+  try {
+    const response = await apiFetch(
+      env,
+      new URL(`/api/v1/products/${encodeURIComponent(productId)}/reviews`, env.AETHER_API_BASE_URL),
+      undefined,
+      5000
+    );
+    if (!response.ok) return { status: "unavailable" };
+    const payload = await response.json<{ success?: boolean; data?: unknown[] }>();
+    if (!payload.success || !Array.isArray(payload.data)) return { status: "unavailable" };
+    return { status: "ok", reviews: payload.data as ProductReview[] };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+type SubmitReviewResult = "ok" | "auth_required" | "disabled" | "invalid" | "unavailable";
+
+// POST /products/:id/reviews (routes/user.ts) - 401 means signed out, 403
+// means the admin's reviews.enabled toggle is off (REVIEWS_DISABLED), 400
+// means the rating/title/body failed the route's own zod validation. Every
+// submitted review lands in the same pending-moderation queue the product
+// page's own form feeds - nothing here bypasses that.
+async function submitProductReview(
+  env: Env,
+  authorization: string,
+  productId: string,
+  input: { rating: number; title: string; body: string }
+): Promise<SubmitReviewResult> {
+  try {
+    const response = await apiFetch(
+      env,
+      new URL(`/api/v1/products/${encodeURIComponent(productId)}/reviews`, env.AETHER_API_BASE_URL),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization },
+        body: JSON.stringify(input)
+      },
+      5000
+    );
+    if (response.status === 401) return "auth_required";
+    if (response.status === 403) return "disabled";
+    if (response.status === 400 || response.status === 422) return "invalid";
+    return response.ok ? "ok" : "unavailable";
+  } catch {
+    return "unavailable";
   }
 }
 
@@ -3736,6 +3795,172 @@ const checkVariantAvailabilityTool = defineAssistantTool({
   }
 });
 
+const productReviewLookupSchema = z.object({
+  product_query: z
+    .string()
+    .max(80)
+    .optional()
+    .describe("The product to get reviews for, if named"),
+  use_current_page_product: z
+    .boolean()
+    .optional()
+    .describe("True if the shopper means the product they are currently viewing")
+});
+
+async function resolveReviewTargetProduct(
+  ctx: AgentGraphData,
+  args: z.infer<typeof productReviewLookupSchema>
+): Promise<{ product: AssistantProduct | null; ambiguous: boolean }> {
+  const { product, ambiguous } = await resolveOneProduct(ctx, args.product_query || "");
+  const contextProduct = args.use_current_page_product
+    ? await currentContextProduct(ctx.env, ctx.body)
+    : null;
+  return { product: contextProduct || product, ambiguous };
+}
+
+function productNotFoundOutcome(
+  ctx: AgentGraphData,
+  intent: "GET_PRODUCT_REVIEWS" | "SUBMIT_REVIEW",
+  ambiguous: boolean
+): [string, ToolArtifact] {
+  return toolOutcome(
+    localize(ctx.language, {
+      es: ambiguous ? "Encontre varias opciones. Dime cual te interesa." : "No encontre ese producto.",
+      en: ambiguous ? "I found multiple options. Tell me which one you mean." : "I could not find that product.",
+      fr: ambiguous ? "J'ai trouve plusieurs options. Dites-moi laquelle." : "Je n'ai pas trouve ce produit.",
+      it: ambiguous ? "Ho trovato piu opzioni. Dimmi quale." : "Non ho trovato quel prodotto."
+    }),
+    intent,
+    "ASK_CLARIFICATION",
+    "PENDING"
+  );
+}
+
+const getProductReviewsTool = defineAssistantTool({
+  name: "get_product_reviews",
+  description:
+    "Gets a real product's approved reviews (rating average, count, and a few snippets). Only ever reports reviews this tool actually returned - never invent a rating or review text.",
+  schema: productReviewLookupSchema,
+  intent: "GET_PRODUCT_REVIEWS",
+  run: async (args, ctx) => {
+    const { product, ambiguous } = await resolveReviewTargetProduct(ctx, args);
+    if (!product) return productNotFoundOutcome(ctx, "GET_PRODUCT_REVIEWS", ambiguous);
+
+    const result = await fetchProductReviews(ctx.env, product.product_id);
+    await auditGraphAction(
+      ctx,
+      "get_product_reviews",
+      product.product_id,
+      product.product_id,
+      "allowed",
+      result.status === "ok" ? "succeeded" : "failed",
+      result.status === "ok" ? null : result.status
+    );
+    if (result.status !== "ok") {
+      return toolOutcome(localize(ctx.language, TOOL_ERROR_MESSAGES), "GET_PRODUCT_REVIEWS", "ASK_CLARIFICATION", "FAILED");
+    }
+    if (result.reviews.length === 0) {
+      const message = localize(ctx.language, {
+        es: `${product.name} todavia no tiene reseñas.`,
+        en: `${product.name} has no reviews yet.`,
+        fr: `${product.name} n'a pas encore d'avis.`,
+        it: `${product.name} non ha ancora recensioni.`
+      });
+      return toolOutcome(message, "GET_PRODUCT_REVIEWS", "PRODUCTS_LISTED", "SUCCEEDED", { products: [product] });
+    }
+    const average = result.reviews.reduce((sum, review) => sum + review.rating, 0) / result.reviews.length;
+    const message = localize(ctx.language, {
+      es: `${product.name} tiene ${result.reviews.length} reseña(s), promedio ${average.toFixed(1)}/5.`,
+      en: `${product.name} has ${result.reviews.length} review(s), averaging ${average.toFixed(1)}/5.`,
+      fr: `${product.name} a ${result.reviews.length} avis, moyenne ${average.toFixed(1)}/5.`,
+      it: `${product.name} ha ${result.reviews.length} recensione/i, media ${average.toFixed(1)}/5.`
+    });
+    // The model sees a few real snippets (so it can quote or summarize them
+    // if asked "what do reviews say") - the shopper-facing message stays a
+    // short summary; the two are split via toolOutcome's modelContent param.
+    const snippets = result.reviews
+      .slice(0, 3)
+      .map((review) => `${review.rating}/5 "${review.title}": ${review.body}`)
+      .join(" | ");
+    return toolOutcome(message, "GET_PRODUCT_REVIEWS", "PRODUCTS_LISTED", "SUCCEEDED", { products: [product] }, `${message} ${snippets}`);
+  }
+});
+
+const submitReviewSchema = productReviewLookupSchema.extend({
+  rating: z.number().int().min(1).max(5).describe("Star rating, 1-5"),
+  title: z.string().min(3).max(120).describe("A short review title"),
+  body: z.string().min(10).max(1200).describe("The review text")
+});
+
+const submitReviewTool = defineAssistantTool({
+  name: "submit_review",
+  description:
+    "Submits a product review (rating, title, and text) on the signed-in shopper's behalf. The review goes into a moderation queue, not published immediately. Only call this once the shopper has given a real rating (1-5), a title, and review text - if any of those is missing, ask for it instead of calling this tool with a guessed or placeholder value.",
+  schema: submitReviewSchema,
+  intent: "SUBMIT_REVIEW",
+  requires: { bearer: true, mutation: true },
+  run: async (args, ctx) => {
+    const { product, ambiguous } = await resolveReviewTargetProduct(ctx, args);
+    if (!product) return productNotFoundOutcome(ctx, "SUBMIT_REVIEW", ambiguous);
+
+    const result = await submitProductReview(ctx.env, ctx.authorization, product.product_id, {
+      rating: args.rating,
+      title: args.title,
+      body: args.body
+    });
+    const normalized = `product:${product.product_id}:review:${args.rating}:${args.title}`;
+    await auditGraphAction(
+      ctx,
+      "submit_review",
+      normalized,
+      product.product_id,
+      result === "ok" ? "allowed" : "denied",
+      result === "ok" ? "succeeded" : "failed",
+      result === "ok" ? null : result
+    );
+
+    if (result === "auth_required") {
+      return toolOutcome(localize(ctx.language, SIGN_IN_REQUIRED_MESSAGES), "SUBMIT_REVIEW", "SIGN_IN_REQUIRED", "FAILED");
+    }
+    if (result === "disabled") {
+      return toolOutcome(
+        localize(ctx.language, {
+          es: "Las reseñas estan desactivadas en esta tienda por ahora.",
+          en: "Reviews are currently disabled for this store.",
+          fr: "Les avis sont actuellement desactives pour cette boutique.",
+          it: "Le recensioni sono attualmente disattivate per questo negozio."
+        }),
+        "SUBMIT_REVIEW",
+        "ASK_CLARIFICATION",
+        "FAILED"
+      );
+    }
+    if (result === "invalid") {
+      return toolOutcome(
+        localize(ctx.language, {
+          es: "Necesito una calificacion de 1 a 5, un titulo y un texto de reseña validos.",
+          en: "I need a valid 1-5 rating, title, and review text.",
+          fr: "J'ai besoin d'une note de 1 a 5, d'un titre et d'un texte d'avis valides.",
+          it: "Ho bisogno di una valutazione da 1 a 5, un titolo e un testo di recensione validi."
+        }),
+        "SUBMIT_REVIEW",
+        "ASK_CLARIFICATION",
+        "FAILED"
+      );
+    }
+    if (result !== "ok") {
+      return toolOutcome(localize(ctx.language, TOOL_ERROR_MESSAGES), "SUBMIT_REVIEW", "ASK_CLARIFICATION", "FAILED");
+    }
+    const message = localize(ctx.language, {
+      es: `Gracias. Envie tu reseña de ${product.name} para aprobacion.`,
+      en: `Thanks. I submitted your review of ${product.name} for approval.`,
+      fr: `Merci. J'ai soumis votre avis sur ${product.name} pour approbation.`,
+      it: `Grazie. Ho inviato la tua recensione di ${product.name} per l'approvazione.`
+    });
+    return toolOutcome(message, "SUBMIT_REVIEW", "REVIEW_SUBMITTED", "SUCCEEDED", { products: [product] });
+  }
+});
+
 const assistantTools = [
   getCartTool,
   checkoutGuidanceTool,
@@ -3757,7 +3982,9 @@ const assistantTools = [
   applyCouponTool,
   cancelOrderTool,
   requestReturnTool,
-  requestRefundTool
+  requestRefundTool,
+  getProductReviewsTool,
+  submitReviewTool
 ];
 
 const AGENT_SYSTEM_PROMPT_BY_LANGUAGE: Record<AssistantLanguage, string> = {
@@ -4469,6 +4696,8 @@ const HEURISTIC_INTENT_PRECONDITIONS: Record<IntentName, ToolPreconditions> = {
   CANCEL_ORDER: { bearer: true, mutation: true },
   REQUEST_RETURN: { bearer: true, mutation: true },
   REQUEST_REFUND: { bearer: true, mutation: true },
+  GET_PRODUCT_REVIEWS: {},
+  SUBMIT_REVIEW: { bearer: true, mutation: true },
   GENERAL_STORE_QUESTION: {},
   UNSUPPORTED: {}
 };

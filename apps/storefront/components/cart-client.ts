@@ -100,8 +100,8 @@ function cartMutationHeaders(token: string) {
   };
 }
 
-function productToCartItem(product: Product): CartItem {
-  const variant = product.variants[0];
+function productToCartItem(product: Product, variantId?: string): CartItem {
+  const variant = (variantId ? product.variants.find((candidate) => candidate.id === variantId) : undefined) ?? product.variants[0];
   const finalUnitPrice = product.finalPrice + (variant?.priceDelta ?? 0);
 
   return {
@@ -154,8 +154,8 @@ export function readLocalCart(cartId = getCartId()): Cart {
   };
 }
 
-function saveLocalCartItem(product: Product) {
-  const item = productToCartItem(product);
+function saveLocalCartItem(product: Product, variantId?: string) {
+  const item = productToCartItem(product, variantId);
   const items = readLocalItems();
   const existing = items.find((candidate) => candidate.productId === item.productId && candidate.variantId === item.variantId);
   const nextItems = existing
@@ -229,9 +229,9 @@ export async function removeProductFromCart(itemId: string) {
   }
 }
 
-export async function addProductToCart(product: Product) {
-  const item = productToCartItem(product);
-  saveLocalCartItem(product);
+export async function addProductToCart(product: Product, variantId?: string) {
+  const item = productToCartItem(product, variantId);
+  saveLocalCartItem(product, variantId);
 
   try {
     const { cartId, token } = await getCartCredentials();

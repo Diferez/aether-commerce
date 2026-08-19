@@ -6,6 +6,7 @@ import { writeAuditLog } from "../../audit";
 import { createRefund } from "../../stripe";
 import { buildRestockStatements } from "../../inventory";
 import { clearCatalogCache } from "../../catalog";
+import { sendOrderEmail } from "../../email";
 import type { ActionDiff } from "../artifacts";
 import type { PendingActionExecutor } from "../executors";
 import type { AdminChatContext } from "../context";
@@ -16,11 +17,13 @@ type OrderRefundRow = {
   payload_json: string;
   total: number;
   stock_restored_at: string | null;
+  email: string;
+  number: string;
 };
 
 async function loadOrderForRefund(db: D1Database, orderIdOrNumber: string): Promise<{ id: string; row: OrderRefundRow } | null> {
   const row = await db
-    .prepare("select id, channel, payment_status, payload_json, total, stock_restored_at from orders where id = ? or upper(number) = upper(?)")
+    .prepare("select id, channel, payment_status, payload_json, total, stock_restored_at, email, number from orders where id = ? or upper(number) = upper(?)")
     .bind(orderIdOrNumber, orderIdOrNumber)
     .first<OrderRefundRow & { id: string }>();
   if (!row) return null;
@@ -113,7 +116,7 @@ export const prepareRefundOrderTool = defineAdminChatTool({
 export const executeRefundOrder: PendingActionExecutor = async (ctx, params) => {
   const { orderId, amountCents, reason } = params as { orderId: string; amountCents?: number; reason?: string };
   const current = await ctx.env.DB.prepare(
-    "select channel, payment_status, payload_json, total, stock_restored_at from orders where id = ?"
+    "select channel, payment_status, payload_json, total, stock_restored_at, email, number from orders where id = ?"
   )
     .bind(orderId)
     .first<OrderRefundRow>();
@@ -153,6 +156,7 @@ export const executeRefundOrder: PendingActionExecutor = async (ctx, params) => 
       targetId: orderId,
       payload: { paymentStatus: nextStatus, amountCents: amountCents ?? current.total, stripeRefundId: refund.id, source: "admin_chat" }
     });
+    await sendOrderEmail(ctx.env, { email: current.email, number: current.number, state: nextStatus }).catch(() => {});
     return { success: true, result: { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id } };
   } catch (error) {
     return { success: false, code: "STRIPE_REFUND_FAILED", message: error instanceof Error ? error.message : pick(ctx.language, "Stripe refund failed.", "El reembolso de Stripe falló.") };

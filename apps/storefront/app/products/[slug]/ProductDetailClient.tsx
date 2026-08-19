@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { Heart, MessageCircle, Minus, Plus, ShoppingBag, Star } from "lucide-react";
+import { Heart, MessageCircle, Minus, Plus, Scale, ShoppingBag, Star } from "lucide-react";
 import type { BrandSettings } from "@aether/core";
 import type { Product } from "@aether/schemas";
 import { formatUsd } from "@aether/core";
@@ -13,6 +13,7 @@ import { addProductToCart } from "../../../components/cart-client";
 import { useCustomerSession } from "../../../components/customer-client";
 import { demoProducts } from "../../../components/demo-products";
 import { readFavoriteProducts, toggleFavoriteProduct } from "../../../components/favorites-client";
+import { isCompareProduct, toggleCompareProduct } from "../../../components/compare-client";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { ProductGrid } from "../../../components/ProductGrid";
 import { getLocalizedProduct } from "../../../components/product-localization";
@@ -30,8 +31,11 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   const [status, setStatus] = useState<"loading" | "demo" | "live" | "offline" | "not-found">("loading");
   const [isAdding, setIsAdding] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isCompared, setIsCompared] = useState(false);
+  const [compareNotice, setCompareNotice] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const checkoutOptions = useCheckoutOptions();
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const localized = product ? getLocalizedProduct(product, locale) : null;
@@ -103,6 +107,9 @@ export function ProductDetailClient({ slug }: { slug: string }) {
   useEffect(() => {
     if (!product) return;
     setIsFavorite(readFavoriteProducts(customer).some((candidate) => candidate.id === product.id));
+    setIsCompared(isCompareProduct(product.id));
+    setCompareNotice(null);
+    setSelectedVariantId(product.variants[0]?.id ?? null);
   }, [product, customer]);
 
   async function addToCart() {
@@ -110,7 +117,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
     setIsAdding(true);
     try {
       for (let i = 0; i < quantity; i += 1) {
-        await addProductToCart(product);
+        await addProductToCart(product, selectedVariantId ?? undefined);
       }
       // Open the quick-view drawer instead of navigating to /cart - confirms
       // the add without pulling the shopper off the product page they're
@@ -125,6 +132,17 @@ export function ProductDetailClient({ slug }: { slug: string }) {
     if (!product) return;
     const result = toggleFavoriteProduct(product, customer);
     setIsFavorite(result === "added");
+  }
+
+  function toggleCompare() {
+    if (!product) return;
+    const result = toggleCompareProduct(product);
+    if (result === "full") {
+      setCompareNotice(t.compareFull);
+      return;
+    }
+    setCompareNotice(null);
+    setIsCompared(result === "added");
   }
 
   function handleRelatedProductOpen(event: MouseEvent<HTMLAnchorElement>, nextProduct: Product) {
@@ -257,6 +275,34 @@ export function ProductDetailClient({ slug }: { slug: string }) {
               ) : null}
             </dl>
 
+            {product.variants.length > 0 ? (
+              <div className="mt-5">
+                <span className="text-sm font-medium text-zinc-950">{product.variants[0]?.name}</span>
+                <div
+                  className="mt-2 flex flex-wrap gap-2"
+                  role="radiogroup"
+                  aria-label={product.variants[0]?.name}
+                >
+                  {product.variants.map((variant) => (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedVariantId === variant.id}
+                      onClick={() => setSelectedVariantId(variant.id)}
+                      className={`focus-ring min-h-9 rounded-md border px-3 text-sm font-semibold ${
+                        selectedVariantId === variant.id
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {variant.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {!outOfStock ? (
               <div className="mt-5 flex items-center gap-2">
                 <span className="text-sm font-medium text-zinc-950">{t.quantity}</span>
@@ -304,7 +350,19 @@ export function ProductDetailClient({ slug }: { slug: string }) {
               >
                 <Heart size={17} fill={isFavorite ? "currentColor" : "none"} aria-hidden />
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={toggleCompare}
+                aria-pressed={isCompared}
+                title={isCompared ? t.removeFromCompare : t.addToCompare}
+                aria-label={isCompared ? t.removeFromCompare : t.addToCompare}
+                className={isCompared ? "!border-accent !bg-accent-soft !text-accent" : undefined}
+              >
+                <Scale size={17} aria-hidden />
+              </Button>
             </div>
+            {compareNotice ? <p className="mt-2 text-sm text-danger">{compareNotice}</p> : null}
 
             {(product.shippingInformation || product.warrantyInformation || product.returnPolicy) ? (
               <dl className="mt-6 grid gap-2 border-t border-zinc-200 pt-5 text-sm">

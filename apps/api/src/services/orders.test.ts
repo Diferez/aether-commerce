@@ -307,6 +307,25 @@ describe("createOrderFromPaidSession", () => {
     expect((result.order as { shippingAddress: unknown }).shippingAddress).toEqual(realAddress);
   });
 
+  it("sends the shopper a real order-confirmation email when Resend is configured", async () => {
+    await mockActiveSnapshot();
+    const originalFetch = global.fetch;
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const { env } = fakeEnv([{ first: null }, { all: [{ id: "prd_1", sku: "SKU-1" }] }]);
+    try {
+      await createOrderFromPaidSession({ ...env, RESEND_API_KEY: "re_test" } as unknown as Env, paidSession(), "stripe");
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(fetchSpy).toHaveBeenCalledWith("https://api.resend.com/emails", expect.any(Object));
+    const body = JSON.parse((fetchSpy.mock.calls[0] as unknown as [string, RequestInit])[1].body as string) as { to: string; subject: string; html: string };
+    expect(body.to).toBe("customer@example.com");
+    expect(body.html).toContain("paid");
+  });
+
   it("falls back to the sandbox placeholder address when the cart never collected a real one (e.g. shipping was disabled)", async () => {
     await mockActiveSnapshot(fakeCart());
 
@@ -383,5 +402,24 @@ describe("changeOrderState", () => {
     }
     const batchStatements = db.batch.mock.calls[0]?.[0] as Array<{ sql: string; args: unknown[] }> | undefined;
     expect(batchStatements?.[0]?.sql).toContain("insert into order_status_history");
+  });
+
+  it("emails the shopper the new status when Resend is configured", async () => {
+    const { env, db } = fakeEnv([{ first: { state: "paid", payload_json: JSON.stringify({ number: "AETH-1" }), email: "shopper@example.com" } }]);
+    db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 1 } }]);
+    const originalFetch = global.fetch;
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    try {
+      await changeOrderState({ ...env, RESEND_API_KEY: "re_test" } as unknown as Env, "ord_1", "processing", { actorId: "usr_1", requestId: "req_1" });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    const body = JSON.parse((fetchSpy.mock.calls[0] as unknown as [string, RequestInit])[1].body as string) as { to: string; subject: string; html: string };
+    expect(body).toMatchObject({ to: "shopper@example.com" });
+    expect(body.subject).toContain("AETH-1");
+    expect(body.html).toContain("processing");
   });
 });

@@ -22,6 +22,7 @@ import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import { createUploadSignature } from "../services/cloudinary";
 import { changeOrderState, createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
+import { sendOrderEmail } from "../services/email";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import { writeAuditLog } from "../services/audit";
@@ -579,10 +580,10 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
   const orderId = c.req.param("id");
   const body = c.req.valid("json");
   const order = await c.env.DB.prepare(
-    "select channel, payment_status, payload_json, total, stock_restored_at from orders where id = ?"
+    "select channel, payment_status, payload_json, total, stock_restored_at, email, number from orders where id = ?"
   )
     .bind(orderId)
-    .first<{ channel: string; payment_status: string; payload_json: string; total: number; stock_restored_at: string | null }>();
+    .first<{ channel: string; payment_status: string; payload_json: string; total: number; stock_restored_at: string | null; email: string; number: string }>();
   if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
   if (order.channel !== "stripe") {
     return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe orders can be refunded through Stripe.");
@@ -650,6 +651,7 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
       targetId: orderId,
       payload: { paymentStatus: nextStatus, amountCents: body.amountCents ?? order.total, stripeRefundId: refund.id }
     });
+    await sendOrderEmail(c.env, { email: order.email, number: order.number, state: nextStatus }).catch(() => {});
     return ok(c, { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id }, 201);
   } catch (error) {
     return fail(c, 500, "STRIPE_REFUND_FAILED", error instanceof Error ? error.message : "Stripe refund failed.");

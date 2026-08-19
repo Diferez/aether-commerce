@@ -2,11 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Heart, Menu, Search, Settings2, ShoppingCart, Sparkles, UserRound, X } from "lucide-react";
+import { ExternalLink, Heart, Menu, Scale, Search, Settings2, ShoppingCart, Sparkles, UserRound, X } from "lucide-react";
 import type { BrandSettings } from "@aether/core";
 import { Badge } from "@aether/ui";
 import { apiBaseUrl, portfolioUrl, storefrontPath } from "./config";
 import { readLocalCartItems } from "./cart-client";
+import { readCompareProducts } from "./compare-client";
 import { useCustomerSession } from "./customer-client";
 import { migrateGuestFavoritesToCustomer, readFavoriteProducts } from "./favorites-client";
 import { useLanguage } from "./LanguageProvider";
@@ -35,6 +36,7 @@ export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [favoriteCount, setFavoriteCount] = useState(0);
+  const [compareCount, setCompareCount] = useState(0);
   const [legacyNotice, setLegacyNotice] = useState(false);
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const initialQuery = useQueryParam("q");
@@ -113,6 +115,15 @@ export function SiteHeader() {
     syncCart();
     window.addEventListener("aether-cart-changed", syncCart);
     return () => window.removeEventListener("aether-cart-changed", syncCart);
+  }, []);
+
+  // Not customer-scoped (see compare-client.ts), so like the cart badge it
+  // can sync immediately too - no Clerk session to wait on.
+  useLayoutEffect(() => {
+    const syncCompare = () => setCompareCount(readCompareProducts().length);
+    syncCompare();
+    window.addEventListener("aether-compare-changed", syncCompare);
+    return () => window.removeEventListener("aether-compare-changed", syncCompare);
   }, []);
 
   // Favorites ARE customer-scoped (guest bucket vs. that customer's own
@@ -206,6 +217,16 @@ export function SiteHeader() {
                 the nav and shift everything after it. */}
             <Badge tone="accent" className={favoriteCount > 0 ? "" : "invisible"}>
               {favoriteCount}
+            </Badge>
+          </StorefrontLink>
+          <StorefrontLink
+            href="/compare"
+            className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
+            aria-label={t.compareProducts}
+          >
+            <Scale size={17} aria-hidden />
+            <Badge tone="accent" className={compareCount > 0 ? "" : "invisible"}>
+              {compareCount}
             </Badge>
           </StorefrontLink>
           <StorefrontLink
@@ -334,6 +355,17 @@ export function SiteHeader() {
                   {t.favorites}
                 </span>
                 {favoriteCount > 0 ? <Badge tone="accent">{favoriteCount}</Badge> : null}
+              </StorefrontLink>
+              <StorefrontLink
+                href="/compare"
+                onClick={() => setMenuOpen(false)}
+                className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Scale size={17} aria-hidden />
+                  {t.compareProducts}
+                </span>
+                {compareCount > 0 ? <Badge tone="accent">{compareCount}</Badge> : null}
               </StorefrontLink>
               <StorefrontLink
                 href="/cart"
