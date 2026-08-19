@@ -130,10 +130,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_OPERATIONS_TOKEN: ${{ secrets.AI_OPERATIONS_TOKEN }}
+          # Same passphrase apps/api uses to encrypt/decrypt the shared
+          # application_settings row - this Worker reads the same D1
+          # database (see scripts/write-ai-wrangler-config.mjs's
+          # d1_databases block) to resolve an admin-configured Gemini key
+          # before falling back to GEMINI_API_KEY above.
+          AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
         run: |
           umask 077
           trap 'rm -f .ai-secrets.json' EXIT
-          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
+          node -e "const fs=require('fs'); const keys=['GEMINI_API_KEY','AI_OPERATIONS_TOKEN','AETHER_SETTINGS_ENCRYPTION_KEY']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.ai-secrets.json', JSON.stringify(out));"
           pnpm exec wrangler secret bulk .ai-secrets.json --config apps/ai-assistant/wrangler.production.json
       - name: Deploy storefront Worker
         env:

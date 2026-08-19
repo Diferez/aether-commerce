@@ -15,6 +15,7 @@ import type {
   PendingWrite
 } from "@langchain/langgraph-checkpoint";
 import { z } from "zod";
+import { decryptSecret } from "@aether/core";
 
 declare global {
   interface SubtleCrypto {
@@ -39,6 +40,13 @@ type Env = {
   AI_MAX_INPUT_CHARACTERS?: string;
   AI_CONVERSATION_RETENTION_DAYS?: string;
   GEMINI_API_KEY?: string;
+  // Same passphrase apps/api uses to encrypt/decrypt the shared
+  // application_settings row (this Worker reads the same D1 database - see
+  // scripts/write-ai-wrangler-config.mjs's d1_databases block). Lets an
+  // admin-configured Gemini key (saved once in the admin panel's
+  // Integrations section) apply to both the admin chat and this storefront
+  // assistant, instead of only the former.
+  AETHER_SETTINGS_ENCRYPTION_KEY?: string;
   GEMINI_MODEL?: string;
   // Already configured in production (see docs/ai-assistant/) but never read
   // by any code path until the tool-calling agent's model-fallback: retried
@@ -168,6 +176,37 @@ type IntentResult = {
 
 const encoder = new TextEncoder();
 
+/**
+ * Resolves the effective Gemini API key: an admin-configured key stored in
+ * the shared application_settings row (same one apps/api's admin panel
+ * writes to via /admin/integration-settings) overrides the deploy-time
+ * GEMINI_API_KEY env var. Best-effort - any missing binding, missing
+ * passphrase, absent row, or decrypt failure falls back to the env var
+ * rather than breaking the assistant.
+ */
+async function resolveGeminiApiKey(env: Env): Promise<string | undefined> {
+  if (!env.DB || !env.AETHER_SETTINGS_ENCRYPTION_KEY) return env.GEMINI_API_KEY;
+  try {
+    const row = await env.DB.prepare("select value_json from application_settings where key = 'integrations'").first<{
+      value_json: string;
+    }>();
+    const encrypted = row ? (JSON.parse(row.value_json) as { gemini?: { apiKey?: string } }).gemini?.apiKey : undefined;
+    if (!encrypted) return env.GEMINI_API_KEY;
+    return await decryptSecret(env.AETHER_SETTINGS_ENCRYPTION_KEY, encrypted);
+  } catch (error) {
+    console.error("Could not resolve admin-configured Gemini key; falling back to env var", {
+      error: error instanceof Error ? error.name : "unknown"
+    });
+    return env.GEMINI_API_KEY;
+  }
+}
+
+/** Overrides GEMINI_API_KEY on env with the resolved effective key, so every existing `env.GEMINI_API_KEY` read downstream sees the right value without each call site needing to await resolution itself. */
+async function withResolvedGeminiKey(env: Env): Promise<Env> {
+  const apiKey = await resolveGeminiApiKey(env);
+  return apiKey === env.GEMINI_API_KEY ? env : { ...env, ...(apiKey !== undefined ? { GEMINI_API_KEY: apiKey } : {}) };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
@@ -215,7 +254,7 @@ export default {
         .toLowerCase()
         .startsWith("es");
       try {
-        return json(request, env, await handleAssistant(request, env));
+        return json(request, env, await handleAssistant(request, await withResolvedGeminiKey(env)));
       } catch (error) {
         // Without this, an exhausted model+fallback (or any other uncaught
         // error) propagates out of fetch() unhandled - Cloudflare renders its
@@ -253,7 +292,7 @@ export default {
       if (limit) return json(request, env, limit.payload, limit.status);
       const slot = await acquireConcurrencySlot(request, env);
       if (!slot.ok) return json(request, env, slot.result.payload, slot.result.status);
-      return streamAssistant(request, env, () => releaseConcurrencySlot(env, slot.id));
+      return streamAssistant(request, await withResolvedGeminiKey(env), () => releaseConcurrencySlot(env, slot.id));
     }
     const conversationMatch = url.pathname.match(/^\/v1\/assistant\/conversations\/([^/]+)$/);
     if (conversationMatch && request.method === "GET") {

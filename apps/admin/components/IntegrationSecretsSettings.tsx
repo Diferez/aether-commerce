@@ -235,9 +235,9 @@ function IntegrationSettingsBody({ status, summary, onSaved }: Readonly<{ status
       <ApiKeyForm field="resend" title="Resend (email)" placeholder="re_..." summary={summary.resend} onSaved={onSaved} />
       <ApiKeyForm
         field="gemini"
-        title="Gemini (admin chat)"
+        title="Gemini (AI assistants)"
         placeholder="AIza..."
-        helpText="Only the admin chat assistant reads this key. The storefront's own AI assistant is a separate deployment with its own key."
+        helpText="Used by both the admin chat assistant and the storefront's own AI assistant."
         summary={summary.gemini}
         onSaved={onSaved}
       />

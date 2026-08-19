@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { encryptSecret } from "@aether/core";
 import type { Env } from "../../types";
 import { isGeminiQuotaError, resolveChatModelChain } from "./index";
-import { encryptSecret } from "../settings-crypto";
 
 // resolveChatModelChain resolves the effective Gemini key via
 // integration-settings.ts (D1-backed, admin-managed settings layered over

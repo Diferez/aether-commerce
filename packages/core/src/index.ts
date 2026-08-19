@@ -12,4 +12,5 @@ export * from "./order-state";
 export * from "./orders";
 export * from "./rbac";
 export * from "./redact";
+export * from "./settings-crypto";
 export * from "./shipping";

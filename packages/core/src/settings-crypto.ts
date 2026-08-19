@@ -1,3 +1,11 @@
+// Generic Web Crypto (AES-GCM) helpers for encrypting admin-managed secrets
+// at rest - no Cloudflare- or apps/api-specific dependency, which is exactly
+// why this lives in the shared platform package rather than one app's own
+// services/ directory: apps/api's checkout/integration settings and
+// apps/ai-assistant's own Gemini-key resolution (a separate Worker
+// deployment, reading the same D1-backed application_settings row) both
+// need the identical encrypt/decrypt scheme to agree on ciphertext.
+
 const AES_GCM_IV_BYTES = 12;
 
 async function deriveAesKey(passphrase: string): Promise<CryptoKey> {

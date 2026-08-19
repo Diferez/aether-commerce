@@ -52,15 +52,19 @@
   `AETHER_SETTINGS_ENCRYPTION_KEY`, same masked-preview/never-plaintext admin
   API, same decrypt-failure-falls-back-to-env-var behavior
   (`services/integration-settings.ts`).
-- Covers `RESEND_API_KEY` (transactional email), `GEMINI_API_KEY` (the admin
-  chat assistant only), and `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/
-  `CLOUDINARY_API_SECRET` (product image uploads) - every secret `aether-api`
-  itself reads at request time.
-- Deliberately **not** covered, for two different architectural reasons:
-  - `apps/ai-assistant`'s own `GEMINI_API_KEY` - a separate Worker
-    deployment with no D1 binding of its own; making it admin-configurable
-    would need either its own binding or a cross-Worker fetch on every chat
-    turn, not just a settings form.
+- Covers `RESEND_API_KEY` (transactional email), `GEMINI_API_KEY` (both the
+  admin chat assistant and the storefront's own AI assistant), and
+  `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET`
+  (product image uploads) - every secret `aether-api` itself reads at
+  request time.
+- `apps/ai-assistant` is a separate Worker deployment, but it gets a real D1
+  binding at deploy time (`scripts/write-ai-wrangler-config.mjs`) pointing at
+  the same physical database `aether-api` uses, so it reads the same
+  encrypted `application_settings` row directly (`worker.ts`'s
+  `resolveGeminiApiKey`) rather than needing its own settings form or a
+  cross-Worker fetch. It needs its own copy of
+  `AETHER_SETTINGS_ENCRYPTION_KEY` as a deploy secret to decrypt it.
+- Deliberately **not** covered:
   - `NEXT_PUBLIC_SENTRY_DSN` (admin/storefront) and `aether-api`'s own
     `SENTRY_DSN` - the former is inlined into the static-export bundle at
     build time (no server to read a runtime override from); the latter is

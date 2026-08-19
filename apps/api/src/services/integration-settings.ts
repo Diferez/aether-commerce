@@ -1,6 +1,6 @@
 import { IntegrationSecretsService, type IntegrationSecrets, type IntegrationSecretsRepository } from "@aether/api-core";
+import { decryptSecret, encryptSecret } from "@aether/core";
 import type { Env } from "../types";
-import { decryptSecret, encryptSecret } from "./settings-crypto";
 
 type StoredIntegrationSecrets = {
   resend?: { apiKey?: string };

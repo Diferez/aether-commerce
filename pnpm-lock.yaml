@@ -147,6 +147,9 @@ importers:
 
   apps/ai-assistant:
     dependencies:
+      '@aether/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@langchain/core':
         specifier: 1.2.5
         version: 1.2.5
