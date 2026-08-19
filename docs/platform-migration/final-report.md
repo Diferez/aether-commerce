@@ -4,6 +4,28 @@
 > remaining items under **Deliberate remaining debt** are explicit deployment
 > and legacy-runtime boundaries, not regressions in the reference store.
 
+> **Update (post-main-merge):** this report describes the state right after
+> the platform migration itself. `develop` has since absorbed 62 commits from
+> `main` that had shipped independently and were already in production (a
+> full admin-panel rebuild, the "Aether Chat" admin agent, WhatsApp checkout,
+> checkout-snapshot integrity checks, Cloudinary uploads). Two things below
+> are no longer accurate as a result: (1) the Python/LangGraph container
+> described throughout this report was fully removed (superseded by a
+> TypeScript LangGraph.js Worker) - see `docs/platform/agent-extension.md`
+> for the current state; (2) `api-core`'s "product overrides" and
+> "administration reads" ports (line 29, 91 below) are no longer what the
+> reference app demonstrates - `apps/api/src/routes/admin.ts` now uses
+> direct D1 queries and main's dedicated services instead, since the
+> reference store's product architecture moved off the dummyjson+override
+> model these ports were built for. The packages still export those classes
+> as reusable library surface (unused, not broken) - see
+> `docs/platform/package-boundaries.md` for the current, accurate picture.
+> `database/core/client-migrations.manifest.json` (line 33 below) has also
+> been updated since - it now includes the 11 additional schema migrations
+> main's merge introduced (products table, checkout snapshots, order
+> channel/status columns, inventory reservations, admin-chat tables,
+> observability columns), not just the original four.
+
 ## Previous architecture
 
 The repository was a demo-focused pnpm monorepo. Shared packages were private,
