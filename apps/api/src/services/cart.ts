@@ -1,5 +1,13 @@
+import {
+  createCartItem,
+  createEmptyCart,
+  withCartItem,
+  withCartItemQuantity,
+  withCoupon,
+  withoutCartItem
+} from "@aether/api-core";
 import { calculateCartTotals } from "@aether/core";
-import type { Cart, CartItem, CartItemInput, Coupon } from "@aether/schemas";
+import type { Cart, CartItemInput, Coupon } from "@aether/schemas";
 import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
 
@@ -37,7 +45,7 @@ export async function readCart(env: Env, id: string): Promise<Cart> {
   }>();
 
   if (!row) {
-    return emptyCart(id);
+    return createEmptyCart(id);
   }
 
   return JSON.parse(row.payload_json) as Cart;
@@ -65,67 +73,24 @@ export async function addItem(env: Env, cartId: string, input: CartItemInput): P
     throw new Error("Product not found");
   }
 
-  const variant = input.variantId
-    ? product.variants.find((candidate) => candidate.id === input.variantId)
-    : product.variants[0];
-  const finalUnitPrice = product.finalPrice + (variant?.priceDelta ?? 0);
-  const item: CartItem = {
-    productId: product.id,
-    variantId: variant?.id,
-    quantity: input.quantity,
-    name: product.name,
-    slug: product.slug,
-    imageUrl: product.images[0]?.url ?? "",
-    unitPrice: product.price,
-    finalUnitPrice,
-    lineTotal: finalUnitPrice * input.quantity,
-    currency: "USD"
-  };
+  const item = createCartItem(product, input);
 
   const cart = await readCart(env, cartId);
-  const existing = cart.items.find(
-    (candidate) => candidate.productId === item.productId && candidate.variantId === item.variantId
-  );
-
-  const items = existing
-    ? cart.items.map((candidate) =>
-        candidate.productId === item.productId && candidate.variantId === item.variantId
-          ? {
-              ...candidate,
-              quantity: Math.min(25, candidate.quantity + item.quantity),
-              lineTotal: candidate.finalUnitPrice * Math.min(25, candidate.quantity + item.quantity)
-            }
-          : candidate
-      )
-    : [...cart.items, item];
-
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  return writeCart(env, withCartItem(cart, item, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined));
 }
 
 export async function applyCoupon(env: Env, cartId: string, code: string): Promise<Cart> {
   const cart = await readCart(env, cartId);
   const coupon = code.toUpperCase() === defaultCoupon.code ? defaultCoupon : undefined;
-  const totals = calculateCartTotals(cart.items, coupon);
-  return writeCart(env, { ...cart, couponCode: coupon?.code, totals });
+  return writeCart(env, withCoupon(cart, coupon));
 }
 
 export async function removeItem(env: Env, cartId: string, itemId: string): Promise<Cart> {
   const cart = await readCart(env, cartId);
-  const items = cart.items.filter(
-    (item) => item.productId !== itemId && item.variantId !== itemId && item.slug !== itemId
-  );
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  return writeCart(env, withoutCartItem(cart, itemId, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined));
 }
 
 export async function updateItemQuantity(env: Env, cartId: string, itemId: string, quantity: number): Promise<Cart> {
   const cart = await readCart(env, cartId);
-  const items = cart.items.map((item) =>
-    item.productId === itemId || item.variantId === itemId || item.slug === itemId
-      ? { ...item, quantity, lineTotal: item.finalUnitPrice * quantity }
-      : item
-  );
-  const totals = calculateCartTotals(items, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined);
-  return writeCart(env, { ...cart, items, totals });
+  return writeCart(env, withCartItemQuantity(cart, itemId, quantity, cart.couponCode === defaultCoupon.code ? defaultCoupon : undefined));
 }

@@ -1,7 +1,5 @@
-export const aetherConfig = {
-  brand: "Aether",
-  currency: "USD",
-  apiBasePath: "/api/v1",
-  portfolioUrlEnv: "NEXT_PUBLIC_PORTFOLIO_URL",
-  freeTierMode: true
-} as const;
+/**
+ * @deprecated Client configuration now belongs to each implementation. Import
+ * contracts from `@aether/config-schema` and provide values from `config/`.
+ */
+export * from "@aether/config-schema";

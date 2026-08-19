@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { clsx } from "clsx";
+
 
 export function Button({
   className,
@@ -60,14 +61,16 @@ export function Surface({
 
 export function Price({
   cents,
+  currency = "USD",
   locale = "en-US",
   className
 }: {
   cents: number;
+  currency?: string;
   locale?: string;
   className?: string;
 }) {
-  return <span className={className}>{formatUsd(cents, locale)}</span>;
+  return <span className={className}>{formatMoney(cents, currency, locale)}</span>;
 }
 
 const badgeTones = {

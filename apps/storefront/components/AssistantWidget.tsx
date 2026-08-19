@@ -757,6 +757,7 @@ export function AssistantWidget() {
                           <div className="mt-1 flex gap-2">
                             <StorefrontLink
                               href={`/products/${encodeURIComponent(slugFromAssistantProduct(product))}`}
+                              onClick={() => setIsOpen(false)}
                               className="focus-ring rounded-chat border border-chat-border px-3 py-1.5 text-[13px] font-medium text-chat-text transition-colors active:scale-[0.97]"
                             >
                               {copy.view}
@@ -809,6 +810,7 @@ export function AssistantWidget() {
                         </div>
                         <StorefrontLink
                           href="/account/orders"
+                          onClick={() => setIsOpen(false)}
                           className="focus-ring mt-3 inline-flex rounded-chat border border-chat-border px-3 py-1.5 text-xs font-semibold text-chat-text"
                         >
                           {locale === "es" ? "Ver pedidos" : "View orders"}
@@ -877,6 +879,7 @@ export function AssistantWidget() {
                     message.action?.type?.startsWith("CART_") ? (
                       <StorefrontLink
                         href="/cart"
+                        onClick={() => setIsOpen(false)}
                         className="focus-ring mt-3 inline-flex rounded-chat bg-chat-accent px-3 py-2 text-xs font-semibold text-white"
                       >
                         {copy.openCart}
@@ -939,6 +942,7 @@ export function AssistantWidget() {
                 {copy.privacyNotice}{" "}
                 <StorefrontLink
                   href="/privacy"
+                  onClick={() => setIsOpen(false)}
                   className="focus-ring font-semibold text-chat-text underline decoration-chat-accent underline-offset-2"
                 >
                   {copy.privacyLink}

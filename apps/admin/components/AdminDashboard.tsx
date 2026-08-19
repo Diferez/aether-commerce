@@ -5,6 +5,8 @@ import { useAuth } from "@clerk/react";
 import { AlertTriangle, Boxes, ChevronDown, Download, Mail, PackageCheck, Shield, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiBaseUrl } from "./config";
+import { aetherStoreConfig } from "./configuration";
+import { CheckoutProviderSettings } from "./CheckoutProviderSettings";
 
 type Summary = {
   mode: "private" | "demo";
@@ -41,7 +43,7 @@ const fallback: Summary = {
 };
 
 function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+  return new Intl.NumberFormat(aetherStoreConfig.locale, { style: "currency", currency: aetherStoreConfig.currency }).format(cents / 100);
 }
 
 export function AdminDashboard({ demo = false }: { demo?: boolean }) {
@@ -236,6 +238,8 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
           })
         )}
       </section>
+
+      {!demo ? <CheckoutProviderSettings /> : null}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {([

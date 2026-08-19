@@ -11,9 +11,9 @@ function read(path) {
 
 function readMigrations() {
   return [
-    read("apps/api/migrations/0001_initial.sql"),
-    read("apps/api/migrations/0003_required_commerce_schema.sql"),
-    read("apps/api/migrations/0004_demo_operational_data.sql")
+    read("database/core/migrations/0001_initial.sql"),
+    read("database/core/migrations/0003_required_commerce_schema.sql"),
+    read("database/core/migrations/0004_demo_operational_data.sql")
   ].join("\n");
 }
 
@@ -146,6 +146,7 @@ test("cart reads and mutations require signed cart token", () => {
 test("sensitive signatures and account order lookup avoid enumeration paths", () => {
   const secureCompare = read("apps/api/src/services/secure-compare.ts");
   const stripeService = read("apps/api/src/services/stripe.ts");
+  const wompiService = read("apps/api/src/services/wompi.ts");
   const accountRoutes = read("apps/api/src/routes/account.ts");
   const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
   const cartPage = read("apps/storefront/app/cart/page.tsx");
@@ -157,6 +158,7 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.match(secureCompare, /timingSafeEqual/);
   assert.match(stripeService, /STRIPE_SIGNATURE_TOLERANCE_SECONDS/);
   assert.match(stripeService, /timingSafeEqualText/);
+  assert.match(wompiService, /timingSafeEqualText/);
   assert.match(stripeService, /metadata\[userId\]/);
   assert.match(stripeService, /customer_email/);
   assert.match(checkoutRoutes, /AUTH_REQUIRED/);
@@ -182,6 +184,22 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   assert.doesNotMatch(accountRoutes, /x-aether-customer-email/);
   assert.doesNotMatch(accountRoutes, /lower\(email\)/);
   assert.doesNotMatch(cors, /x-aether-customer-email/);
+});
+
+test("checkout provider abstraction covers Stripe and Wompi behind one port", () => {
+  const checkoutCore = read("packages/api-core/src/checkout.ts");
+  const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
+  const checkoutSettings = read("apps/api/src/services/checkout-settings.ts");
+  const adminRoutes = read("apps/api/src/routes/admin.ts");
+
+  assert.match(checkoutCore, /export interface CheckoutProvider/);
+  assert.match(checkoutCore, /checkoutProviderIds = \["stripe", "wompi"\]/);
+  assert.doesNotMatch(checkoutRoutes, /createStripeCheckoutProvider/);
+  assert.match(checkoutRoutes, /resolveActiveCheckoutProvider/);
+  assert.match(checkoutSettings, /encryptSecret/);
+  assert.match(checkoutSettings, /decryptSecret/);
+  assert.match(adminRoutes, /requirePermission\("settings.manage"\)/);
+  assert.match(adminRoutes, /checkout-settings/);
 });
 
 test("readiness and order status updates fail safely", () => {

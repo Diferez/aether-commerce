@@ -1,23 +1,20 @@
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { createConsoleLogger, normalizeErrorStatus } from "@aether/observability";
 import type { AppBindings } from "../types";
 import { fail } from "../http";
 
-function normalizeStatus(status: number) {
-  return [400, 401, 403, 404, 409, 422, 429, 500, 503].includes(status)
-    ? (status as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 503)
-    : 500;
-}
+const logger = createConsoleLogger();
 
 export const errorBoundary = (): MiddlewareHandler<AppBindings> => async (c, next) => {
   try {
     await next();
   } catch (error) {
     if (error instanceof HTTPException) {
-      return fail(c, normalizeStatus(error.status), "HTTP_ERROR", error.message);
+      return fail(c, normalizeErrorStatus(error.status), "HTTP_ERROR", error.message);
     }
 
-    console.error("Unhandled API error", {
+    logger.error("Unhandled API error", {
       requestId: c.get("requestId"),
       error
     });

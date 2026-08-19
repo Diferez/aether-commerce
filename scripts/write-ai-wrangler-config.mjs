@@ -41,7 +41,7 @@ config.d1_databases = [
       process.env.AETHER_D1_DATABASE_NAME ||
       (deployEnvironment === "production" ? "aether-production" : "aether-development"),
     database_id: databaseId,
-    migrations_dir: "../api/migrations",
+    migrations_dir: "../../database/core/migrations",
   },
 ];
 

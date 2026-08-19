@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { isCheckoutSessionPaid } from "@aether/api-core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { readCart, writeCart } from "../services/cart";
 import { resolveActorEmail } from "../services/clerk";
-import { createCheckoutSession, retrieveCheckoutSession } from "../services/stripe";
-import { createOrderFromStripeSession } from "../services/orders";
+import { resolveActiveCheckoutProvider } from "../services/checkout-provider";
+import { createOrderFromPaidSession } from "../services/orders";
 import { verifyCartToken } from "../services/cart-token";
 
 export const checkoutRoutes = new Hono<AppBindings>();
@@ -34,16 +35,17 @@ checkoutRoutes.post(
       return fail(c, 422, "EMPTY_CART", "Add at least one item before checkout.");
     }
 
+    const { mode, provider } = await resolveActiveCheckoutProvider(c.env);
     try {
       const checkoutCart = await writeCart(c.env, { ...cart, userId: actor.userId });
       const customerEmail = await resolveActorEmail(c.env, actor);
-      return ok(c, await createCheckoutSession(c.env, checkoutCart, customerEmail), 201);
+      return ok(c, await provider.createCheckoutSession(checkoutCart, customerEmail), 201);
     } catch {
       return fail(
         c,
         500,
-        "STRIPE_CHECKOUT_FAILED",
-        "Stripe checkout could not be started. Check STRIPE_SECRET_KEY and network access."
+        "CHECKOUT_SESSION_FAILED",
+        `${mode} checkout could not be started. Check its secret key and network access.`
       );
     }
   }
@@ -58,16 +60,17 @@ checkoutRoutes.post(
       return fail(c, 401, "AUTH_REQUIRED", "Sign in before confirming checkout.");
     }
 
+    const { mode, provider } = await resolveActiveCheckoutProvider(c.env);
     try {
-      const session = await retrieveCheckoutSession(c.env, c.req.valid("json").sessionId);
+      const session = await provider.retrieveCheckoutSession(c.req.valid("json").sessionId);
       if (!session.metadata?.userId || session.metadata.userId !== actor.userId) {
         return fail(c, 403, "CHECKOUT_OWNERSHIP_MISMATCH", "This checkout belongs to another account.");
       }
-      if (session.payment_status !== "paid") {
-        return fail(c, 422, "PAYMENT_NOT_PAID", "Stripe checkout session is not paid yet.");
+      if (!isCheckoutSessionPaid(session)) {
+        return fail(c, 422, "PAYMENT_NOT_PAID", `${mode} checkout session is not paid yet.`);
       }
 
-      const result = await createOrderFromStripeSession(c.env, session);
+      const result = await createOrderFromPaidSession(c.env, session, mode);
       return ok(c, { order: result.order, created: result.created }, result.created ? 201 : 200);
     } catch (error) {
       return fail(
