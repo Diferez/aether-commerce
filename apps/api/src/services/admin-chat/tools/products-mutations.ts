@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundMessage, notFoundResult } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { writeAuditLog } from "../../audit";
-import { pick, type ChatLanguage } from "../language";
+import { pick } from "../language";
 import {
   adjustProductInventory,
   bulkAdjustPriceByCategory,
@@ -16,9 +16,10 @@ import {
 } from "../../products-admin";
 import type { ActionDiff } from "../artifacts";
 import type { PendingActionExecutor } from "../executors";
+import type { AdminChatContext } from "../context";
 
-function productNotFoundMessage(language: ChatLanguage): string {
-  return pick(language, "Product not found.", "Producto no encontrado.");
+function productNotFound(ctx: Pick<AdminChatContext, "language">) {
+  return notFoundResult(ctx, "PRODUCT_NOT_FOUND", "product", "producto");
 }
 
 // Only fields chat can realistically gather from a short natural-language
@@ -109,12 +110,7 @@ export const prepareUpdateProductTool = defineAdminChatTool({
   requires: { permission: "products.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) {
-      return {
-        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
-        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
-      };
-    }
+    if (!existing) return productNotFound(ctx);
 
     const patch: ProductPatchInput = {};
     const fields: ActionDiff["fields"] = [];
@@ -163,7 +159,7 @@ export const prepareUpdateProductTool = defineAdminChatTool({
 export const executeUpdateProduct: PendingActionExecutor = async (ctx, params) => {
   const { productId, patch } = params as { productId: string; patch: ProductPatchInput };
   const row = await updateProduct(ctx.env, productId, patch);
-  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
+  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: notFoundMessage(ctx, "product", "producto") };
   await writeAuditLog(ctx.env, { actorId: ctx.actor.userId ?? "admin", action: "product.updated", targetType: "product", targetId: row.id, payload: { ...patch, source: "admin_chat" } });
   return { success: true, result: { productId: row.id, name: row.name } };
 };
@@ -175,12 +171,7 @@ export const prepareArchiveProductTool = defineAdminChatTool({
   requires: { permission: "products.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) {
-      return {
-        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
-        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
-      };
-    }
+    if (!existing) return productNotFound(ctx);
     if (existing.visibility === "hidden") {
       return {
         message: pick(ctx.language, `${existing.name} is already archived.`, `${existing.name} ya está archivado.`),
@@ -219,9 +210,9 @@ export const prepareArchiveProductTool = defineAdminChatTool({
 export const executeArchiveProduct: PendingActionExecutor = async (ctx, params) => {
   const { productId } = params as { productId: string };
   const row = await getProductRow(ctx.env, productId);
-  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
+  if (!row) return { success: false, code: "PRODUCT_NOT_FOUND", message: notFoundMessage(ctx, "product", "producto") };
   const changed = await setProductVisibility(ctx.env, productId, "hidden");
-  if (!changed) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
+  if (!changed) return { success: false, code: "PRODUCT_NOT_FOUND", message: notFoundMessage(ctx, "product", "producto") };
   await writeAuditLog(ctx.env, { actorId: ctx.actor.userId ?? "admin", action: "product.visibility_changed", targetType: "product", targetId: productId, payload: { visibility: "hidden", source: "admin_chat" } });
   return { success: true, result: { productId, name: row.name, visibility: "hidden" } };
 };
@@ -296,12 +287,7 @@ export const prepareInventoryAdjustmentTool = defineAdminChatTool({
   requires: { permission: "inventory.write", mutation: true },
   run: async (args, ctx) => {
     const existing = await getProductRow(ctx.env, args.productId);
-    if (!existing) {
-      return {
-        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
-        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) }
-      };
-    }
+    if (!existing) return productNotFound(ctx);
     const nextStock = Math.max(0, existing.stock + args.delta);
     const diff: ActionDiff = {
       summary: pick(ctx.language, `Adjust stock for ${existing.name}`, `Ajustar stock de ${existing.name}`),
@@ -334,6 +320,6 @@ export const executeInventoryAdjustment: PendingActionExecutor = async (ctx, par
     actorId: ctx.actor.userId ?? "admin",
     requestId: ctx.requestId
   });
-  if (!result) return { success: false, code: "PRODUCT_NOT_FOUND", message: productNotFoundMessage(ctx.language) };
+  if (!result) return { success: false, code: "PRODUCT_NOT_FOUND", message: notFoundMessage(ctx, "product", "producto") };
   return { success: true, result: { productId, stock: result.stock } };
 };

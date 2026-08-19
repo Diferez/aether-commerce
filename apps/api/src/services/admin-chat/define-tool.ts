@@ -30,6 +30,30 @@ function errorResult(code: string, message: string): ToolResult {
   return { message, artifact: { type: "error", code, message } };
 }
 
+// Every "that record doesn't exist" case across the tools (open_order,
+// get_product_details, prepare_order_status_change, its matching executor,
+// ...) used to repeat the same bilingual message inline just for a
+// different entity name - concise as a one-liner in English only, but
+// heavy enough once bilingual to read as duplicated code across files, not
+// just a similar shape (flagged by SonarCloud's duplication check on this
+// PR). Every entity name used here is grammatically masculine/invariant in
+// Spanish ("ese pedido", "ese producto", "ese cliente"), so no gender
+// parameter is needed. Exported as a plain string too (not just wrapped in
+// a ToolResult) since a PendingActionExecutor's failure shape is `{success:
+// false, code, message}`, not a ToolResult - it still needs the exact same
+// bilingual text.
+export function notFoundMessage(ctx: Pick<AdminChatContext, "language">, entityEn: string, entityEs: string): string {
+  return pick(ctx.language, `${capitalize(entityEn)} not found.`, `${capitalize(entityEs)} no encontrado.`);
+}
+
+export function notFoundResult(ctx: Pick<AdminChatContext, "language">, code: string, entityEn: string, entityEs: string): ToolResult {
+  return errorResult(code, notFoundMessage(ctx, entityEn, entityEs));
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 // This repo's analogue of apps/ai-assistant/worker.ts's defineAssistantTool:
 // every tool's precondition check, arg validation, and error boundary go
 // through one place so the model can never bypass a permission check just by

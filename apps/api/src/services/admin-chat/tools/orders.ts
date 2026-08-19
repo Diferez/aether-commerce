@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { canTransitionFulfillment } from "@aether/core";
 import type { FulfillmentStatus } from "@aether/schemas";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { pick } from "../language";
 import type { OrderSummaryArtifact } from "../artifacts";
 
@@ -180,7 +180,7 @@ async function loadOrderRow(db: D1Database, orderIdOrNumber: string) {
 }
 
 function orderNotFoundResult(ctx: { language: "en" | "es" }) {
-  return { message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."), artifact: { type: "error" as const, code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") } };
+  return notFoundResult(ctx, "ORDER_NOT_FOUND", "order", "pedido");
 }
 
 export const getOrderDetailsTool = defineAdminChatTool({

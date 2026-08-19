@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { canTransitionFulfillment } from "@aether/core";
 import type { FulfillmentStatus } from "@aether/schemas";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundMessage, notFoundResult } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { pick } from "../language";
 import { writeAuditLog } from "../../audit";
@@ -43,12 +43,7 @@ export const prepareOrderStatusChangeTool = defineAdminChatTool({
   requires: { permission: "orders.write", mutation: true },
   run: async (args, ctx) => {
     const order = await loadOrderFulfillment(ctx.env.DB, args.orderId);
-    if (!order) {
-      return {
-        message: pick(ctx.language, "I could not find that order.", "No pude encontrar ese pedido."),
-        artifact: { type: "error", code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") }
-      };
-    }
+    if (!order) return notFoundResult(ctx, "ORDER_NOT_FOUND", "order", "pedido");
 
     const from = order.fulfillment_status as FulfillmentStatus;
     if (!canTransitionFulfillment(from, args.fulfillmentStatus)) {
@@ -106,7 +101,7 @@ export const executeOrderStatusChange: PendingActionExecutor = async (ctx, param
   const current = await ctx.env.DB.prepare("select fulfillment_status, stock_restored_at from orders where id = ?")
     .bind(orderId)
     .first<{ fulfillment_status: string; stock_restored_at: string | null }>();
-  if (!current) return { success: false, code: "ORDER_NOT_FOUND", message: pick(ctx.language, "Order not found.", "Pedido no encontrado.") };
+  if (!current) return { success: false, code: "ORDER_NOT_FOUND", message: notFoundMessage(ctx, "order", "pedido") };
 
   const from = current.fulfillment_status as FulfillmentStatus;
   if (!canTransitionFulfillment(from, fulfillmentStatus)) {

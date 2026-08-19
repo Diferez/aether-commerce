@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAdminChatTool } from "../define-tool";
+import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { getProductRow, listProductsForAdmin } from "../../products-admin";
 import { pick } from "../language";
 import type { ProductDetailArtifact, ProductSummaryArtifact } from "../artifacts";
@@ -73,12 +73,7 @@ export const getProductDetailsTool = defineAdminChatTool({
   requires: { permission: "products.read" },
   run: async (args, ctx) => {
     const row = await getProductRow(ctx.env, args.productId);
-    if (!row) {
-      return {
-        message: pick(ctx.language, "I could not find that product.", "No pude encontrar ese producto."),
-        artifact: { type: "error", code: "PRODUCT_NOT_FOUND", message: pick(ctx.language, "Product not found.", "Producto no encontrado.") }
-      };
-    }
+    if (!row) return notFoundResult(ctx, "PRODUCT_NOT_FOUND", "product", "producto");
     const product: ProductDetailArtifact = {
       id: row.id,
       name: row.name,
