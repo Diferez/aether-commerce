@@ -28,6 +28,14 @@ import {
 import { prepareOrderStatusChangeTool, executeOrderStatusChange } from "./tools/orders-mutations";
 import { searchCustomersTool, getCustomerDetailsTool, getCustomerOrderHistoryTool } from "./tools/customers";
 import { getSystemHealthTool, getWebhookActivityTool } from "./tools/observability";
+import {
+  listCouponsTool,
+  prepareCreateCouponTool,
+  executeCreateCoupon,
+  prepareDeactivateCouponTool,
+  executeDeactivateCoupon
+} from "./tools/coupons";
+import { prepareRefundOrderTool, executeRefundOrder } from "./tools/refunds";
 
 export const ADMIN_CHAT_TOOLS: AdminChatTool[] = [
   navigateToTool,
@@ -59,7 +67,11 @@ export const ADMIN_CHAT_TOOLS: AdminChatTool[] = [
   getCustomerDetailsTool,
   getCustomerOrderHistoryTool,
   getSystemHealthTool,
-  getWebhookActivityTool
+  getWebhookActivityTool,
+  listCouponsTool,
+  prepareCreateCouponTool,
+  prepareDeactivateCouponTool,
+  prepareRefundOrderTool
 ];
 
 export const ADMIN_CHAT_TOOLS_BY_NAME: Record<string, AdminChatTool> = Object.fromEntries(
@@ -76,7 +88,10 @@ export const ADMIN_CHAT_EXECUTORS: Record<string, PendingActionExecutor> = {
   prepare_archive_product: executeArchiveProduct,
   prepare_bulk_product_update: executeBulkProductUpdate,
   prepare_inventory_adjustment: executeInventoryAdjustment,
-  prepare_order_status_change: executeOrderStatusChange
+  prepare_order_status_change: executeOrderStatusChange,
+  prepare_create_coupon: executeCreateCoupon,
+  prepare_deactivate_coupon: executeDeactivateCoupon,
+  prepare_refund_order: executeRefundOrder
 };
 
 // Custom-event payload dispatched from inside this file's tool wrapper -

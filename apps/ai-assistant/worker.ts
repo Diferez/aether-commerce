@@ -148,6 +148,10 @@ type IntentName =
   | "GET_FAVORITES"
   | "ADD_FAVORITE"
   | "REMOVE_FAVORITE"
+  | "APPLY_COUPON"
+  | "CANCEL_ORDER"
+  | "REQUEST_RETURN"
+  | "REQUEST_REFUND"
   | "GENERAL_STORE_QUESTION"
   | "UNSUPPORTED";
 
@@ -1282,6 +1286,40 @@ export function heuristicIntent(message: string, localeFallback = "es-CO"): Inte
       language
     };
   }
+  // Checked before GET_ORDER_STATUS/GET_ORDER below - "cancela mi pedido" or
+  // "quiero devolver mi pedido" also mention "pedido" but are a self-service
+  // action, not a read. Requires the order/purchase word too (not just
+  // "cancela") so this can't misfire on an unrelated "cancela esa busqueda"
+  // type message.
+  if (
+    /\b(cancela|cancelar|cancel|annule|annuler|annulla)\b.*\b(pedido|orden|compra|order|commande|ordine)\b|\b(pedido|orden|compra|order|commande|ordine)\b.*\b(cancela|cancelar|cancel|annule|annuler|annulla)\b/.test(
+      value
+    )
+  )
+    return {
+      intent: "CANCEL_ORDER",
+      confidence: 0.95,
+      explanation: "Own order cancellation request.",
+      language
+    };
+  if (
+    /\b(devolver|devolucion|devuelve|regresar|return|renvoyer|retour|restituire|restituzione)\b.*\b(pedido|orden|compra|order|commande|ordine)\b|\b(pedido|orden|compra|order|commande|ordine)\b.*\b(devolver|devolucion|devuelve|return|renvoyer|retour|restituire|restituzione)\b/.test(
+      value
+    )
+  )
+    return {
+      intent: "REQUEST_RETURN",
+      confidence: 0.95,
+      explanation: "Own order return request.",
+      language
+    };
+  if (/\b(reembolso|reembolsar|refund|remboursement|rembourser|rimborso|rimborsare)\b/.test(value))
+    return {
+      intent: "REQUEST_REFUND",
+      confidence: 0.94,
+      explanation: "Own order refund request.",
+      language
+    };
   if (
     /\b(estado|status|statut|stato)\b.*\b(pedido|orden|compra|order|commande|ordine)\b|\b(pedido|orden|compra|order|commande|ordine)\b.*\b(estado|status|statut|stato)\b/.test(
       value
@@ -1365,6 +1403,13 @@ export function heuristicIntent(message: string, localeFallback = "es-CO"): Inte
       intent: "UPDATE_CART_ITEM",
       confidence: 0.93,
       explanation: "Explicit cart quantity update request.",
+      language
+    };
+  if (/(cupon|codigo de descuento|coupon|promo code|code promo|codice sconto)/.test(value))
+    return {
+      intent: "APPLY_COUPON",
+      confidence: 0.92,
+      explanation: "Coupon code request.",
       language
     };
   if (/(pagar|checkout|payment|pay|comprar ahora)/.test(value))
@@ -1564,6 +1609,43 @@ async function fetchMyOrders(env: Env, authorization: string): Promise<OrderLook
   }
 }
 
+type OrderActionResult =
+  | { status: "ok"; previousState: string; state: string }
+  | { status: "invalid_transition" }
+  | { status: "not_found" }
+  | { status: "auth_required" }
+  | { status: "unavailable" };
+
+// Calls the same real, ownership-checked, state-machine-validated routes
+// user.ts exposes (POST /orders/:id/cancel|return|refund-request) - the
+// backend already enforces that the caller owns the order and that the
+// transition is legal for its current state, so this helper just relays
+// the outcome rather than re-implementing any of those checks here.
+async function performOrderAction(
+  env: Env,
+  authorization: string,
+  orderId: string,
+  action: "cancel" | "return" | "refund-request"
+): Promise<OrderActionResult> {
+  try {
+    const response = await apiFetch(
+      env,
+      new URL(`/api/v1/orders/${encodeURIComponent(orderId)}/${action}`, env.AETHER_API_BASE_URL),
+      { method: "POST", headers: { authorization } },
+      5000
+    );
+    if (response.status === 401 || response.status === 403) return { status: "auth_required" };
+    if (response.status === 404) return { status: "not_found" };
+    if (response.status === 409) return { status: "invalid_transition" };
+    if (!response.ok) return { status: "unavailable" };
+    const payload = await response.json<{ success?: boolean; data?: { previousState?: string; state?: string } }>();
+    if (!payload.success || !payload.data?.state) return { status: "unavailable" };
+    return { status: "ok", previousState: primitiveString(payload.data.previousState), state: primitiveString(payload.data.state) };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
 type FavoritesLookupResult = {
   status: "ok" | "auth_required" | "unavailable";
   productIds: string[];
@@ -1672,6 +1754,15 @@ function extractOrderReference(message: string): string | null {
     /\b(?:pedido|orden|order|commande|ordine)\b\s*(?:#|numero|number|n[oº°])?\s*([A-Z0-9][A-Z0-9_-]{2,63})\b/i
   )?.[1];
   return described?.slice(0, 80) || null;
+}
+
+// Only reached by the no-LLM heuristic fallback - the tool-calling path
+// gets `code` as a real structured argument the model extracted itself.
+// Coupon codes in this codebase are conventionally uppercase (e.g.
+// AETHER10, WELCOME10), so this looks for an isolated all-caps alphanumeric
+// token rather than trying to parse "aplica el cupon X" grammatically.
+function extractCouponCode(message: string): string | null {
+  return message.match(/\b[A-Z][A-Z0-9]{2,31}\b/)?.[0] || null;
 }
 
 function orderMatchesReference(order: Record<string, unknown>, reference: string): boolean {
@@ -1824,6 +1915,37 @@ async function updateCartItem(
   );
   if (!response.ok) return null;
   return toCartSummary(await response.json());
+}
+
+type ApplyCouponResult =
+  | { status: "ok"; cart: Record<string, unknown> }
+  | { status: "invalid_code" }
+  | { status: "unavailable" };
+
+// Mirrors POST /cart/:id/coupon exactly (routes/cart.ts) - no idempotency
+// key, since that route isn't wrapped in withIdempotency either (re-applying
+// the same code is a harmless no-op there, not a double-charge risk the way
+// add/remove/update cart-item mutations are).
+async function applyCouponToCart(
+  env: Env,
+  cartId: string,
+  cartToken: string,
+  code: string
+): Promise<ApplyCouponResult> {
+  const response = await apiFetch(
+    env,
+    new URL(`/api/v1/cart/${encodeURIComponent(cartId)}/coupon`, env.AETHER_API_BASE_URL),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-aether-cart-token": cartToken },
+      body: JSON.stringify({ code })
+    },
+    5000
+  );
+  if (response.status === 404) return { status: "invalid_code" };
+  if (!response.ok) return { status: "unavailable" };
+  const cart = toCartSummary(await response.json());
+  return cart ? { status: "ok", cart } : { status: "unavailable" };
 }
 
 async function clearCart(
@@ -2614,6 +2736,136 @@ const getOrderStatusTool = defineAssistantTool({
   run: (args, ctx) => runOrderLookupTool(ctx, args, "GET_ORDER_STATUS", "get_order_status")
 });
 
+const ORDER_ACTION_LABEL: Record<"cancel" | "return" | "refund-request", { es: string; en: string; fr: string; it: string }> = {
+  cancel: { es: "cancelar", en: "cancel", fr: "annuler", it: "cancellare" },
+  return: { es: "devolver", en: "return", fr: "retourner", it: "restituire" },
+  "refund-request": { es: "reembolsar", en: "refund", fr: "rembourser", it: "rimborsare" }
+};
+
+// Shared by cancel/return/refund-request below - all three resolve "which
+// order" the exact same way get_order/get_order_status do (by reference if
+// given, the most recent order otherwise, scoped to the signed-in shopper's
+// own orders via fetchMyOrders), then hand the order's real id (not just its
+// human-readable number) to performOrderAction, which is what user.ts's
+// routes actually key ownership/state lookups on.
+async function runOrderAction(
+  ctx: AgentGraphData,
+  args: z.infer<typeof orderLookupSchema>,
+  action: "cancel" | "return" | "refund-request",
+  intent: "CANCEL_ORDER" | "REQUEST_RETURN" | "REQUEST_REFUND",
+  toolName: string
+): Promise<[string, ToolArtifact]> {
+  const lookup = await fetchMyOrders(ctx.env, ctx.authorization);
+  if (lookup.status !== "ok") {
+    await auditGraphAction(ctx, toolName, args.order_reference || "scope:self", null, "denied", "failed", lookup.status);
+    return toolOutcome(
+      localize(ctx.language, {
+        es: lookup.status === "auth_required" ? "Tu sesion expiro. Inicia sesion nuevamente." : "No pude consultar tus pedidos en este momento.",
+        en: lookup.status === "auth_required" ? "Your session expired. Sign in again." : "I could not check your orders right now.",
+        fr: lookup.status === "auth_required" ? "Votre session a expire. Reconnectez-vous." : "Je ne peux pas consulter vos commandes pour le moment.",
+        it: lookup.status === "auth_required" ? "La sessione e scaduta. Accedi di nuovo." : "Non riesco a controllare i tuoi ordini in questo momento."
+      }),
+      intent,
+      lookup.status === "auth_required" ? "SIGN_IN_REQUIRED" : "ASK_CLARIFICATION",
+      "FAILED"
+    );
+  }
+
+  const reference = args.order_reference || null;
+  const candidates = reference ? lookup.orders.filter((candidate) => orderMatchesReference(candidate, reference)) : lookup.orders.slice(0, 1);
+  const target = candidates[0];
+  const orderId = target ? primitiveString(target.id) : "";
+  if (!target || !orderId) {
+    return toolOutcome(
+      localize(ctx.language, {
+        es: reference ? `No encontre el pedido ${reference} entre tus pedidos.` : "Todavia no tienes pedidos asociados a esta cuenta.",
+        en: reference ? `I could not find order ${reference} among your orders.` : "There are no orders linked to this account yet.",
+        fr: reference ? `Je n'ai pas trouve la commande ${reference} parmi vos commandes.` : "Aucune commande n'est encore associee a ce compte.",
+        it: reference ? `Non ho trovato l'ordine ${reference} tra i tuoi ordini.` : "Non ci sono ancora ordini associati a questo account."
+      }),
+      intent,
+      "ORDER_NOT_FOUND",
+      "SUCCEEDED"
+    );
+  }
+
+  const orderNumber = primitiveString(target.number) || orderId;
+  const normalized = `order:${orderId}:${action}`;
+  const result = await performOrderAction(ctx.env, ctx.authorization, orderId, action);
+  await auditGraphAction(ctx, toolName, normalized, orderId, result.status === "ok" ? "allowed" : "denied", result.status === "ok" ? "succeeded" : "failed", result.status === "ok" ? null : result.status);
+
+  if (result.status === "auth_required") {
+    return toolOutcome(
+      localize(ctx.language, { es: "Tu sesion expiro. Inicia sesion nuevamente.", en: "Your session expired. Sign in again.", fr: "Votre session a expire. Reconnectez-vous.", it: "La sessione e scaduta. Accedi di nuovo." }),
+      intent,
+      "SIGN_IN_REQUIRED",
+      "FAILED"
+    );
+  }
+  if (result.status === "not_found") {
+    return toolOutcome(
+      localize(ctx.language, { es: `No encontre el pedido ${orderNumber}.`, en: `I could not find order ${orderNumber}.`, fr: `Je n'ai pas trouve la commande ${orderNumber}.`, it: `Non ho trovato l'ordine ${orderNumber}.` }),
+      intent,
+      "ORDER_NOT_FOUND",
+      "FAILED"
+    );
+  }
+  if (result.status === "invalid_transition") {
+    const label = ORDER_ACTION_LABEL[action];
+    return toolOutcome(
+      localize(ctx.language, {
+        es: `El pedido ${orderNumber} no se puede ${label.es} desde su estado actual.`,
+        en: `Order ${orderNumber} can't be ${label.en}ed from its current status.`,
+        fr: `La commande ${orderNumber} ne peut pas etre ${label.fr}ee depuis son statut actuel.`,
+        it: `L'ordine ${orderNumber} non puo essere ${label.it} dal suo stato attuale.`
+      }),
+      intent,
+      "ASK_CLARIFICATION",
+      "FAILED"
+    );
+  }
+  if (result.status !== "ok") {
+    return toolOutcome(localize(ctx.language, TOOL_ERROR_MESSAGES), intent, "ASK_CLARIFICATION", "FAILED");
+  }
+
+  const message = localize(ctx.language, {
+    es: `Listo. El pedido ${orderNumber} ahora esta ${result.state}.`,
+    en: `Done. Order ${orderNumber} is now ${result.state}.`,
+    fr: `C'est fait. La commande ${orderNumber} est maintenant ${result.state}.`,
+    it: `Fatto. L'ordine ${orderNumber} ora e ${result.state}.`
+  });
+  return toolOutcome(message, intent, "ORDER_UPDATED", "SUCCEEDED", {
+    orders: [{ ...target, state: result.state } as unknown as AssistantOrderSummary].map(toAssistantOrderSummary).filter(Boolean) as AssistantOrderSummary[]
+  });
+}
+
+const cancelOrderTool = defineAssistantTool({
+  name: "cancel_order",
+  description: "Cancels an own order, if its current status still allows cancellation. By reference if given, the most recent order otherwise. Never another shopper's order.",
+  schema: orderLookupSchema,
+  intent: "CANCEL_ORDER",
+  requires: { bearer: true, mutation: true },
+  run: (args, ctx) => runOrderAction(ctx, args, "cancel", "CANCEL_ORDER", "cancel_order")
+});
+
+const requestReturnTool = defineAssistantTool({
+  name: "request_return",
+  description: "Requests a return for an own order, if its current status allows it. By reference if given, the most recent order otherwise. Never another shopper's order.",
+  schema: orderLookupSchema,
+  intent: "REQUEST_RETURN",
+  requires: { bearer: true, mutation: true },
+  run: (args, ctx) => runOrderAction(ctx, args, "return", "REQUEST_RETURN", "request_return")
+});
+
+const requestRefundTool = defineAssistantTool({
+  name: "request_refund",
+  description: "Requests a refund for an own order, if its current status allows it. By reference if given, the most recent order otherwise. Never another shopper's order.",
+  schema: orderLookupSchema,
+  intent: "REQUEST_REFUND",
+  requires: { bearer: true, mutation: true },
+  run: (args, ctx) => runOrderAction(ctx, args, "refund-request", "REQUEST_REFUND", "request_refund")
+});
+
 async function runGetFavorites(ctx: AgentGraphData): Promise<[string, ToolArtifact]> {
   const result = await fetchFavorites(ctx.env, ctx.authorization);
   await auditGraphAction(
@@ -2788,6 +3040,67 @@ const addToCartTool = defineAssistantTool({
   intent: "ADD_TO_CART",
   requires: { cartToken: true, mutation: true },
   run: (args, ctx) => runAddToCart(ctx, args)
+});
+
+const applyCouponSchema = z.object({
+  code: z.string().min(1).max(32).describe("The coupon/discount code the shopper gave, exactly as given")
+});
+
+async function runApplyCoupon(
+  ctx: AgentGraphData,
+  args: z.infer<typeof applyCouponSchema>
+): Promise<[string, ToolArtifact]> {
+  const code = args.code.trim();
+  if (code.length < 3) {
+    return toolOutcome(
+      localize(ctx.language, {
+        es: "Dime el codigo del cupon que quieres aplicar.",
+        en: "Tell me the coupon code you'd like to apply.",
+        fr: "Indiquez-moi le code du coupon a appliquer.",
+        it: "Dimmi il codice del coupon da applicare."
+      }),
+      "APPLY_COUPON",
+      "ASK_CLARIFICATION",
+      "PENDING"
+    );
+  }
+  const result = await applyCouponToCart(ctx.env, ctx.cartId, ctx.cartToken, code);
+  const normalized = `cart:${ctx.cartId}:coupon:${code.toUpperCase()}`;
+  await auditGraphAction(ctx, "apply_coupon", normalized, ctx.cartId, result.status === "ok" ? "allowed" : "denied", result.status === "ok" ? "succeeded" : "failed", result.status === "ok" ? null : result.status);
+
+  if (result.status === "invalid_code") {
+    return toolOutcome(
+      localize(ctx.language, {
+        es: `El codigo "${code}" no es un cupon valido.`,
+        en: `"${code}" is not a valid coupon code.`,
+        fr: `"${code}" n'est pas un code de coupon valide.`,
+        it: `"${code}" non e un codice coupon valido.`
+      }),
+      "APPLY_COUPON",
+      "ASK_CLARIFICATION",
+      "FAILED"
+    );
+  }
+  if (result.status !== "ok") {
+    return toolOutcome(localize(ctx.language, TOOL_ERROR_MESSAGES), "APPLY_COUPON", "ASK_CLARIFICATION", "FAILED");
+  }
+  const message = localize(ctx.language, {
+    es: `Listo, aplique el cupon "${code.toUpperCase()}".`,
+    en: `Done, I applied coupon "${code.toUpperCase()}".`,
+    fr: `C'est fait, j'ai applique le coupon "${code.toUpperCase()}".`,
+    it: `Fatto, ho applicato il coupon "${code.toUpperCase()}".`
+  });
+  return toolOutcome(message, "APPLY_COUPON", "CART_ITEM_UPDATED", "SUCCEEDED", { cart: result.cart });
+}
+
+const applyCouponTool = defineAssistantTool({
+  name: "apply_coupon",
+  description:
+    "Applies a discount coupon code to the shopper's cart. Always call this directly when the shopper gives or mentions a coupon/discount code, even if unsure it's valid - this tool validates it against the real catalog of active coupons.",
+  schema: applyCouponSchema,
+  intent: "APPLY_COUPON",
+  requires: { cartToken: true, mutation: true },
+  run: (args, ctx) => runApplyCoupon(ctx, args)
 });
 
 const updateCartItemSchema = z.object({
@@ -3440,7 +3753,11 @@ const assistantTools = [
   removeFavoriteTool,
   getProductDetailsTool,
   compareProductsTool,
-  checkVariantAvailabilityTool
+  checkVariantAvailabilityTool,
+  applyCouponTool,
+  cancelOrderTool,
+  requestReturnTool,
+  requestRefundTool
 ];
 
 const AGENT_SYSTEM_PROMPT_BY_LANGUAGE: Record<AssistantLanguage, string> = {
@@ -4148,6 +4465,10 @@ const HEURISTIC_INTENT_PRECONDITIONS: Record<IntentName, ToolPreconditions> = {
   GET_FAVORITES: { bearer: true },
   ADD_FAVORITE: { bearer: true, mutation: true },
   REMOVE_FAVORITE: { bearer: true, mutation: true },
+  APPLY_COUPON: { cartToken: true, mutation: true },
+  CANCEL_ORDER: { bearer: true, mutation: true },
+  REQUEST_RETURN: { bearer: true, mutation: true },
+  REQUEST_REFUND: { bearer: true, mutation: true },
   GENERAL_STORE_QUESTION: {},
   UNSUPPORTED: {}
 };
@@ -4352,6 +4673,9 @@ async function handleAssistantHeuristicFallback(
         case "CHECKOUT_REQUEST":
           artifact = (await runCheckoutGuidance(ctx))[1];
           break;
+        case "APPLY_COUPON":
+          artifact = (await runApplyCoupon(ctx, { code: extractCouponCode(message) || "" }))[1];
+          break;
         case "GET_MY_ORDERS":
           artifact = (await runGetMyOrders(ctx))[1];
           break;
@@ -4366,6 +4690,15 @@ async function handleAssistantHeuristicFallback(
               intent === "GET_ORDER" ? "get_order" : "get_order_status"
             )
           )[1];
+          break;
+        }
+        case "CANCEL_ORDER":
+        case "REQUEST_RETURN":
+        case "REQUEST_REFUND": {
+          const reference = extractOrderReference(message);
+          const action = intent === "CANCEL_ORDER" ? "cancel" : intent === "REQUEST_RETURN" ? "return" : "refund-request";
+          const toolName = intent === "CANCEL_ORDER" ? "cancel_order" : intent === "REQUEST_RETURN" ? "request_return" : "request_refund";
+          artifact = (await runOrderAction(ctx, { order_reference: reference || undefined }, action, intent, toolName))[1];
           break;
         }
         case "GET_FAVORITES":
