@@ -49,6 +49,11 @@ function money(cents: number, locale: string) {
   return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
+function formatOptionalDate(value: string | null, locale: string): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString(locale === "es" ? "es-ES" : "en-US");
+}
+
 // Repeated shape behind this page's (and every other list page's) header
 // subtitle: "{count} things" once the total is known, a loading fallback
 // while it's still null.
@@ -145,9 +150,7 @@ export function CustomersListPage() {
       key: "lastOrder",
       header: t.customersPage.colLastOrder,
       hideBelow: "sm",
-      render: (customer) => (
-        <span className="text-xs text-ink-subtle">{customer.lastOrderAt ? new Date(customer.lastOrderAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US") : "—"}</span>
-      )
+      render: (customer) => <span className="text-xs text-ink-subtle">{formatOptionalDate(customer.lastOrderAt, locale)}</span>
     }
   ];
 

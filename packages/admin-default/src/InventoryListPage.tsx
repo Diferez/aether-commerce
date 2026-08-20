@@ -77,7 +77,9 @@ function stockStatus(product: AdminProductSummary, t: AdminDictionary): { label:
   return { label: t.inventoryPage.stockInStock, tone: "success" };
 }
 
-function historyRowBody(status: "loading" | "ready" | "error", history: InventoryMovement[], locale: string, t: AdminDictionary): ReactNode {
+type LoadStatus = "loading" | "ready" | "error";
+
+function historyRowBody(status: LoadStatus, history: InventoryMovement[], locale: string, t: AdminDictionary): ReactNode {
   if (status === "loading") return <p className="text-sm text-ink-muted">{t.inventoryPage.loadingHistory}</p>;
   if (status === "error") return <p className="text-sm text-danger">{t.inventoryPage.couldNotLoadMovementHistory}</p>;
   if (history.length === 0) return <p className="text-sm text-ink-muted">{t.inventoryPage.noMovementsRecorded}</p>;
@@ -106,13 +108,13 @@ export function InventoryListPage() {
   const [filters, setFilters] = useState(() => readFiltersFromUrl());
   const [searchInput, setSearchInput] = useState(filters.search);
   const [result, setResult] = useState<ListResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<LoadStatus>("loading");
   const [adjustDrafts, setAdjustDrafts] = useState<Record<string, Draft>>({});
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [historyProductId, setHistoryProductId] = useState<string | null>(null);
   const [history, setHistory] = useState<InventoryMovement[]>([]);
-  const [historyStatus, setHistoryStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [historyStatus, setHistoryStatus] = useState<LoadStatus>("loading");
 
   const authHeader = useCallback(async () => {
     const token = await getToken().catch(() => null);
