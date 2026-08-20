@@ -70,7 +70,7 @@ test("API response helpers use the documented envelope", () => {
 
 test("public demo admin blocks persistent changes", () => {
   const adminMiddleware = read("apps/api/src/middleware/admin.ts");
-  const dashboard = read("apps/admin/components/AdminDashboard.tsx");
+  const dashboard = read("packages/admin-default/src/AdminDashboard.tsx");
   assert.match(adminMiddleware, /DEMO_MODE/);
   assert.match(dashboard, /Public demo mode\. Changes are disabled\./);
   assert.match(dashboard, /Modo de demostracion publica\. Los cambios estan deshabilitados\./);
