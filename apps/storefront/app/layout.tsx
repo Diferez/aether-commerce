@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherStorefrontProvider } from "@aether/storefront-default";
+import { AetherAuthProvider, AetherStorefrontProvider } from "@aether/storefront-default";
 import { AppProviders } from "../components/AppProviders";
-import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
@@ -55,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SentryProvider>
           <AetherStorefrontProvider config={aetherClientConfiguration} apiBaseUrl={apiBaseUrl} basePath={storefrontBasePath}>
-            <ClerkAuthProvider>
+            <AetherAuthProvider>
               <AppProviders>
                 <LanguageProvider>
                   <SiteHeader />
@@ -67,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <FloatingCart />
                 </LanguageProvider>
               </AppProviders>
-            </ClerkAuthProvider>
+            </AetherAuthProvider>
           </AetherStorefrontProvider>
         </SentryProvider>
       </body>

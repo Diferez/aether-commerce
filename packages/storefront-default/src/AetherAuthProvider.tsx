@@ -2,7 +2,7 @@
 
 import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { apiBaseUrl } from "./config";
+import { useStorefrontConfig } from "./AetherStorefrontProvider";
 
 export type AuthCustomer = {
   id: string;
@@ -104,7 +104,8 @@ export function useAetherAuth() {
   return useContext(AetherAuthContext);
 }
 
-export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
+export function AetherAuthProvider({ children }: { children: React.ReactNode }) {
+  const { apiBaseUrl } = useStorefrontConfig();
   const [publishableKey, setPublishableKey] = useState(() =>
     isUsablePublishableKey(configuredClerkPublishableKey) ? configuredClerkPublishableKey : ""
   );
@@ -137,7 +138,7 @@ export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [publishableKey]);
+  }, [apiBaseUrl, publishableKey]);
 
   if (!publishableKey) {
     return (

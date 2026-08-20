@@ -21,10 +21,12 @@
     "lucide-react": "^1.24.0"
   },
   "peerDependencies": {
+    "@clerk/react": "*",
     "next": "^16.0.0",
     "react": "^19.0.0"
   },
   "devDependencies": {
+    "@clerk/react": "^6.12.3",
     "@types/react": "^19.2.3",
     "next": "^16.3.0",
     "react": "^19.2.3",

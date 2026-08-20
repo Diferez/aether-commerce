@@ -21,8 +21,7 @@ import {
 } from "../../components/cart-client";
 import { buildCartWhatsappMessage, buildInquiryWhatsappMessage, buildWhatsappUrl } from "../../components/whatsapp-checkout";
 import { useCheckoutOptions, useShippingSettings } from "../../components/checkout-options";
-import { useAetherAuth } from "../../components/ClerkAuthProvider";
-import { useCustomerSession } from "../../components/customer-client";
+import { useAetherAuth, useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
 import { StorefrontLink } from "../../components/StorefrontLink";
 

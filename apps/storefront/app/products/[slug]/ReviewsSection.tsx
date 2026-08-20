@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { Button } from "@aether/ui";
 import { apiBaseUrl } from "../../../components/config";
-import { useAetherAuth } from "../../../components/ClerkAuthProvider";
+import { useAetherAuth } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { StorefrontLink } from "../../../components/StorefrontLink";
 

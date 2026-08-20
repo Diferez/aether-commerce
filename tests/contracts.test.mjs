@@ -158,7 +158,10 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   const cartClient = read("packages/storefront-default/src/cart-client.ts");
   const clerkService = read("apps/api/src/services/clerk.ts");
   const publicRoutes = read("apps/api/src/routes/public.ts");
-  const clerkProvider = read("apps/storefront/components/ClerkAuthProvider.tsx");
+  // apps/storefront/components/ClerkAuthProvider.tsx is gone since Phase 2b-i
+  // - packages/storefront-default/src/AetherAuthProvider.tsx owns the real
+  // implementation now (same move cart-client.ts made in Phase 2a).
+  const clerkProvider = read("packages/storefront-default/src/AetherAuthProvider.tsx");
   const cors = read("apps/api/src/middleware/cors.ts");
 
   assert.match(secureCompare, /timingSafeEqual/);
