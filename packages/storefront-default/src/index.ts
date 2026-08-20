@@ -54,3 +54,6 @@ export { CartPage } from "./CartPage";
 export { CheckoutPage } from "./CheckoutPage";
 export { CheckoutSuccessClient } from "./CheckoutSuccessClient";
 export { CheckoutCancelPage } from "./CheckoutCancelPage";
+
+export { ReviewsSection } from "./ReviewsSection";
+export { ProductDetailClient } from "./ProductDetailClient";

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import products from "../../../data/products.json";
+import { demoProducts } from "../../../components/demo-products";
 import { ProductDetailClient } from "./ProductDetailClient";
 
 type CatalogProductSeed = {
@@ -47,5 +48,6 @@ export function generateMetadata({ params }: { params: Promise<{ slug: string }>
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return <ProductDetailClient slug={slug} />;
+  const fallbackProduct = demoProducts.find((candidate) => candidate.slug === slug) ?? null;
+  return <ProductDetailClient slug={slug} fallbackProduct={fallbackProduct} />;
 }
