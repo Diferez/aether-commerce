@@ -41,3 +41,5 @@ export { SettingsIntegrationsPage } from "./SettingsIntegrationsPage";
 export { OrdersNewPage } from "./OrdersNewPage";
 export { CustomersDetailPage } from "./CustomersDetailPage";
 export { OrdersDetailPage } from "./OrdersDetailPage";
+export { ActivityPage } from "./ActivityPage";
+export { SystemHealthPage } from "./SystemHealthPage";
