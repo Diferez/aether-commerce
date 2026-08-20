@@ -37,6 +37,7 @@ export { FloatingCart } from "./FloatingCart";
 
 export { AetherAuthProvider, useAetherAuth, type AuthCustomer } from "./AetherAuthProvider";
 export { useCustomerSession, useSignOutCustomer, type CustomerSession } from "./customer-client";
+export { clerkAppearance, resolveAuthNextPath } from "./clerk-appearance";
 export { LoginPage } from "./LoginPage";
 export { RegisterPage } from "./RegisterPage";
 export { AccountPage } from "./AccountPage";

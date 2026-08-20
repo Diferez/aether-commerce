@@ -7,26 +7,7 @@ import { LogIn } from "lucide-react";
 import { useStorefrontPath } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
-
-const clerkAppearance = {
-  variables: {
-    colorPrimary: "var(--color-accent)",
-    colorBackground: "var(--color-surface)",
-    colorText: "var(--color-ink)",
-    colorTextSecondary: "var(--color-ink-muted)",
-    colorInputBackground: "var(--color-surface)",
-    colorInputText: "var(--color-ink)",
-    borderRadius: "0.375rem"
-  },
-  elements: {
-    card: "shadow-none border border-border bg-surface",
-    headerTitle: "hidden",
-    headerSubtitle: "hidden",
-    socialButtonsBlockButton: "border border-border",
-    dividerLine: "bg-border",
-    footerActionLink: "text-accent hover:text-accent-hover"
-  }
-};
+import { clerkAppearance, resolveAuthNextPath } from "./clerk-appearance";
 
 export function LoginPage() {
   const { t } = useLanguage();
@@ -34,15 +15,9 @@ export function LoginPage() {
   const storefrontPath = useStorefrontPath();
   const { isAvailable, isLoaded, isSignedIn } = useAetherAuth();
 
-  function nextPath() {
-    if (typeof window === "undefined") return "/account";
-    const next = new URLSearchParams(window.location.search).get("next");
-    return next?.startsWith("/") ? next : "/account";
-  }
-
   useEffect(() => {
     if (isSignedIn) {
-      router.push(storefrontPath(nextPath()));
+      router.push(storefrontPath(resolveAuthNextPath()));
     }
   }, [isSignedIn, router]);
 
@@ -67,7 +42,7 @@ export function LoginPage() {
             <SignIn
               routing="hash"
               signUpUrl={storefrontPath("/register")}
-              fallbackRedirectUrl={storefrontPath(nextPath())}
+              fallbackRedirectUrl={storefrontPath(resolveAuthNextPath())}
               appearance={clerkAppearance}
             />
           ) : null}
