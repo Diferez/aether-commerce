@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
 import { canTransitionOrder, formatMoney } from "@aether/core";
 import { createCommerceClient } from "@aether/api-client";
-import type { Order, OrderState } from "@aether/schemas";
+import { Badge } from "@aether/ui";
+import type { FulfillmentStatus, Order, OrderState } from "@aether/schemas";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
 import { useCustomerSession } from "./customer-client";
@@ -13,6 +14,14 @@ import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 
 type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
+
+const fulfillmentTone: Record<FulfillmentStatus, "neutral" | "accent" | "success" | "danger"> = {
+  unfulfilled: "neutral",
+  processing: "accent",
+  shipped: "accent",
+  delivered: "success",
+  cancelled: "danger"
+};
 
 export function OrdersPage() {
   const { locale, t } = useLanguage();
@@ -169,7 +178,10 @@ export function OrdersPage() {
               <article key={order.id} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase text-accent-2">{order.state}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold uppercase text-accent-2">{order.state}</p>
+                      <Badge tone={fulfillmentTone[order.fulfillmentStatus]}>{t.fulfillmentStatus[order.fulfillmentStatus]}</Badge>
+                    </div>
                     <h2 className="mt-1 text-xl font-semibold text-zinc-950">{order.number}</h2>
                     <p className="mt-1 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleString(locale === "es" ? "es-CO" : "en-US")}</p>
                   </div>

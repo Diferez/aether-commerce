@@ -13,12 +13,14 @@ import { DataTable, type Column } from "./DataTable";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import { fieldLabel } from "./AdminChat/format";
+import type { AdminDictionary, Locale } from "@aether/i18n";
 
 type AuditLogRow = {
   id: string;
   actor_id: string;
   actor_role: string | null;
+  actor_name: string | null;
   action: string;
   target_type: string;
   target_id: string | null;
@@ -61,6 +63,15 @@ function humanizeAction(action: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+// Prefers the resolved human name (a LEFT JOIN against users.clerk_id in
+// the /audit query) over the raw Clerk actor_id - a store owner has no
+// reason to recognize "user_3H4gZeq..." as anyone. Falls back to the id
+// for actors with no matching user row (stripe/webhook/system, or a user
+// whose Clerk sync predates the name column).
+function actorLabel(entry: AuditLogRow): string {
+  return entry.actor_name ?? entry.actor_id;
+}
+
 function parseJson(value: string | null): Record<string, unknown> | null {
   if (!value) return null;
   try {
@@ -77,14 +88,17 @@ function summarizeChange(entry: AuditLogRow, t: AdminDictionary): string {
   if (next) {
     const fields = Object.keys(next);
     if (fields.length === 0) return previous ? t.activityPage.noFieldsChanged : "—";
-    const fieldsText = `${fields.slice(0, 3).join(", ")}${fields.length > 3 ? "…" : ""}`;
+    const fieldsText = `${fields
+      .slice(0, 3)
+      .map((field) => fieldLabel(t, field))
+      .join(", ")}${fields.length > 3 ? "…" : ""}`;
     return (fields.length === 1 ? t.activityPage.fieldsChangedOne : t.activityPage.fieldsChangedOther)
       .replace("{count}", String(fields.length))
       .replace("{fields}", fieldsText);
   }
   const payload = parseJson(entry.payload_json);
   const payloadFields = payload ? Object.keys(payload) : [];
-  return payloadFields.length > 0 ? payloadFields.slice(0, 3).join(", ") : "—";
+  return payloadFields.length > 0 ? payloadFields.slice(0, 3).map((field) => fieldLabel(t, field)).join(", ") : "—";
 }
 
 function formatValue(value: unknown): string {
@@ -137,7 +151,7 @@ function DiffTable({ entry }: Readonly<{ entry: AuditLogRow }>) {
       <dl className="grid gap-2">
         {Object.entries(payload).map(([key, value]) => (
           <div key={key} className="rounded-md border border-border px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-ink-subtle">{key}</dt>
+            <dt className="text-xs uppercase tracking-wide text-ink-subtle">{fieldLabel(t, key)}</dt>
             <dd className="mt-0.5 text-sm text-ink [overflow-wrap:anywhere]">{formatValue(value)}</dd>
           </div>
         ))}
@@ -155,7 +169,7 @@ function DiffTable({ entry }: Readonly<{ entry: AuditLogRow }>) {
       {[...fields].map((field) => (
         <div key={field} className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md border border-border px-3 py-2 text-sm">
           <div className="min-w-0 [overflow-wrap:anywhere]">
-            <p className="text-xs uppercase tracking-wide text-ink-subtle">{field}</p>
+            <p className="text-xs uppercase tracking-wide text-ink-subtle">{fieldLabel(t, field)}</p>
             <p className="mt-0.5 text-danger line-through">{formatValue((previous ?? {})[field])}</p>
           </div>
           <span className="mt-4 text-ink-subtle" aria-hidden>
@@ -171,6 +185,35 @@ function DiffTable({ entry }: Readonly<{ entry: AuditLogRow }>) {
   );
 }
 
+function AuditMetadataGrid({ entry, t, locale }: Readonly<{ entry: AuditLogRow; t: AdminDictionary; locale: Locale }>) {
+  return (
+    <dl className="grid grid-cols-2 gap-3 text-sm">
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colWhen}</dt>
+        <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colAdmin}</dt>
+        <dd className="mt-0.5 text-xs text-ink [overflow-wrap:anywhere]">
+          <span className={entry.actor_name ? undefined : "font-mono"}>{actorLabel(entry)}</span>
+          {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colEntity}</dt>
+        <dd className="mt-0.5 text-ink [overflow-wrap:anywhere]">
+          {entry.target_type}
+          {entry.target_id ? <span className="text-ink-subtle"> · {entry.target_id}</span> : ""}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colRequestId}</dt>
+        <dd className="mt-0.5">{entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>}</dd>
+      </div>
+    </dl>
+  );
+}
+
 function AuditDetailSheet({ entry, onClose }: Readonly<{ entry: AuditLogRow | null; onClose: () => void }>) {
   const { t, locale } = useAdminLanguage();
   const [showRaw, setShowRaw] = useState(false);
@@ -179,30 +222,7 @@ function AuditDetailSheet({ entry, onClose }: Readonly<{ entry: AuditLogRow | nu
     <Sheet open={Boolean(entry)} onClose={onClose} side="right" {...(entry ? { title: humanizeAction(entry.action) } : {})} width="min(480px,100vw)">
       {entry ? (
         <div className="grid gap-4">
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colWhen}</dt>
-              <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colAdmin}</dt>
-              <dd className="mt-0.5 font-mono text-xs text-ink [overflow-wrap:anywhere]">
-                {entry.actor_id}
-                {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colEntity}</dt>
-              <dd className="mt-0.5 text-ink [overflow-wrap:anywhere]">
-                {entry.target_type}
-                {entry.target_id ? <span className="text-ink-subtle"> · {entry.target_id}</span> : ""}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colRequestId}</dt>
-              <dd className="mt-0.5">{entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>}</dd>
-            </div>
-          </dl>
+          <AuditMetadataGrid entry={entry} t={t} locale={locale} />
 
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -326,8 +346,8 @@ export function ActivityPage() {
       key: "actor",
       header: t.activityPage.colAdmin,
       render: (entry) => (
-        <span className="font-mono text-xs text-ink-muted [overflow-wrap:anywhere]">
-          {entry.actor_id}
+        <span className={`text-xs text-ink-muted [overflow-wrap:anywhere] ${entry.actor_name ? "" : "font-mono"}`}>
+          {actorLabel(entry)}
           {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
         </span>
       )
