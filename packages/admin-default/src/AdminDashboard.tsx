@@ -96,7 +96,9 @@ function countSubtitle(total: number | null, singular: string, plural: string, f
   return (total === 1 ? singular : plural).replace("{count}", String(total));
 }
 
-function ordersSectionBody(status: "loading" | "ready" | "error", orders: OrderSummary[], t: AdminDictionary): ReactNode {
+type LoadStatus = "loading" | "ready" | "error";
+
+function ordersSectionBody(status: LoadStatus, orders: OrderSummary[], t: AdminDictionary): ReactNode {
   if (status === "error") return <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadOrders}</p>;
   if (status === "loading") {
     return (
@@ -125,7 +127,7 @@ function ordersSectionBody(status: "loading" | "ready" | "error", orders: OrderS
   ));
 }
 
-function customersSectionBody(status: "loading" | "ready" | "error", customers: CustomerSummary[], t: AdminDictionary): ReactNode {
+function customersSectionBody(status: LoadStatus, customers: CustomerSummary[], t: AdminDictionary): ReactNode {
   if (status === "error") return <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadCustomers}</p>;
   if (status === "loading") {
     return (
@@ -222,10 +224,10 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
   const [lowStockProducts, setLowStockProducts] = useState<ProductSummary[]>([]);
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
-  const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [ordersStatus, setOrdersStatus] = useState<LoadStatus>("loading");
   const [recentCustomers, setRecentCustomers] = useState<CustomerSummary[]>([]);
   const [customersTotal, setCustomersTotal] = useState<number | null>(null);
-  const [customersStatus, setCustomersStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [customersStatus, setCustomersStatus] = useState<LoadStatus>("loading");
   const { isLoaded, getToken } = useAuth();
 
   useEffect(() => {
