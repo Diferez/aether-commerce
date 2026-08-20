@@ -1,6 +1,18 @@
 @import "tailwindcss";
 
 /*
+ * @aether/admin-default and @aether/ui ship the actual styled UI (the
+ * default skin) but live outside this app's directory tree, and their
+ * compiled dist/ output is gitignored - Tailwind's automatic content
+ * detection doesn't reach either, so real classes used only inside those
+ * packages (e.g. h-7, w-7) silently vanish from a production build while
+ * still looking fine in `next dev`. These explicit @source directives are
+ * always scanned regardless of .gitignore.
+ */
+@source "../../../packages/admin-default/src";
+@source "../../../packages/ui/src";
+
+/*
  * Aether Admin design tokens. Same mechanism as apps/storefront/app/globals.css
  * (Tailwind v4 @theme is the source of truth; light is the default theme,
  * dark is an override scoped to html[data-theme="dark"]) and the same brand
