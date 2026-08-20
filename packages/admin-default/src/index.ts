@@ -24,3 +24,5 @@ export { FormSection } from "./FormSection";
 export { StickyFormActions } from "./StickyFormActions";
 export { ActivityTimeline, type ActivityTimelineItem } from "./ActivityTimeline";
 export { AdminDashboard } from "./AdminDashboard";
+export { CouponsPage } from "./CouponsPage";
+export { ReviewsPage } from "./ReviewsPage";
