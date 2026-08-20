@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Settings, TicketPercent, UsersRound, Warehouse } from "lucide-react";
+import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Plug, Settings, TicketPercent, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { AdminDictionary } from "@aether/i18n";
 
@@ -40,6 +40,7 @@ export function getNavGroups(t: AdminDictionary): NavGroup[] {
       label: t.nav.systemGroup,
       items: [
         { href: "/settings/", label: t.nav.settings, icon: Settings },
+        { href: "/settings/integrations/", label: t.nav.integrations, icon: Plug },
         { href: "/activity/", label: t.nav.activity, icon: History },
         { href: "/system-health/", label: t.nav.systemHealth, icon: Activity }
       ]
