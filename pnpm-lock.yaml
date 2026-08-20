@@ -321,6 +321,9 @@ importers:
       '@aether/config-schema':
         specifier: workspace:*
         version: link:../config-schema
+      '@aether/core':
+        specifier: workspace:*
+        version: link:../core
       '@aether/i18n':
         specifier: workspace:*
         version: link:../i18n

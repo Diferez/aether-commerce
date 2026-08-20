@@ -14,7 +14,7 @@ const policies = new Map([
   ["observability", new Set()],
   ["schemas", new Set()],
   ["storefront-default", new Set(["@aether/api-client", "@aether/config-schema", "@aether/core", "@aether/schemas", "@aether/ui"])],
-  ["admin-default", new Set(["@aether/config-schema", "@aether/schemas", "@aether/i18n", "@aether/ui"])],
+  ["admin-default", new Set(["@aether/config-schema", "@aether/schemas", "@aether/i18n", "@aether/ui", "@aether/core"])],
   ["ui", new Set(["@aether/core", "@aether/schemas"])],
 ]);
 

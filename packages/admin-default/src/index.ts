@@ -33,3 +33,5 @@ export { InventoryListPage } from "./InventoryListPage";
 export { ProductForm, emptyProductForm, type ProductFormValues } from "./ProductForm";
 export { ProductsEditPage } from "./ProductsEditPage";
 export { ProductsNewPage } from "./ProductsNewPage";
+export { WhatsappNumberInput } from "./WhatsappNumberInput";
+export { SettingsPage } from "./SettingsPage";
