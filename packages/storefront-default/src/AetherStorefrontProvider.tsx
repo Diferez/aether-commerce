@@ -9,6 +9,8 @@ export type StorefrontRuntimeConfig = {
   config: ClientConfiguration;
   /** Resolved API base URL - env/hostname resolution stays app-side (see apps/storefront/components/config.ts), since it differs per deployment. */
   apiBaseUrl: string;
+  /** Resolved AI assistant Worker URL - same app-side resolution reasoning as apiBaseUrl. Undefined/empty means AssistantWidget renders nothing (a client without the assistant configured). */
+  aiAssistantUrl?: string;
   /** Next.js basePath, if the app is deployed under a subpath. */
   basePath?: string;
 };
@@ -16,9 +18,11 @@ export type StorefrontRuntimeConfig = {
 const StorefrontConfigContext = createContext<StorefrontRuntimeConfig | null>(null);
 
 /** Wraps a storefront app (the reference Aether deployment, or a generated client) so every default-skin component reads its brand/theme/API config from here instead of a build-time import - a shared package can't have one client's config baked in. */
-export function AetherStorefrontProvider({ config, apiBaseUrl, basePath, children }: StorefrontRuntimeConfig & { children: ReactNode }) {
+export function AetherStorefrontProvider({ config, apiBaseUrl, aiAssistantUrl, basePath, children }: StorefrontRuntimeConfig & { children: ReactNode }) {
   return (
-    <StorefrontConfigContext.Provider value={{ config, apiBaseUrl, ...(basePath !== undefined ? { basePath } : {}) }}>
+    <StorefrontConfigContext.Provider
+      value={{ config, apiBaseUrl, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }}
+    >
       {children}
     </StorefrontConfigContext.Provider>
   );

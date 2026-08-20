@@ -4,19 +4,13 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Loader2, PackageCheck, Send, ShoppingBag, Trash2, X } from "lucide-react";
 import { formatUsd } from "@aether/core";
-import {
-  addProductReferenceToCart,
-  getCartCredentials,
-  readLocalCart,
-  replaceLocalCartItems
-} from "./cart-client";
+import { createCartClient } from "./cart-client";
 import type { Cart, CartItem } from "@aether/schemas";
-import { aiAssistantUrl } from "./config";
+import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useCustomerSession } from "./customer-client";
-import { useAetherAuth } from "./customer-client";
+import { useAetherAuth } from "./AetherAuthProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
-import { legalPolicyVersion } from "./legal-content";
 
 type AssistantProduct = {
   product_id: string;
@@ -86,8 +80,17 @@ type ChatMessage = {
 const threadStorageKey = "aether.assistant.threadId.v1";
 const privacyStorageKey = "aether.assistant.privacy.v1";
 
-export function AssistantWidget() {
+// legalPolicyVersion is a prop (not part of AetherStorefrontProvider's shared
+// config) because it comes from apps/storefront/components/legal-content.ts -
+// a 576-line legal-copy module used by 5 storefront legal pages that aren't
+// migrated into this package. Only this widget needs the version string, so
+// the app passes it in explicitly at the mount site instead of the package
+// depending on unrelated legal content.
+export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
   const { locale } = useLanguage();
+  const { apiBaseUrl, aiAssistantUrl: configuredAiAssistantUrl } = useStorefrontConfig();
+  const aiAssistantUrl = configuredAiAssistantUrl ?? "";
+  const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const [isOpen, setIsOpen] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -188,7 +191,7 @@ export function AssistantWidget() {
   // Keeps a persistent cart total pinned in the footer (see PASO 3 bug #4) instead
   // of only recapping the cart inline whenever the assistant happens to mention it.
   useEffect(() => {
-    const syncFooterCart = () => setFooterCart(readLocalCart());
+    const syncFooterCart = () => setFooterCart(cartClient.readLocalCart());
     syncFooterCart();
     window.addEventListener("aether-cart-changed", syncFooterCart);
     window.addEventListener("storage", syncFooterCart);
@@ -196,7 +199,7 @@ export function AssistantWidget() {
       window.removeEventListener("aether-cart-changed", syncFooterCart);
       window.removeEventListener("storage", syncFooterCart);
     };
-  }, []);
+  }, [cartClient]);
 
   const footerItemCount = footerCart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
   const footerTotal = footerCart?.totals.total ?? 0;
@@ -350,7 +353,7 @@ export function AssistantWidget() {
   }
 
   async function assistantRequestHeaders() {
-    const { cartId, token } = await getCartCredentials();
+    const { cartId, token } = await cartClient.getCartCredentials();
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "x-aether-cart-id": cartId,
@@ -531,7 +534,7 @@ export function AssistantWidget() {
   function appendAssistantResponse(payload: AssistantResponse) {
     setThreadId(payload.thread_id);
     if (payload.cart && Array.isArray(payload.cart.items)) {
-      replaceLocalCartItems(payload.cart.items as unknown as CartItem[]);
+      cartClient.replaceLocalCartItems(payload.cart.items as unknown as CartItem[]);
     }
     setMessages((current) => {
       const nextMessage: ChatMessage = {
@@ -626,7 +629,7 @@ export function AssistantWidget() {
     setCartFeedback(null);
     const slug = slugFromAssistantProduct(product);
     try {
-      await addProductReferenceToCart({ slug, variantId: product.variant_id });
+      await cartClient.addProductReferenceToCart({ slug, variantId: product.variant_id });
       setCartFeedback(copy.added);
     } catch {
       setCartFeedback(copy.addError);

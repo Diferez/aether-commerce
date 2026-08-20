@@ -244,7 +244,7 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
   const evaluationWorkflow = read(".github/workflows/ai-gemini-evaluation.yml");
   const assistantPackage = read("apps/ai-assistant/package.json");
   const worker = read("apps/ai-assistant/worker.ts");
-  const widget = read("apps/storefront/components/AssistantWidget.tsx");
+  const widget = read("packages/storefront-default/src/AssistantWidget.tsx");
 
   assert.match(packageJson, /NEXT_PUBLIC_AETHER_E2E=true/);
   assert.doesNotMatch(

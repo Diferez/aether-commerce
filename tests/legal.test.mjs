@@ -27,7 +27,7 @@ test("storefront publishes complete legal routes and controller channels", () =>
 });
 
 test("assistant privacy notice matches storage and deletion behavior", () => {
-  const widget = read("apps/storefront/components/AssistantWidget.tsx");
+  const widget = read("packages/storefront-default/src/AssistantWidget.tsx");
   const worker = read("apps/ai-assistant/worker.ts");
   const legal = read("apps/storefront/components/legal-content.ts");
 
