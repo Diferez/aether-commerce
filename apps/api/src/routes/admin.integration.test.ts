@@ -73,6 +73,10 @@ function adminRequest(path: string, init: RequestInit & { token?: string } = {})
   });
 }
 
+function urlOf(input: RequestInfo | URL): string {
+  return input instanceof Request ? input.url : String(input);
+}
+
 async function mockVerifiedActor(roles: string[], sub = "usr_1") {
   const jose = await import("jose");
   vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
@@ -482,6 +486,107 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
     const response = await worker.fetch(adminRequest("/refunds", { method: "POST", token: "tok" }), env, ctx);
 
     expect(response.status).toBe(404);
+  });
+
+  it("POST /admin/orders/:id/refund refunds a paid Stripe order through the real Stripe API call", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv(
+      [
+        { first: null }, // suspension check
+        {
+          first: {
+            channel: "stripe",
+            payment_status: "paid",
+            payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "pi_123" } }),
+            total: 5000,
+            stock_restored_at: null,
+            email: "shopper@example.com",
+            number: "AETH-1"
+          }
+        }
+      ],
+      { STRIPE_SECRET_KEY: "sk_test_123" }
+    );
+    const fetchMock = vi.fn((url: RequestInfo | URL) =>
+      urlOf(url).includes("api.stripe.com/v1/refunds")
+        ? Promise.resolve(new Response(JSON.stringify({ id: "re_123", status: "succeeded" }), { status: 200 }))
+        : Promise.resolve(new Response("{}", { status: 200 }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const response = await worker.fetch(
+        adminRequest("/orders/ord_1/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+        env,
+        ctx
+      );
+      const body = await response.json<{ success: boolean; data?: { orderId: string; paymentStatus: string; providerRefundId: string } }>();
+
+      expect(response.status).toBe(201);
+      expect(body.data).toMatchObject({ orderId: "ord_1", paymentStatus: "refunded", providerRefundId: "re_123" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("POST /admin/orders/:id/refund refunds a paid Wompi order by voiding the transaction - previously rejected as Stripe-only", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv(
+      [
+        { first: null }, // suspension check
+        {
+          first: {
+            channel: "wompi",
+            payment_status: "paid",
+            payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }),
+            total: 5000,
+            stock_restored_at: null,
+            email: "shopper@example.com",
+            number: "AETH-2"
+          }
+        }
+      ],
+      { WOMPI_SECRET_KEY: "prv_test_123" }
+    );
+    const fetchMock = vi.fn((url: RequestInfo | URL) =>
+      urlOf(url).includes("/transactions/txn_123/void")
+        ? Promise.resolve(new Response(JSON.stringify({ data: { id: "txn_123", status: "VOIDED" } }), { status: 200 }))
+        : Promise.resolve(new Response("{}", { status: 200 }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const response = await worker.fetch(
+        adminRequest("/orders/ord_2/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+        env,
+        ctx
+      );
+      const body = await response.json<{ success: boolean; data?: { orderId: string; paymentStatus: string; providerRefundId: string } }>();
+
+      expect(response.status).toBe(201);
+      expect(body.data).toMatchObject({ orderId: "ord_2", paymentStatus: "refunded", providerRefundId: "txn_123" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("POST /admin/orders/:id/refund still refuses a whatsapp order - no payment provider to refund through", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, db } = fakeEnv([
+      { first: null }, // suspension check
+      { first: { channel: "whatsapp", payment_status: "paid", payload_json: "{}", total: 5000, stock_restored_at: null, email: "shopper@example.com", number: "AETH-3" } }
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/orders/ord_3/refund", { method: "POST", token: "tok", headers: { "content-type": "application/json" }, body: "{}" }),
+      env,
+      ctx
+    );
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+
+    expect(response.status).toBe(409);
+    expect(body.error?.code).toBe("REFUND_NOT_APPLICABLE");
+    expect(db.batch).not.toHaveBeenCalled();
   });
 
   it("GET /admin/summary computes real revenue/orders from the orders table", async () => {

@@ -84,6 +84,14 @@ describe("AdminDashboard", () => {
     expect(screen.getByText("$1,000.00")).toBeInTheDocument();
   });
 
+  it("shows the conversion metric as not tracked instead of a fabricated percentage - no pageview/session data exists to compute one", async () => {
+    defaultRouter({ summary: { mode: "private", revenue: 100000, orders: 5, conversionRate: null, lowStock: 1 } });
+    render(<AdminDashboard />);
+
+    expect(await screen.findByText("Not tracked")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d.*%$/)).not.toBeInTheDocument();
+  });
+
   it("shows a permission-denied message when contact messages return 403", async () => {
     defaultRouter();
     fetchMock.mockImplementation((url: string) => {

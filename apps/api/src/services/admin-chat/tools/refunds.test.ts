@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { executeRefundOrder, prepareRefundOrderTool } from "./refunds";
 import { fakeContext, fakeEnv } from "../test-support";
+import type * as RefundsModule from "../../refunds";
 
-vi.mock("../../stripe", () => ({ createRefund: vi.fn() }));
+vi.mock("../../refunds", async () => {
+  const actual = await vi.importActual<typeof RefundsModule>("../../refunds");
+  return { ...actual, createProviderRefund: vi.fn() };
+});
 vi.mock("../../inventory", () => ({ buildRestockStatements: vi.fn(() => Promise.resolve([])) }));
 vi.mock("../../catalog", () => ({ clearCatalogCache: vi.fn(() => Promise.resolve()) }));
 
@@ -28,7 +32,7 @@ describe("prepareRefundOrderTool", () => {
     expect(db.prepare).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses a non-Stripe order without creating a pending action", async () => {
+  it("refuses an order from a channel with no payment-provider refund path (e.g. whatsapp) without creating a pending action", async () => {
     const { env, db } = fakeEnv([{ first: { id: "ord_1", ...stripeOrderRow({ channel: "whatsapp" }) } }]);
     const ctx = fakeContext(env);
 
@@ -60,6 +64,20 @@ describe("prepareRefundOrderTool", () => {
 
     expect(result.artifact).toMatchObject({ type: "pending_action", operationId: "pact_1", toolName: "prepare_refund_order" });
   });
+
+  it("prepares a pending action for a refundable Wompi order", async () => {
+    const { env } = fakeEnv([
+      { first: { id: "ord_1", ...stripeOrderRow({ channel: "wompi", payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }) }) } },
+      { first: null },
+      {},
+      { first: { id: "pact_1", expires_at: new Date(Date.now() + 300_000).toISOString() } }
+    ]);
+    const ctx = fakeContext(env);
+
+    const result = await prepareRefundOrderTool.run({ orderId: "ord_1" }, ctx);
+
+    expect(result.artifact).toMatchObject({ type: "pending_action", operationId: "pact_1", toolName: "prepare_refund_order" });
+  });
 });
 
 describe("executeRefundOrder", () => {
@@ -72,9 +90,9 @@ describe("executeRefundOrder", () => {
     expect(outcome).toMatchObject({ success: false, code: "REFUND_NOT_APPLICABLE" });
   });
 
-  it("calls Stripe, marks the order refunded, restocks, and writes an audit log entry on a full refund", async () => {
-    const stripe = await import("../../stripe");
-    vi.mocked(stripe.createRefund).mockResolvedValueOnce({ id: "re_123" } as never);
+  it("calls the payment provider, marks the order refunded, restocks, and writes an audit log entry on a full refund", async () => {
+    const refunds = await import("../../refunds");
+    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_123" });
     const { env, db } = fakeEnv([{ first: stripeOrderRow() }]);
     // batch() default mock in test-support resolves without meta.changes,
     // which executeRefundOrder never inspects (unlike changeOrderState) -
@@ -83,30 +101,44 @@ describe("executeRefundOrder", () => {
 
     const outcome = await executeRefundOrder(ctx, { orderId: "ord_1" });
 
-    expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "refunded", stripeRefundId: "re_123" } });
+    expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "refunded", providerRefundId: "re_123" } });
     expect(db.batch).toHaveBeenCalledTimes(1);
   });
 
   it("marks the order partially_refunded (no restock) when the amount is less than the order total", async () => {
-    const stripe = await import("../../stripe");
-    vi.mocked(stripe.createRefund).mockResolvedValueOnce({ id: "re_456" } as never);
+    const refunds = await import("../../refunds");
+    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "re_456" });
     const { env } = fakeEnv([{ first: stripeOrderRow({ total: 5000 }) }]);
     const ctx = fakeContext(env);
 
     const outcome = await executeRefundOrder(ctx, { orderId: "ord_1", amountCents: 1000 });
 
-    expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "partially_refunded", stripeRefundId: "re_456" } });
+    expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "partially_refunded", providerRefundId: "re_456" } });
   });
 
-  it("returns STRIPE_REFUND_FAILED without writing anything when Stripe rejects the refund", async () => {
-    const stripe = await import("../../stripe");
-    vi.mocked(stripe.createRefund).mockRejectedValueOnce(new Error("card_not_refundable"));
+  it("refunds a Wompi order through the same executor", async () => {
+    const refunds = await import("../../refunds");
+    vi.mocked(refunds.createProviderRefund).mockResolvedValueOnce({ id: "txn_123", status: "VOIDED" });
+    const { env } = fakeEnv([
+      { first: stripeOrderRow({ channel: "wompi", payload_json: JSON.stringify({ payment: { providerPaymentIntentId: "txn_123" } }) }) }
+    ]);
+    const ctx = fakeContext(env);
+
+    const outcome = await executeRefundOrder(ctx, { orderId: "ord_1" });
+
+    expect(outcome).toEqual({ success: true, result: { orderId: "ord_1", paymentStatus: "refunded", providerRefundId: "txn_123" } });
+    expect(refunds.createProviderRefund).toHaveBeenCalledWith(env, "wompi", "txn_123", undefined, 5000);
+  });
+
+  it("returns REFUND_FAILED without writing anything when the payment provider rejects the refund", async () => {
+    const refunds = await import("../../refunds");
+    vi.mocked(refunds.createProviderRefund).mockRejectedValueOnce(new Error("card_not_refundable"));
     const { env, db } = fakeEnv([{ first: stripeOrderRow() }]);
     const ctx = fakeContext(env);
 
     const outcome = await executeRefundOrder(ctx, { orderId: "ord_1" });
 
-    expect(outcome).toEqual({ success: false, code: "STRIPE_REFUND_FAILED", message: "card_not_refundable" });
+    expect(outcome).toEqual({ success: false, code: "REFUND_FAILED", message: "card_not_refundable" });
     expect(db.batch).not.toHaveBeenCalled();
   });
 });

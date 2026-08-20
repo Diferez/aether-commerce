@@ -22,6 +22,8 @@ import { userRoutes } from "./routes/user";
 import { webhookRoutes } from "./routes/webhooks";
 import { buildSentryOptions, getLogger } from "./services/observability";
 import { recordTaskRun } from "./services/metrics";
+import { sendDueRestockNotifications } from "./services/restock-notifications";
+import { sendLowStockAlerts } from "./services/low-stock-alerts";
 
 const app = new Hono<AppBindings>();
 
@@ -127,6 +129,22 @@ export default withSentry(buildSentryOptions, {
       await recordTaskRun(env, "inventory_reservation_expiry", "ok");
     } catch (error) {
       await recordTaskRun(env, "inventory_reservation_expiry", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
+      throw error;
+    }
+
+    try {
+      await sendDueRestockNotifications(env);
+      await recordTaskRun(env, "restock_notifications", "ok");
+    } catch (error) {
+      await recordTaskRun(env, "restock_notifications", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
+      throw error;
+    }
+
+    try {
+      await sendLowStockAlerts(env);
+      await recordTaskRun(env, "low_stock_alerts", "ok");
+    } catch (error) {
+      await recordTaskRun(env, "low_stock_alerts", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
       throw error;
     }
   }

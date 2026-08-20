@@ -20,6 +20,7 @@ export function ProductCard({
   onToggleFavorite,
   onAddToCart,
   onNotifyRestock,
+  isNotifySubscribed,
   onOpenProduct
 }: {
   product: Product;
@@ -29,6 +30,7 @@ export function ProductCard({
   onToggleFavorite: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onNotifyRestock?: (product: Product) => void;
+  isNotifySubscribed?: boolean;
   onOpenProduct?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const { locale, t } = useLanguage();
@@ -158,20 +160,18 @@ export function ProductCard({
                 type="button"
                 onClick={(event) => {
                   event.preventDefault();
-                  if (onNotifyRestock) {
-                    onNotifyRestock(product);
-                  } else {
-                    // TODO: wire up to a real "notify me when back in stock"
-                    // endpoint once the API exposes one - no backend support
-                    // exists yet, so this is a stub rather than a dead button.
-                    console.info(`[notify-restock] ${product.id} - no endpoint wired yet`);
-                  }
+                  if (!isNotifySubscribed) onNotifyRestock?.(product);
                 }}
-                className="focus-ring flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-sm font-medium text-ink transition hover:bg-surface-hover"
+                disabled={isNotifySubscribed}
+                className={`focus-ring flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition ${
+                  isNotifySubscribed
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-border-strong bg-surface text-ink hover:bg-surface-hover"
+                }`}
                 aria-label={t.notifyWhenBackInStock.replace("{name}", product.name)}
               >
-                <Bell size={16} aria-hidden />
-                <span>{t.notifyMe}</span>
+                {isNotifySubscribed ? <Check size={16} aria-hidden /> : <Bell size={16} aria-hidden />}
+                <span>{isNotifySubscribed ? t.notifySubscribed : t.notifyMe}</span>
               </button>
             ) : (
               <button

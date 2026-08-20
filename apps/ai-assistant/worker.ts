@@ -121,6 +121,7 @@ type AssistantOrderSummary = {
   total: string;
   currency: string;
   created_at: string;
+  tracking: { carrier: string | null; number: string | null; url: string | null } | null;
 };
 
 type AssistantRequest = {
@@ -1889,6 +1890,10 @@ function toAssistantOrderSummary(order: Record<string, unknown>): AssistantOrder
       ),
     0
   );
+  const tracking =
+    typeof order.tracking === "object" && order.tracking !== null
+      ? (order.tracking as Record<string, unknown>)
+      : null;
   return {
     id,
     number,
@@ -1896,7 +1901,10 @@ function toAssistantOrderSummary(order: Record<string, unknown>): AssistantOrder
     item_count: itemCount,
     total: String(Number(totals.total || 0) / 100),
     currency: primitiveString(totals.currency, "USD").toUpperCase(),
-    created_at: primitiveString(order.createdAt) || primitiveString(order.created_at)
+    created_at: primitiveString(order.createdAt) || primitiveString(order.created_at),
+    tracking: tracking
+      ? { carrier: primitiveString(tracking.carrier) || null, number: primitiveString(tracking.number) || null, url: primitiveString(tracking.url) || null }
+      : null
   };
 }
 

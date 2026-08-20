@@ -56,3 +56,38 @@ export async function sendOrderEmail(env: Env, order: Pick<Order, "email" | "num
     html: `<p>Your Aether order <strong>${order.number}</strong> is ${order.state}.</p>`
   });
 }
+
+export async function sendRestockNotificationEmail(env: Env, notification: { email: string; productName: string; productUrl: string }) {
+  return send(env, {
+    to: notification.email,
+    subject: `${notification.productName} is back in stock`,
+    html: `<p><strong>${notification.productName}</strong> is back in stock.</p><p><a href="${notification.productUrl}">View product</a></p>`
+  });
+}
+
+export async function sendDisputeAlertEmail(env: Env, dispute: { disputeId: string; orderNumber: string | null; reason?: string }) {
+  if (!env.CONTACT_RECIPIENT_EMAIL) {
+    return { queued: false, provider: "resend", reason: "CONTACT_RECIPIENT_EMAIL missing" };
+  }
+
+  return send(env, {
+    to: env.CONTACT_RECIPIENT_EMAIL,
+    subject: `Payment dispute opened${dispute.orderNumber ? ` for order ${dispute.orderNumber}` : ""}`,
+    html: `<p>Stripe reported a new dispute (${dispute.disputeId})${dispute.orderNumber ? ` on order <strong>${dispute.orderNumber}</strong>` : ""}${dispute.reason ? ` - reason: ${dispute.reason}` : ""}.</p><p>Respond to it from the Stripe dashboard before the evidence deadline.</p>`
+  });
+}
+
+export async function sendLowStockAlertEmail(env: Env, products: { name: string; stock: number }[]) {
+  if (!env.CONTACT_RECIPIENT_EMAIL) {
+    return { queued: false, provider: "resend", reason: "CONTACT_RECIPIENT_EMAIL missing" };
+  }
+
+  const items = products
+    .map((product) => `<li>${product.name} - ${product.stock <= 0 ? "out of stock" : `${product.stock} left`}</li>`)
+    .join("");
+  return send(env, {
+    to: env.CONTACT_RECIPIENT_EMAIL,
+    subject: `${products.length} product(s) low on stock`,
+    html: `<p>The following products need restocking:</p><ul>${items}</ul>`
+  });
+}

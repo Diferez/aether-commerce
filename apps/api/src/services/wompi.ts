@@ -205,6 +205,47 @@ async function retrieveWompiCheckoutSession(secretKey: string | undefined, trans
   return mapWompiTransactionToPaidCheckoutSession(payload.data);
 }
 
+export type WompiRefund = {
+  id: string;
+  status?: string;
+};
+
+/**
+ * Wompi's public API only exposes a full-transaction void
+ * (POST /transactions/{id}/void), not a partial-amount refund like Stripe's
+ * /v1/refunds - voiding reverses the entire charge. A partial amount is
+ * rejected up front instead of silently voiding the full order, so the
+ * admin isn't surprised by a mismatch between what they asked for and what
+ * actually happened.
+ */
+export async function createWompiRefund(env: Env, transactionId: string, amountCents: number | undefined, orderTotalCents: number): Promise<WompiRefund> {
+  const secretKey = env.WOMPI_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Wompi secret key is not configured");
+  }
+  if (amountCents !== undefined && amountCents < orderTotalCents) {
+    throw new Error("Wompi only supports full refunds - partial refund amounts are not available for Wompi orders.");
+  }
+
+  const response = await fetch(`${wompiApiBase(secretKey)}/transactions/${encodeURIComponent(transactionId)}/void`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secretKey}` }
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    console.error("Wompi refund (void) failed", {
+      status: response.status,
+      statusText: response.statusText,
+      wompiError: parseWompiError(errorBody)
+    });
+    throw new Error("Wompi refund could not be created");
+  }
+
+  const payload: { data?: WompiTransactionResponse } = await response.json();
+  return { id: payload.data?.id ?? transactionId, ...(payload.data?.status ? { status: payload.data.status } : {}) };
+}
+
 /** Cloudflare/Wompi adapter for the provider-neutral checkout port. Credentials fall back to env vars when omitted. */
 export function createWompiCheckoutProvider(env: Env, credentials?: CheckoutProviderCredentials): CheckoutProvider {
   const secretKey = credentials?.secretKey ?? env.WOMPI_SECRET_KEY;

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cart } from "@aether/schemas";
 import type { PaidCheckoutSession } from "@aether/api-core";
 import type { Env } from "../types";
-import { changeOrderState, createManualOrder, createOrderFromPaidSession } from "./orders";
+import { changeOrderState, createManualOrder, createOrderFromPaidSession, withOrderTracking } from "./orders";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -110,6 +110,25 @@ function paidSession(overrides: Partial<PaidCheckoutSession> = {}): PaidCheckout
     ...overrides
   };
 }
+
+describe("withOrderTracking", () => {
+  it("overlays carrier/number/url onto the payload when any tracking column is set", () => {
+    const result = withOrderTracking(
+      { id: "ord_1", number: "AETH-1" },
+      { tracking_carrier: "DHL", tracking_number: "1Z999", tracking_url: "https://track.example.com/1Z999" }
+    );
+    expect(result).toMatchObject({
+      id: "ord_1",
+      number: "AETH-1",
+      tracking: { carrier: "DHL", number: "1Z999", url: "https://track.example.com/1Z999" }
+    });
+  });
+
+  it("sets tracking to null when no tracking column is set - the admin hasn't entered a shipment yet", () => {
+    const result = withOrderTracking({ id: "ord_1" }, { tracking_carrier: null, tracking_number: null, tracking_url: null });
+    expect(result.tracking).toBeNull();
+  });
+});
 
 describe("createManualOrder", () => {
   it("returns empty_items without touching the database when items is empty", async () => {

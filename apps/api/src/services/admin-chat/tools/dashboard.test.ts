@@ -11,7 +11,7 @@ describe("getDashboardSummaryTool", () => {
 
     expect(result.artifact).toMatchObject({
       type: "dashboard_summary",
-      summary: { revenue: 543200, orders: 12, conversionRate: 4.8, lowStock: 7 }
+      summary: { revenue: 543200, orders: 12, conversionRate: null, lowStock: 7 }
     });
     expect(db.prepare).toHaveBeenCalledTimes(2);
   });
@@ -33,7 +33,7 @@ describe("getSalesSummaryTool", () => {
 
     const result = await getSalesSummaryTool.run({}, ctx);
 
-    expect(result.artifact).toEqual({ type: "dashboard_summary", summary: { revenue: 543200, orders: 12, conversionRate: 4.8, lowStock: 0 } });
+    expect(result.artifact).toEqual({ type: "dashboard_summary", summary: { revenue: 543200, orders: 12, conversionRate: null, lowStock: 0 } });
     expect(db.prepare).toHaveBeenCalledTimes(2);
   });
 });

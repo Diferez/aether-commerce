@@ -36,6 +36,12 @@ export type StripeWebhookPayload = {
       customer_email?: string;
       metadata?: { cartId?: string; userId?: string; checkoutSnapshotId?: string };
       payment_intent?: string;
+      // charge.refunded - the object is the Charge itself.
+      refunded?: boolean;
+      amount_refunded?: number;
+      // charge.dispute.created - the object is the Dispute itself.
+      reason?: string;
+      status?: string;
     };
   };
 };
