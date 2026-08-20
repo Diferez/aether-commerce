@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Benefits } from "./Benefits";
 import { CategoryGrid } from "./CategoryGrid";
@@ -9,11 +10,14 @@ import { ProductGrid } from "./ProductGrid";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 
-// Generic default-skin home, for a generated client that keeps every piece
-// as-is. The Aether reference deployment keeps its own composition instead
-// (apps/storefront/app/page.tsx) so it can use its own real ContactForm
-// override rather than this generic one - same reasoning as SiteFooter.
-export function HomePage({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
+// The composition (Hero, categories, product rails, benefits, final CTA) is
+// the single source of truth - a fresh client keeping the default skin and
+// the Aether reference deployment (apps/storefront/app/page.tsx, which wraps
+// this component instead of duplicating the composition) both use it as-is.
+// contactForm is the one slot the reference deployment overrides, passing
+// its own real ContactForm (apps/storefront/components/ContactForm.tsx)
+// instead of this package's address-less generic one.
+export function HomePage({ legalPolicyVersion, contactForm }: Readonly<{ legalPolicyVersion: string; contactForm?: ReactNode }>) {
   const { t } = useLanguage();
 
   return (
@@ -65,7 +69,7 @@ export function HomePage({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: 
         </div>
       </section>
 
-      <ContactForm legalPolicyVersion={legalPolicyVersion} />
+      {contactForm ?? <ContactForm legalPolicyVersion={legalPolicyVersion} />}
     </main>
   );
 }

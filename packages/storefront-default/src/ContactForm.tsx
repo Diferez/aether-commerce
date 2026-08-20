@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Mail, Send } from "lucide-react";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
@@ -11,16 +12,18 @@ function formString(form: FormData, key: string, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
-// Deliberately generic: no address/phone block here - those are specific to
-// the Aether reference deployment (see apps/storefront/components/
-// ContactForm.tsx, which overrides this default with its own real contact
-// details instead of re-exporting it - same override pattern as SiteFooter).
-// A shared default-skin package must never ship one deployment's contact
-// details to every client that keeps the default. legalPolicyVersion is a
-// prop (not part of AetherStorefrontProvider's shared config) for the same
-// reason AssistantWidget takes it as a prop - it comes from a legal-copy
-// module this package doesn't own.
-export function ContactForm({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
+// The form itself (fields, submit logic, copy) is the single source of truth
+// - both a fresh client keeping the default skin and the Aether reference
+// deployment (apps/storefront/components/ContactForm.tsx, which wraps this
+// component instead of duplicating it - same override-by-composition shape
+// as HomePage's contactForm slot) use this exact implementation. addressBlock
+// is the one deployment-specific piece: undefined renders nothing (a client
+// without real contact details configured yet), the reference deployment
+// passes its own real address/email/phone JSX. legalPolicyVersion is a prop
+// (not part of AetherStorefrontProvider's shared config) for the same reason
+// AssistantWidget takes it as a prop - it comes from a legal-copy module
+// this package doesn't own.
+export function ContactForm({ legalPolicyVersion, addressBlock }: Readonly<{ legalPolicyVersion: string; addressBlock?: ReactNode }>) {
   const { locale, t } = useLanguage();
   const { apiBaseUrl } = useStorefrontConfig();
   const [status, setStatus] = useState("");
@@ -67,6 +70,7 @@ export function ContactForm({ legalPolicyVersion }: Readonly<{ legalPolicyVersio
             {labels.title}
           </h2>
           <p className="mt-3 text-sm leading-6 text-zinc-600">{labels.description}</p>
+          {addressBlock}
           <p className="mt-4 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700">
             {status || labels.ready}
           </p>
