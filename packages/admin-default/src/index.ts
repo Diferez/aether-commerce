@@ -23,3 +23,4 @@ export { DataTable, type Column, type TableSelection } from "./DataTable";
 export { FormSection } from "./FormSection";
 export { StickyFormActions } from "./StickyFormActions";
 export { ActivityTimeline, type ActivityTimelineItem } from "./ActivityTimeline";
+export { AdminDashboard } from "./AdminDashboard";
