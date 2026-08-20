@@ -12,7 +12,7 @@ export type BreadcrumbItem = { label: string; href?: string };
  * shipped by mistake here: order/product detail pages had the same string
  * in both the last crumb and the <h1>).
  */
-export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
+export function Breadcrumbs({ items }: Readonly<{ items: BreadcrumbItem[] }>) {
   const { t } = useAdminLanguage();
   if (items.length === 0) return null;
 

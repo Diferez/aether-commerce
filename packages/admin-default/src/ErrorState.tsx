@@ -7,11 +7,11 @@ export function ErrorState({
   title,
   description,
   action
-}: {
+}: Readonly<{
   title?: string;
   description?: string;
   action?: React.ReactNode;
-}) {
+}>) {
   const { t } = useAdminLanguage();
   return (
     <div className="flex items-start gap-3 rounded-lg border border-danger/20 bg-danger-soft p-4 text-sm text-danger">

@@ -5,7 +5,7 @@ import { useAdminLanguage } from "./AdminLanguageProvider";
 
 export type FilterChip = { key: string; label: string; onRemove: () => void };
 
-export function FilterBar({ chips, onClearAll }: { chips: FilterChip[]; onClearAll: () => void }) {
+export function FilterBar({ chips, onClearAll }: Readonly<{ chips: FilterChip[]; onClearAll: () => void }>) {
   const { t } = useAdminLanguage();
   if (chips.length === 0) return null;
 

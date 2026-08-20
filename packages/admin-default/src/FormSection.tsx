@@ -2,11 +2,11 @@ export function FormSection({
   title,
   description,
   children
-}: {
+}: Readonly<{
   title: React.ReactNode;
   description?: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <section className="rounded-lg border border-border bg-surface p-5">
       <h2 className="flex items-center gap-2 text-base font-semibold text-ink">{title}</h2>

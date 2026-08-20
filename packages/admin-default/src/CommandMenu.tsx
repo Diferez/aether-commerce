@@ -38,7 +38,7 @@ function useDebouncedValue(value: string, delayMs: number) {
   return debounced;
 }
 
-export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandMenu({ open, onClose }: Readonly<{ open: boolean; onClose: () => void }>) {
   const { getToken } = useAuth();
   const { apiBaseUrl } = useAdminConfig();
   const { t } = useAdminLanguage();
@@ -189,14 +189,26 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   let groupCursor = "";
   let flatIndex = -1;
 
+  // The backdrop's onClick is a mouse-only convenience dismiss - keyboard
+  // users already have an equivalent via the document-level Escape handler
+  // above, and the ARIA dialog role on the panel below is the standard,
+  // correct pattern (WAI-ARIA dialog authoring practice), not a substitute
+  // for the native <dialog> element Sonar suggests, which has different
+  // imperative show/close and focus-trap semantics this component doesn't
+  // use. The panel's own onClick only stops propagation to the backdrop -
+  // it performs no action a keyboard user would need a key handler for.
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[12vh]" role="presentation" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[12vh]"
+      role="presentation" // NOSONAR - see comment above
+      onClick={onClose}
+    >
       <div
-        role="dialog"
+        role="dialog" // NOSONAR - see comment above
         aria-modal="true"
         aria-label={t.commandMenu.dialogLabel}
         className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-elevate-md"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()} // NOSONAR - see comment above
       >
         <div className="flex items-center gap-2.5 border-b border-border px-4">
           <Search size={16} aria-hidden className="text-ink-subtle" />

@@ -43,7 +43,7 @@ export function DataTable<T>({
   emptyState,
   errorState,
   selection
-}: {
+}: Readonly<{
   columns: Column<T>[];
   rows: T[];
   status: "loading" | "ready" | "error";
@@ -53,77 +53,83 @@ export function DataTable<T>({
   emptyState: ReactNode;
   errorState?: ReactNode;
   selection?: TableSelection<T>;
-}) {
+}>) {
   const { t } = useAdminLanguage();
-  return (
-    <div>
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        {status === "loading" ? (
-          <div className="grid gap-2 p-4">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="skeleton h-14 rounded-md" />
+
+  let body: ReactNode;
+  if (status === "loading") {
+    body = (
+      <div className="grid gap-2 p-4">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="skeleton h-14 rounded-md" />
+        ))}
+      </div>
+    );
+  } else if (status === "error") {
+    body = <div className="p-4">{errorState ?? <ErrorState />}</div>;
+  } else if (rows.length === 0) {
+    body = emptyState;
+  } else {
+    body = (
+      <table className="w-full min-w-[640px] text-left text-sm">
+        <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
+          <tr>
+            {selection ? (
+              <th className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  aria-label={t.dataTable.selectAllRows}
+                  checked={rows.length > 0 && rows.every((row) => selection.selectedIds.has(getRowId(row)))}
+                  onChange={selection.onToggleAll}
+                  className="h-4 w-4 rounded border-border-strong"
+                />
+              </th>
+            ) : null}
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                className={`px-3 py-3 ${column.align === "end" ? "text-right" : "text-left"} ${hideBelowClass(column.hideBelow)}`}
+              >
+                {column.header}
+              </th>
             ))}
-          </div>
-        ) : status === "error" ? (
-          <div className="p-4">{errorState ?? <ErrorState />}</div>
-        ) : rows.length === 0 ? (
-          emptyState
-        ) : (
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
-              <tr>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const id = getRowId(row);
+            return (
+              <tr key={id} className="border-b border-border last:border-b-0 hover:bg-surface-hover">
                 {selection ? (
-                  <th className="w-10 px-3 py-3">
+                  <td className="px-3 py-3">
                     <input
                       type="checkbox"
-                      aria-label={t.dataTable.selectAllRows}
-                      checked={rows.length > 0 && rows.every((row) => selection.selectedIds.has(getRowId(row)))}
-                      onChange={selection.onToggleAll}
+                      aria-label={t.dataTable.selectRow.replace("{label}", selection.getRowLabel?.(row) ?? id)}
+                      checked={selection.selectedIds.has(id)}
+                      onChange={() => selection.onToggle(id)}
                       className="h-4 w-4 rounded border-border-strong"
                     />
-                  </th>
+                  </td>
                 ) : null}
                 {columns.map((column) => (
-                  <th
+                  <td
                     key={column.key}
-                    className={`px-3 py-3 ${column.align === "end" ? "text-right" : "text-left"} ${hideBelowClass(column.hideBelow)}`}
+                    className={`px-3 py-3 ${column.align === "end" ? "text-right tabular-nums" : ""} ${hideBelowClass(column.hideBelow)}`}
                   >
-                    {column.header}
-                  </th>
+                    {column.render(row)}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const id = getRowId(row);
-                return (
-                  <tr key={id} className="border-b border-border last:border-b-0 hover:bg-surface-hover">
-                    {selection ? (
-                      <td className="px-3 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label={t.dataTable.selectRow.replace("{label}", selection.getRowLabel?.(row) ?? id)}
-                          checked={selection.selectedIds.has(id)}
-                          onChange={() => selection.onToggle(id)}
-                          className="h-4 w-4 rounded border-border-strong"
-                        />
-                      </td>
-                    ) : null}
-                    {columns.map((column) => (
-                      <td
-                        key={column.key}
-                        className={`px-3 py-3 ${column.align === "end" ? "text-right tabular-nums" : ""} ${hideBelowClass(column.hideBelow)}`}
-                      >
-                        {column.render(row)}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface">{body}</div>
 
       {pagination && pagination.pageCount > 1 && onPageChange ? (
         <div className="mt-4 flex items-center justify-between text-sm text-ink-muted">

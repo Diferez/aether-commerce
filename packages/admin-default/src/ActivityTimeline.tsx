@@ -8,7 +8,7 @@ export type ActivityTimelineItem = {
   icon?: LucideIcon;
 };
 
-export function ActivityTimeline({ items, emptyLabel = "Nothing recorded yet." }: { items: ActivityTimelineItem[]; emptyLabel?: string }) {
+export function ActivityTimeline({ items, emptyLabel = "Nothing recorded yet." }: Readonly<{ items: ActivityTimelineItem[]; emptyLabel?: string }>) {
   if (items.length === 0) {
     return <p className="text-sm text-ink-muted">{emptyLabel}</p>;
   }

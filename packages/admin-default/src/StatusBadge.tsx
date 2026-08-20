@@ -25,12 +25,12 @@ export function StatusBadge({
   children,
   icon: Icon,
   className
-}: {
+}: Readonly<{
   tone: StatusTone;
   children: React.ReactNode;
   icon?: LucideIcon;
   className?: string;
-}) {
+}>) {
   return (
     <span className={clsx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", toneClasses[tone], className)}>
       {Icon ? <Icon size={12} aria-hidden /> : null}

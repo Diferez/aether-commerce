@@ -7,7 +7,7 @@ export function PageHeader({
   primaryAction,
   secondaryActions,
   meta
-}: {
+}: Readonly<{
   title: string;
   description?: string;
   breadcrumb?: BreadcrumbItem[];
@@ -15,7 +15,7 @@ export function PageHeader({
   secondaryActions?: React.ReactNode;
   /** Small inline items next to the title, e.g. status badges on a detail page. */
   meta?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="mb-6">
       {breadcrumb ? <Breadcrumbs items={breadcrumb} /> : null}

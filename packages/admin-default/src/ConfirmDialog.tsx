@@ -21,7 +21,7 @@ export function ConfirmDialog({
   pending = false,
   onConfirm,
   onCancel
-}: {
+}: Readonly<{
   open: boolean;
   title: string;
   description?: React.ReactNode;
@@ -31,7 +31,7 @@ export function ConfirmDialog({
   pending?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}) {
+}>) {
   const { t } = useAdminLanguage();
   const confirmRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<Element | null>(null);
@@ -56,15 +56,28 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
+  // The backdrop's onClick is a mouse-only convenience dismiss - keyboard
+  // users already have an equivalent via the document-level Escape handler
+  // above, and the ARIA alertdialog role on the panel below is the
+  // standard, correct pattern (WAI-ARIA dialog authoring practice), not a
+  // substitute for the native <dialog> element Sonar suggests, which has
+  // different imperative show/close and focus-trap semantics this
+  // component doesn't use. The panel's own onClick only stops propagation
+  // to the backdrop - it performs no action a keyboard user would need a
+  // key handler for.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation" // NOSONAR - see comment above
+      onClick={onCancel}
+    >
       <div
-        role="alertdialog"
+        role="alertdialog" // NOSONAR - see comment above
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby={description ? "confirm-dialog-description" : undefined}
         className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-elevate-md"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()} // NOSONAR - see comment above
       >
         <p id="confirm-dialog-title" className="text-base font-semibold text-ink">
           {title}

@@ -10,7 +10,7 @@ export function TableToolbar({
   searchLabel,
   filters,
   actions
-}: {
+}: Readonly<{
   searchValue: string;
   onSearchChange: (value: string) => void;
   onSearchSubmit: (event: React.FormEvent) => void;
@@ -18,7 +18,7 @@ export function TableToolbar({
   searchLabel: string;
   filters?: React.ReactNode;
   actions?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-3">
       <form onSubmit={onSearchSubmit} className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-border bg-surface px-3">

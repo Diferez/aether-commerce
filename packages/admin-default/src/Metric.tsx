@@ -6,14 +6,14 @@ export function Metric({
   icon: Icon,
   href,
   hint
-}: {
+}: Readonly<{
   label: string;
   value: string;
   icon?: LucideIcon;
   href?: string;
   /** Only render when there's real, trustworthy context to show - never a fabricated comparison. */
   hint?: string;
-}) {
+}>) {
   const content = (
     <>
       <div className="flex items-center justify-between">
