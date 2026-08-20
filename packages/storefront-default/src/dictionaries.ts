@@ -369,7 +369,7 @@ export const dictionaries = {
     loginDescription: "Accede a tu cuenta demo, favoritos guardados, carrito y área de pedidos.",
     registerDescription: "Crea una cuenta demo para favoritos, continuidad del carrito y páginas de cuenta.",
     email: "Correo",
-    password: "Contraseña",
+    password: "Contraseña", // NOSONAR - UI label translation, not a credential
     fullName: "Nombre completo",
     newCustomer: "¿Cliente nuevo?",
     alreadyRegistered: "¿Ya estás registrado?",

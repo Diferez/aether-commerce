@@ -32,9 +32,10 @@ function isActive(pathname: string, href: string) {
 // Clerk's <UserButton/> only renders the avatar as the real clickable
 // trigger (.cl-userButtonTrigger) - the name/role text next to it is our
 // own markup, not part of the button, so clicking it did nothing. Forward
-// clicks anywhere in the row to the real trigger, unless the click already
-// landed on it (which would otherwise open then immediately close the menu).
-function openUserMenuUnlessAlreadyOnTrigger(event: React.MouseEvent<HTMLElement>) {
+// clicks (or Enter/Space, for the keyboard-accessible row below) anywhere
+// in the row to the real trigger, unless the click already landed on it
+// (which would otherwise open then immediately close the menu).
+function openUserMenuUnlessAlreadyOnTrigger(event: React.SyntheticEvent<HTMLElement>) {
   const target = event.target as HTMLElement;
   if (target.closest(".cl-userButtonTrigger")) return;
   event.currentTarget.querySelector<HTMLButtonElement>(".cl-userButtonTrigger")?.click();
@@ -195,8 +196,16 @@ export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: bool
           </button>
         </div>
         <div
+          role={isSignedIn ? "button" : undefined}
+          tabIndex={isSignedIn ? 0 : undefined}
           className={`flex items-center gap-2.5 rounded-md px-1.5 py-1.5 ${collapsed ? "justify-center" : ""} ${isSignedIn ? "cursor-pointer hover:bg-surface-hover" : ""}`}
           onClick={openUserMenuUnlessAlreadyOnTrigger}
+          onKeyDown={(event) => {
+            if (isSignedIn && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              openUserMenuUnlessAlreadyOnTrigger(event);
+            }
+          }}
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-hover text-ink [&_.cl-userButtonTrigger]:h-8 [&_.cl-userButtonTrigger]:w-8">
             {isSignedIn ? <UserButton /> : null}
