@@ -13,6 +13,12 @@ import { useLanguage } from "./LanguageProvider";
 import { getLocalizedProduct } from "./product-localization";
 import { StorefrontLink } from "./StorefrontLink";
 
+function availabilityTone(outOfStock: boolean, status: string): "danger" | "warning" | "success" {
+  if (outOfStock) return "danger";
+  if (status === "low_stock") return "warning";
+  return "success";
+}
+
 export function ComparePage() {
   const { locale, t } = useLanguage();
   const { apiBaseUrl } = useStorefrontConfig();
@@ -26,10 +32,6 @@ export function ComparePage() {
     window.addEventListener("aether-compare-changed", sync);
     return () => window.removeEventListener("aether-compare-changed", sync);
   }, []);
-
-  function remove(productId: string) {
-    removeCompareProduct(productId);
-  }
 
   async function addToCart(product: Product) {
     setAddingId(product.id);
@@ -82,7 +84,7 @@ export function ComparePage() {
                     <th key={product.id} className="min-w-[220px] border-b border-zinc-200 p-4 align-bottom">
                       <button
                         type="button"
-                        onClick={() => remove(product.id)}
+                        onClick={() => removeCompareProduct(product.id)}
                         className="focus-ring mb-2 ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-zinc-300 text-zinc-500 hover:bg-zinc-100"
                         aria-label={t.removeFromCompare}
                       >
@@ -137,7 +139,7 @@ export function ComparePage() {
                   const outOfStock = product.availableStock <= 0;
                   return (
                     <td key={product.id} className="border-b border-zinc-100 p-4">
-                      <Badge tone={outOfStock ? "danger" : product.availabilityStatus === "low_stock" ? "warning" : "success"}>
+                      <Badge tone={availabilityTone(outOfStock, product.availabilityStatus)}>
                         {t.availability[product.inventory.status]}
                       </Badge>
                     </td>

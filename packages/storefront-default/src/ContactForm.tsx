@@ -131,7 +131,7 @@ export function ContactForm({ legalPolicyVersion, addressBlock }: Readonly<{ leg
               </StorefrontLink>
             </span>
           </label>
-          <button className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">
+          <button type="submit" className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">
             <Send size={17} aria-hidden />
             {labels.submit}
           </button>
