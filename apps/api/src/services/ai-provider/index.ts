@@ -1,6 +1,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Env } from "../../types";
+import { resolveIntegrationSecrets } from "../integration-settings";
 
 // Same signal apps/ai-assistant/worker.ts's isGeminiQuotaError checks for -
 // duplicated rather than shared across these two separate deployables
@@ -37,13 +38,14 @@ export function isGeminiQuotaError(error: unknown): boolean {
 // together, while an older generation (3.1) draws from a separate quota
 // pool. Optional; a deployment with only GEMINI_MODEL set still works
 // exactly as before, just without fallback.
-export function resolveChatModelChain(env: Env): BaseChatModel[] | null {
-  if (!env.GEMINI_API_KEY) return null;
+export async function resolveChatModelChain(env: Env): Promise<BaseChatModel[] | null> {
+  const { gemini } = await resolveIntegrationSecrets(env);
+  if (!gemini.apiKey) return null;
   const provider = env.AI_PROVIDER || "gemini";
   if (provider !== "gemini") {
     throw new Error(`Unknown AI_PROVIDER: ${provider}`);
   }
-  const apiKey = env.GEMINI_API_KEY;
+  const apiKey = gemini.apiKey;
   const primaryModel = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const fallbackModels = (env.GEMINI_FALLBACK_MODEL || "")
     .split(",")

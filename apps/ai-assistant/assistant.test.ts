@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { encryptSecret } from "@aether/core";
 import worker, { heuristicIntent } from "./worker";
 
 type TestEnv = Parameters<typeof worker.fetch>[1];
@@ -35,6 +36,29 @@ function env(
     AI_MUTATIONS_ENABLED: "true",
     ...(apiFetch ? { AETHER_API: { fetch: apiFetch } } : {})
   };
+}
+
+// Minimal D1 mock covering both call shapes worker.ts uses against DB: the
+// integrations-settings lookup reads `.prepare(sql).first()` directly (no
+// bind, mirroring apps/api's integration-settings.ts), while rate-limit/
+// usage tracking queries always go through `.prepare(sql).bind(...).first()`.
+// Only the application_settings row (identified by SQL text) returns data;
+// every other query behaves as "no row found" so usage/rate-limit checks
+// pass through as if this were a fresh session.
+function dbWithIntegrationSettings(valueJson: string | null): TestEnv["DB"] {
+  const stmt = {
+    bind: () => stmt,
+    first: () => Promise.resolve(null as unknown),
+    all: () => Promise.resolve({ results: [] }),
+    run: () => Promise.resolve({ meta: { changes: 1 } })
+  };
+  return {
+    prepare: (sql: string) =>
+      sql.includes("application_settings")
+        ? { ...stmt, first: () => Promise.resolve(valueJson ? { value_json: valueJson } : null) }
+        : stmt,
+    batch: () => Promise.resolve([])
+  } as unknown as TestEnv["DB"];
 }
 
 function assistantRequest(message: string, headers: Record<string, string> = {}) {
@@ -422,6 +446,53 @@ describe("interview regressions", () => {
     const payload = await response.json<{ intent: string; action: { type: string } }>();
     expect(payload.intent).toBe("GET_MY_ORDERS");
     expect(payload.action.type).toBe("SIGN_IN_REQUIRED");
+  });
+
+  it("activates the tool-calling agent from an admin-configured Gemini key alone, with no GEMINI_API_KEY env var set", async () => {
+    // Same shared application_settings row the admin panel's Integrations
+    // section writes to (apps/api's integration-settings.ts) - this Worker
+    // reads it directly since it shares the same D1 database at deploy time.
+    const encryptionKey = "test-passphrase";
+    const encryptedApiKey = await encryptSecret(encryptionKey, "admin-configured-key");
+    const db = dbWithIntegrationSettings(JSON.stringify({ gemini: { apiKey: encryptedApiKey } }));
+    let geminiCalled = false;
+    const originalFetch = global.fetch;
+    global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        geminiCalled = true;
+        return Promise.resolve(
+          Response.json({
+            candidates: [
+              { content: { role: "model", parts: [{ text: "Hola, puedo ayudarte con tu pedido." }] }, finishReason: "STOP", index: 0 }
+            ],
+            usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+          })
+        );
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      await worker.fetch(assistantRequest("hola"), {
+        ...env(),
+        DB: db,
+        AETHER_SETTINGS_ENCRYPTION_KEY: encryptionKey
+      } as unknown as TestEnv);
+      expect(geminiCalled).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("falls back to the heuristic path when the stored Gemini key can't be decrypted, instead of failing the request", async () => {
+    const db = dbWithIntegrationSettings(JSON.stringify({ gemini: { apiKey: "not-valid-ciphertext" } }));
+    const response = await worker.fetch(assistantRequest("Busca zapatillas"), {
+      ...env(() => Promise.resolve(Response.json({ success: true, data: [] }))),
+      DB: db,
+      AETHER_SETTINGS_ENCRYPTION_KEY: "test-passphrase"
+    } as unknown as TestEnv);
+    expect(response.status).toBe(200);
   });
 
   it("maps celulares to the real smartphones category", async () => {

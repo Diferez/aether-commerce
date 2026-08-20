@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { encryptSecret } from "@aether/core";
 import type { Env } from "../types";
 import worker from "../index";
 
@@ -496,5 +497,96 @@ describe("admin routes integration (real middleware chain, mocked D1)", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toMatchObject({ revenue: 543200, orders: 12, lowStock: 2 });
+  });
+
+  it("GET /admin/integration-settings returns a masked summary, never a plaintext secret", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env } = fakeEnv([
+      { first: null }, // suspension check
+      { first: null } // no stored integrations row - falls back to env vars
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/integration-settings", { token: "tok" }),
+      { ...env, RESEND_API_KEY: "re_env_secret_value" },
+      ctx
+    );
+    const body = await response.json<{ success: boolean; data: { resend: { configured: boolean; apiKeyPreview: string | null } } }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data.resend).toEqual({ configured: true, apiKeyPreview: "re_env••••alue" });
+    expect(JSON.stringify(body)).not.toContain("re_env_secret_value");
+  });
+
+  it("PUT /admin/integration-settings refuses to store a secret when AETHER_SETTINGS_ENCRYPTION_KEY is not configured", async () => {
+    await mockVerifiedActor(["admin"]);
+    const { env, db } = fakeEnv([{ first: null }]); // suspension check only - the route fails before ever touching D1
+
+    const response = await worker.fetch(
+      adminRequest("/integration-settings", {
+        method: "PUT",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resend: { apiKey: "re_new_key" } })
+      }),
+      env,
+      ctx
+    );
+    const body = await response.json<{ success: boolean; error?: { code: string } }>();
+
+    expect(response.status).toBe(500);
+    expect(body.error?.code).toBe("SETTINGS_ENCRYPTION_NOT_CONFIGURED");
+    expect(db.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("PUT /admin/integration-settings stores a new secret and returns the updated masked summary", async () => {
+    await mockVerifiedActor(["admin"]);
+    // Row #4 stands in for the row the write in row #3 would have produced -
+    // this mock never actually persists between calls, so the ciphertext
+    // summarize() reads back afterward has to be computed the same way the
+    // real repository.write() would encrypt it.
+    const storedAfterWrite = { value_json: JSON.stringify({ gemini: { apiKey: await encryptSecret("test-passphrase", "AIza_new_key") } }) };
+    const { env, statements } = fakeEnv([
+      { first: null }, // suspension check
+      { first: null }, // update(): read current (nothing stored yet)
+      {}, // update(): write
+      { first: storedAfterWrite } // summarize(): read back after write
+    ]);
+
+    const response = await worker.fetch(
+      adminRequest("/integration-settings", {
+        method: "PUT",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ gemini: { apiKey: "AIza_new_key" } })
+      }),
+      { ...env, AETHER_SETTINGS_ENCRYPTION_KEY: "test-passphrase" },
+      ctx
+    );
+    const body = await response.json<{ success: boolean; data: { gemini: { configured: boolean } } }>();
+
+    expect(response.status).toBe(200);
+    expect(body.data.gemini.configured).toBe(true);
+    const write = statements.find((s) => s.sql.includes("insert into application_settings"));
+    expect(write?.sql).toContain("'integrations'");
+    expect(String(write?.args[0])).not.toContain("AIza_new_key");
+  });
+
+  it("PUT /admin/integration-settings returns 403 for an actor without settings.manage", async () => {
+    await mockVerifiedActor(["customer"]);
+    const { env } = fakeEnv([{ first: null }]);
+
+    const response = await worker.fetch(
+      adminRequest("/integration-settings", {
+        method: "PUT",
+        token: "tok",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resend: { apiKey: "re_new_key" } })
+      }),
+      env,
+      ctx
+    );
+
+    expect(response.status).toBe(403);
   });
 });

@@ -19,6 +19,7 @@ import { computeDashboardSummary } from "../services/dashboard-summary";
 import { createReviewModerationService } from "../services/review-moderation";
 import { createCheckoutSettingsService } from "../services/checkout-settings";
 import { summarizeCheckoutSettings } from "../services/checkout-provider";
+import { createIntegrationSettingsService, summarizeIntegrationSecrets } from "../services/integration-settings";
 import { createUploadSignature } from "../services/cloudinary";
 import { changeOrderState, createManualOrder } from "../services/orders";
 import { createRefund } from "../services/stripe";
@@ -107,6 +108,45 @@ function sanitizeCheckoutSettingsUpdate(input: z.infer<typeof checkoutSettingsUp
     ...(input.mode !== undefined ? { mode: input.mode } : {}),
     ...(stripe !== undefined ? { stripe } : {}),
     ...(wompi !== undefined ? { wompi } : {})
+  };
+}
+
+const integrationSecretsUpdateSchema = z.object({
+  resend: z.object({ apiKey: z.string().min(1).optional() }).optional(),
+  gemini: z.object({ apiKey: z.string().min(1).optional() }).optional(),
+  cloudinary: z
+    .object({
+      cloudName: z.string().min(1).optional(),
+      apiKey: z.string().min(1).optional(),
+      apiSecret: z.string().min(1).optional()
+    })
+    .optional()
+});
+
+/** Same single-key-if-defined stripping sanitizeCredentials above does for checkout, just for a { apiKey } shape. */
+function sanitizeApiKey(value: { apiKey?: string | undefined } | undefined) {
+  if (!value) return undefined;
+  return { ...(value.apiKey !== undefined ? { apiKey: value.apiKey } : {}) };
+}
+
+function sanitizeCloudinaryUpdate(value: z.infer<typeof integrationSecretsUpdateSchema>["cloudinary"]) {
+  if (!value) return undefined;
+  return {
+    ...(value.cloudName !== undefined ? { cloudName: value.cloudName } : {}),
+    ...(value.apiKey !== undefined ? { apiKey: value.apiKey } : {}),
+    ...(value.apiSecret !== undefined ? { apiSecret: value.apiSecret } : {})
+  };
+}
+
+/** Same exactOptionalPropertyTypes stripping as sanitizeCheckoutSettingsUpdate above. */
+function sanitizeIntegrationSecretsUpdate(input: z.infer<typeof integrationSecretsUpdateSchema>) {
+  const resend = sanitizeApiKey(input.resend);
+  const gemini = sanitizeApiKey(input.gemini);
+  const cloudinary = sanitizeCloudinaryUpdate(input.cloudinary);
+  return {
+    ...(resend !== undefined ? { resend } : {}),
+    ...(gemini !== undefined ? { gemini } : {}),
+    ...(cloudinary !== undefined ? { cloudinary } : {})
   };
 }
 
@@ -1003,6 +1043,34 @@ adminRoutes.put(
     const input = c.req.valid("json");
     await createCheckoutSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeCheckoutSettingsUpdate(input));
     return ok(c, await summarizeCheckoutSettings(c.env));
+  }
+);
+
+// Admin-managed credentials for third-party services this platform calls
+// server-side (Resend for transactional email, Gemini for the admin chat
+// assistant, Cloudinary for product image uploads) - same encrypted-at-rest,
+// env-var-fallback shape as /checkout-settings above, just for a different
+// set of providers (see services/integration-settings.ts).
+adminRoutes.get("/integration-settings", requirePermission("settings.manage"), async (c) =>
+  ok(c, await summarizeIntegrationSecrets(c.env))
+);
+adminRoutes.put(
+  "/integration-settings",
+  requirePermission("settings.manage"),
+  zValidator("json", integrationSecretsUpdateSchema),
+  async (c) => {
+    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+      return fail(
+        c,
+        500,
+        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing integration secrets from the admin panel."
+      );
+    }
+
+    const input = c.req.valid("json");
+    await createIntegrationSettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizeIntegrationSecretsUpdate(input));
+    return ok(c, await summarizeIntegrationSecrets(c.env));
   }
 );
 

@@ -341,8 +341,13 @@ test("products table is the catalog's source of truth, not the bundled JSON snap
 test("Cloudinary upload signing never sends the api_secret to the browser", () => {
   const cloudinary = read("apps/api/src/services/cloudinary.ts");
   const form = read("apps/admin/components/ProductForm.tsx");
+  // The literal env var name lives in integration-settings.ts now (the
+  // admin-configurable-secret resolution layer cloudinary.ts reads through -
+  // see services/integration-settings.ts), not in cloudinary.ts itself.
+  const integrationSettings = read("apps/api/src/services/integration-settings.ts");
 
-  assert.match(cloudinary, /CLOUDINARY_API_SECRET/);
+  assert.match(cloudinary, /resolveIntegrationSecrets/);
+  assert.match(integrationSettings, /CLOUDINARY_API_SECRET/);
   assert.doesNotMatch(form, /CLOUDINARY_API_SECRET/);
   assert.match(form, /api\.cloudinary\.com\/v1_1\//);
   assert.match(form, /signature/);

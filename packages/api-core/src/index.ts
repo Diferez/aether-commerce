@@ -10,3 +10,4 @@ export * from "./contact";
 export * from "./coupons";
 export * from "./shipping";
 export * from "./administration";
+export * from "./integrations";
