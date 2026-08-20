@@ -2,14 +2,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useAdminChatStream } from "./useAdminChatStream";
-import { AdminLanguageProvider } from "../AdminLanguageProvider";
+import { AdminTestProviders } from "../test-render";
 
-// Every render needs the provider - useAdminChatStream now reads the
-// operator's locale (useAdminLanguage) to send it with each request and to
-// localize its own fallback copy. Same wrapper apps/admin/test/render.tsx
+// Every render needs both providers - useAdminChatStream now reads
+// apiBaseUrl via useAdminConfig() and the operator's locale via
+// useAdminLanguage() to send it with each request and to localize its own
+// fallback copy. Same wrapper packages/admin-default/src/test-render.tsx
 // uses for full-component tests.
 function renderChatStream() {
-  return renderHook(() => useAdminChatStream(), { wrapper: AdminLanguageProvider });
+  return renderHook(() => useAdminChatStream(), { wrapper: AdminTestProviders });
 }
 
 const getTokenMock = vi.fn(() => Promise.resolve(null));

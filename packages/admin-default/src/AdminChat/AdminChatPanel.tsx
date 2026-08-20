@@ -21,6 +21,18 @@ function getSuggestionsByModule(t: AdminDictionary): Record<string, string[]> {
   };
 }
 
+// Extracted (rather than a nested ternary) so each branch reads as a plain
+// sentence: sending always wins (and idle-while-sending still shows
+// "analyzing" as a first-tick fallback before the server's first
+// chat.status frame arrives), otherwise "waiting for confirmation" is a
+// client-derived phase - see the comment below - and anything else shows no
+// indicator at all.
+function resolveDisplayedPhase(sending: boolean, status: ChatStatusPhase | "idle", waitingForConfirmation: boolean): ChatStatusPhase | null {
+  if (sending) return status === "idle" ? "analyzing" : status;
+  if (waitingForConfirmation) return "waiting_for_confirmation";
+  return null;
+}
+
 export function AdminChatPanel() {
   const { open, closePanel, messages, status, sending, resolvedOperationIds, sendMessage, confirmPendingAction } = useAdminChat();
   const { t } = useAdminLanguage();
@@ -46,7 +58,7 @@ export function AdminChatPanel() {
   const lastMessage = messages[messages.length - 1];
   const waitingForConfirmation =
     !sending && lastMessage?.role === "tool" && lastMessage.artifact.type === "pending_action" && !resolvedOperationIds.has(lastMessage.artifact.operationId);
-  const displayedPhase: ChatStatusPhase | null = sending ? (status === "idle" ? "analyzing" : status) : waitingForConfirmation ? "waiting_for_confirmation" : null;
+  const displayedPhase = resolveDisplayedPhase(sending, status, waitingForConfirmation);
 
   return (
     <Sheet open={open} onClose={closePanel} side="right" width="min(480px,100vw)" padded={false}>

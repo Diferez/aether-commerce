@@ -43,3 +43,6 @@ export { CustomersDetailPage } from "./CustomersDetailPage";
 export { OrdersDetailPage } from "./OrdersDetailPage";
 export { ActivityPage } from "./ActivityPage";
 export { SystemHealthPage } from "./SystemHealthPage";
+export { AdminChatProvider } from "./AdminChat/AdminChatProvider";
+export { AdminChatTrigger } from "./AdminChat/AdminChatTrigger";
+export { AdminChatPanel } from "./AdminChat/AdminChatPanel";
