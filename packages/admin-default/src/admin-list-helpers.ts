@@ -1,3 +1,8 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useAdminConfig } from "./AetherAdminProvider";
+
 // Internal plumbing shared across the admin business-list pages (and
 // AdminDashboard's CSV export) - not part of the package's public
 // component API, so intentionally not re-exported from index.ts. Each
@@ -58,6 +63,54 @@ export function listResultHandlers<T>(
     },
     () => setStatus("error")
   ];
+}
+
+// The full state-and-wiring shape every simple business-list page follows
+// (search + a handful of URL-driven filters, one paginated fetch, a
+// header count subtitle) - state declarations, the load callback,
+// its useEffect, and the updateFilter/submitSearch pair were an
+// identical block across every page that has no extra per-row state to
+// manage on filter change (contrast ProductsListPage, which also clears
+// its row-selection set - it calls updateFilter's setter itself instead
+// of using this hook's returned one, to layer that extra reset in).
+export function useAdminList<F extends { search: string; page: number }, T>(
+  readFilters: () => F,
+  endpoint: string,
+  buildParams: (filters: F) => URLSearchParams,
+  getToken: () => Promise<string | null>
+) {
+  const { apiBaseUrl } = useAdminConfig();
+  const [filters, setFilters] = useState<F>(readFilters);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const [result, setResult] = useState<T | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  const load = useCallback(async () => {
+    setStatus("loading");
+    const params = buildParams(filters);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+    const token = await getToken().catch(() => null);
+    await loadList<T>(
+      `${apiBaseUrl}${endpoint}?${params.toString()}`,
+      token ? { authorization: `Bearer ${token}` } : {},
+      ...listResultHandlers(setResult, setStatus)
+    );
+  }, [filters, apiBaseUrl, endpoint, buildParams, getToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function updateFilter<K extends keyof F>(key: K, value: F[K]) {
+    setFilters((current) => nextFilterState(current, key, value));
+  }
+
+  function submitSearch(event: React.FormEvent) {
+    event.preventDefault();
+    updateFilter("search", searchInput as F["search"]);
+  }
+
+  return { filters, setFilters, searchInput, setSearchInput, result, status, updateFilter, submitSearch, load };
 }
 
 function downloadBlob(blob: Blob, filename: string): void {

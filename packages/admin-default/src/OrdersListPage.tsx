@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Download, MessageCircle, Plus } from "lucide-react";
 import { RequireAdminAuth } from "./RequireAdminAuth";
@@ -13,7 +12,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, exportOrdersCsv, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, exportOrdersCsv, useAdminList } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type AdminOrderSummary = {
@@ -76,47 +75,25 @@ function statusLabel(t: AdminDictionary, value: keyof AdminDictionary["orderStat
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+function buildOrdersParams(filters: ReturnType<typeof readFiltersFromUrl>): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.channel) params.set("channel", filters.channel);
+  if (filters.paymentStatus) params.set("paymentStatus", filters.paymentStatus);
+  if (filters.fulfillmentStatus) params.set("fulfillmentStatus", filters.fulfillmentStatus);
+  params.set("page", String(filters.page));
+  params.set("pageSize", "25");
+  return params;
+}
+
 export function OrdersListPage() {
   const { getToken } = useAuth();
   const { apiBaseUrl } = useAdminConfig();
   const { t, locale } = useAdminLanguage();
-  const [filters, setFilters] = useState(() => readFiltersFromUrl());
-  const [searchInput, setSearchInput] = useState(filters.search);
-  const [result, setResult] = useState<ListResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-
-  const load = useCallback(async () => {
-    setStatus("loading");
-    const params = new URLSearchParams();
-    if (filters.search) params.set("search", filters.search);
-    if (filters.channel) params.set("channel", filters.channel);
-    if (filters.paymentStatus) params.set("paymentStatus", filters.paymentStatus);
-    if (filters.fulfillmentStatus) params.set("fulfillmentStatus", filters.fulfillmentStatus);
-    params.set("page", String(filters.page));
-    params.set("pageSize", "25");
-
-    window.history.replaceState(null, "", `?${params.toString()}`);
-
-    const token = await getToken().catch(() => null);
-    await loadList<ListResponse>(
-      `${apiBaseUrl}/api/v1/admin/orders?${params.toString()}`,
-      token ? { authorization: `Bearer ${token}` } : {},
-      ...listResultHandlers(setResult, setStatus)
-    );
-  }, [filters, getToken, apiBaseUrl]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
-    setFilters((current) => nextFilterState(current, key, value));
-  }
-
-  function submitSearch(event: React.FormEvent) {
-    event.preventDefault();
-    updateFilter("search", searchInput);
-  }
+  const { filters, setFilters, searchInput, setSearchInput, result, status, updateFilter, submitSearch } = useAdminList<
+    ReturnType<typeof readFiltersFromUrl>,
+    ListResponse
+  >(readFiltersFromUrl, "/api/v1/admin/orders", buildOrdersParams, getToken);
 
   const hasFilters = Boolean(filters.search || filters.channel || filters.paymentStatus || filters.fulfillmentStatus);
   const chips: FilterChip[] = [];

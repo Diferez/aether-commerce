@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { EyeOff, Plus, Send } from "lucide-react";
 import { RequireAdminAuth } from "./RequireAdminAuth";
@@ -13,7 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, useAdminList } from "./admin-list-helpers";
 
 type AdminProductSummary = {
   id: string;
@@ -70,6 +70,17 @@ const visibilityTone: Record<AdminProductSummary["visibility"], StatusTone> = {
   hidden: "archived"
 };
 
+function buildProductsParams(filters: ReturnType<typeof readFiltersFromUrl>): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.visibility) params.set("visibility", filters.visibility);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.stock) params.set("stock", filters.stock);
+  params.set("page", String(filters.page));
+  params.set("pageSize", "25");
+  return params;
+}
+
 export function ProductsListPage() {
   const { getToken } = useAuth();
   const { apiBaseUrl } = useAdminConfig();
@@ -79,40 +90,26 @@ export function ProductsListPage() {
     draft: t.productsPage.statusDraft,
     hidden: t.productsPage.statusArchived
   };
-  const [filters, setFilters] = useState(() => readFiltersFromUrl());
-  const [searchInput, setSearchInput] = useState(filters.search);
-  const [result, setResult] = useState<ListResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPending, setBulkPending] = useState(false);
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    result,
+    status,
+    updateFilter: baseUpdateFilter,
+    load
+  } = useAdminList<ReturnType<typeof readFiltersFromUrl>, ListResponse>(readFiltersFromUrl, "/api/v1/admin/products", buildProductsParams, getToken);
 
-  const load = useCallback(async () => {
-    setStatus("loading");
-    const params = new URLSearchParams();
-    if (filters.search) params.set("search", filters.search);
-    if (filters.visibility) params.set("visibility", filters.visibility);
-    if (filters.category) params.set("category", filters.category);
-    if (filters.stock) params.set("stock", filters.stock);
-    params.set("page", String(filters.page));
-    params.set("pageSize", "25");
-
-    window.history.replaceState(null, "", `?${params.toString()}`);
-
-    const token = await getToken().catch(() => null);
-    await loadList<ListResponse>(
-      `${apiBaseUrl}/api/v1/admin/products?${params.toString()}`,
-      token ? { authorization: `Bearer ${token}` } : {},
-      ...listResultHandlers(setResult, setStatus)
-    );
-  }, [filters, getToken, apiBaseUrl]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
+  // Not the hook's own submitSearch: selecting a new search term should
+  // also clear the row-selection set, same as every other updateFilter
+  // call on this page, so this has to route through the local wrapper
+  // below rather than the hook's internal one.
+  function updateFilter<K extends keyof ReturnType<typeof readFiltersFromUrl>>(key: K, value: ReturnType<typeof readFiltersFromUrl>[K]) {
     setSelected(new Set());
-    setFilters((current) => nextFilterState(current, key, value));
+    baseUpdateFilter(key, value);
   }
 
   function submitSearch(event: React.FormEvent) {

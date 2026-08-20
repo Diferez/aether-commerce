@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { UserRound } from "lucide-react";
 import { RequireAdminAuth } from "./RequireAdminAuth";
-import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
 import { TableToolbar } from "./TableToolbar";
 import { FilterBar, type FilterChip } from "./FilterBar";
@@ -13,7 +11,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, useAdminList } from "./admin-list-helpers";
 
 type AdminCustomerSummary = {
   id: string;
@@ -55,45 +53,22 @@ function formatOptionalDate(value: string | null, locale: string): string {
   return new Date(value).toLocaleDateString(locale === "es" ? "es-ES" : "en-US");
 }
 
+function buildCustomersParams(filters: ReturnType<typeof readFiltersFromUrl>): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.status) params.set("status", filters.status);
+  params.set("page", String(filters.page));
+  params.set("pageSize", "25");
+  return params;
+}
+
 export function CustomersListPage() {
   const { getToken } = useAuth();
-  const { apiBaseUrl } = useAdminConfig();
   const { t, locale } = useAdminLanguage();
-  const [filters, setFilters] = useState(() => readFiltersFromUrl());
-  const [searchInput, setSearchInput] = useState(filters.search);
-  const [result, setResult] = useState<ListResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-
-  const load = useCallback(async () => {
-    setStatus("loading");
-    const params = new URLSearchParams();
-    if (filters.search) params.set("search", filters.search);
-    if (filters.status) params.set("status", filters.status);
-    params.set("page", String(filters.page));
-    params.set("pageSize", "25");
-
-    window.history.replaceState(null, "", `?${params.toString()}`);
-
-    const token = await getToken().catch(() => null);
-    await loadList<ListResponse>(
-      `${apiBaseUrl}/api/v1/admin/users?${params.toString()}`,
-      token ? { authorization: `Bearer ${token}` } : {},
-      ...listResultHandlers(setResult, setStatus)
-    );
-  }, [filters, getToken, apiBaseUrl]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
-    setFilters((current) => nextFilterState(current, key, value));
-  }
-
-  function submitSearch(event: React.FormEvent) {
-    event.preventDefault();
-    updateFilter("search", searchInput);
-  }
+  const { filters, searchInput, setSearchInput, result, status, updateFilter, submitSearch } = useAdminList<
+    ReturnType<typeof readFiltersFromUrl>,
+    ListResponse
+  >(readFiltersFromUrl, "/api/v1/admin/users", buildCustomersParams, getToken);
 
   const hasFilters = Boolean(filters.search || filters.status);
   const chips: FilterChip[] = [];
