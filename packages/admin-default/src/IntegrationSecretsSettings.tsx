@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { CheckCircle2, Plug, ShieldAlert } from "lucide-react";
-import { apiBaseUrl } from "./config";
+import { useAdminConfig } from "./AetherAdminProvider";
 
 type ApiKeyCredentialsSummary = { configured: boolean; apiKeyPreview: string | null };
 type CloudinaryCredentialsSummary = {
@@ -23,6 +23,7 @@ type LoadStatus = "loading" | "ready" | "forbidden" | "error";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 async function putIntegrationSettings(
+  apiBaseUrl: string,
   getToken: () => Promise<string | null>,
   body: Record<string, unknown>
 ): Promise<{ payload: { success: boolean; data?: SettingsSummary; error?: { message: string } } | null; ok: boolean }> {
@@ -72,6 +73,7 @@ function ApiKeyForm({
   placeholder,
   helpText,
   summary,
+  apiBaseUrl,
   onSaved
 }: Readonly<{
   field: "resend" | "gemini";
@@ -79,6 +81,7 @@ function ApiKeyForm({
   placeholder: string;
   helpText?: string;
   summary: ApiKeyCredentialsSummary;
+  apiBaseUrl: string;
   onSaved: (next: SettingsSummary) => void;
 }>) {
   const [apiKey, setApiKey] = useState("");
@@ -90,7 +93,10 @@ function ApiKeyForm({
     if (!apiKey.trim()) return;
     setStatus("saving");
     setError(null);
-    const { payload, ok } = await putIntegrationSettings(getToken, { [field]: { apiKey: apiKey.trim() } }).catch(() => ({ payload: null, ok: false }));
+    const { payload, ok } = await putIntegrationSettings(apiBaseUrl, getToken, { [field]: { apiKey: apiKey.trim() } }).catch(() => ({
+      payload: null,
+      ok: false
+    }));
     if (!ok || !payload?.success || !payload.data) {
       setError(payload?.error?.message ?? `Could not save the ${title} API key.`);
       setStatus("error");
@@ -134,7 +140,11 @@ function ApiKeyForm({
   );
 }
 
-function CloudinaryForm({ summary, onSaved }: Readonly<{ summary: CloudinaryCredentialsSummary; onSaved: (next: SettingsSummary) => void }>) {
+function CloudinaryForm({
+  summary,
+  apiBaseUrl,
+  onSaved
+}: Readonly<{ summary: CloudinaryCredentialsSummary; apiBaseUrl: string; onSaved: (next: SettingsSummary) => void }>) {
   const [cloudName, setCloudName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -147,7 +157,7 @@ function CloudinaryForm({ summary, onSaved }: Readonly<{ summary: CloudinaryCred
     if (!hasInput) return;
     setStatus("saving");
     setError(null);
-    const { payload, ok } = await putIntegrationSettings(getToken, {
+    const { payload, ok } = await putIntegrationSettings(apiBaseUrl, getToken, {
       cloudinary: {
         ...(cloudName.trim() ? { cloudName: cloudName.trim() } : {}),
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
@@ -220,7 +230,12 @@ function CloudinaryForm({ summary, onSaved }: Readonly<{ summary: CloudinaryCred
   );
 }
 
-function IntegrationSettingsBody({ status, summary, onSaved }: Readonly<{ status: LoadStatus; summary: SettingsSummary | null; onSaved: (next: SettingsSummary) => void }>) {
+function IntegrationSettingsBody({
+  status,
+  summary,
+  apiBaseUrl,
+  onSaved
+}: Readonly<{ status: LoadStatus; summary: SettingsSummary | null; apiBaseUrl: string; onSaved: (next: SettingsSummary) => void }>) {
   if (status === "forbidden") {
     return <p className="p-4 text-sm text-zinc-500">Your role does not have the settings.manage permission.</p>;
   }
@@ -232,21 +247,23 @@ function IntegrationSettingsBody({ status, summary, onSaved }: Readonly<{ status
   }
   return (
     <div className="grid gap-4 p-4 md:grid-cols-3">
-      <ApiKeyForm field="resend" title="Resend (email)" placeholder="re_..." summary={summary.resend} onSaved={onSaved} />
+      <ApiKeyForm field="resend" title="Resend (email)" placeholder="re_..." summary={summary.resend} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
       <ApiKeyForm
         field="gemini"
         title="Gemini (AI assistants)"
         placeholder="AIza..."
         helpText="Used by both the admin chat assistant and the storefront's own AI assistant."
         summary={summary.gemini}
+        apiBaseUrl={apiBaseUrl}
         onSaved={onSaved}
       />
-      <CloudinaryForm summary={summary.cloudinary} onSaved={onSaved} />
+      <CloudinaryForm summary={summary.cloudinary} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
     </div>
   );
 }
 
 export function IntegrationSecretsSettings() {
+  const { apiBaseUrl } = useAdminConfig();
   const [summary, setSummary] = useState<SettingsSummary | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const { isLoaded, getToken } = useAuth();
@@ -290,7 +307,7 @@ export function IntegrationSecretsSettings() {
           Configure Resend, Gemini, and Cloudinary. Secrets are encrypted at rest and never shown again after saving.
         </p>
       </div>
-      <IntegrationSettingsBody status={status} summary={summary} onSaved={setSummary} />
+      <IntegrationSettingsBody status={status} summary={summary} apiBaseUrl={apiBaseUrl} onSaved={setSummary} />
     </section>
   );
 }
