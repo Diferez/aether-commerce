@@ -13,6 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { countSubtitle, exportOrdersCsv, loadList, nextFilterState } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type AdminOrderSummary = {
@@ -52,14 +53,6 @@ function readFiltersFromUrl() {
 
 function money(cents: number, currency: string, locale: string) {
   return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency }).format(cents / 100);
-}
-
-// Repeated shape behind this page's (and every other list page's) header
-// subtitle: "{count} things" once the total is known, a loading fallback
-// while it's still null.
-function countSubtitle(total: number | null, singular: string, plural: string, fallback: string): string {
-  if (total === null) return fallback;
-  return (total === 1 ? singular : plural).replace("{count}", String(total));
 }
 
 const paymentTone: Record<AdminOrderSummary["payment_status"], StatusTone> = {
@@ -105,20 +98,15 @@ export function OrdersListPage() {
     window.history.replaceState(null, "", `?${params.toString()}`);
 
     const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/orders?${params.toString()}`, {
-        headers: token ? { authorization: `Bearer ${token}` } : {}
-      });
-      const payload = (await response.json()) as { success: boolean; data?: ListResponse };
-      if (!payload.success || !payload.data) {
-        setStatus("error");
-        return;
-      }
-      setResult(payload.data);
-      setStatus("ready");
-    } catch {
-      setStatus("error");
-    }
+    await loadList<ListResponse>(
+      `${apiBaseUrl}/api/v1/admin/orders?${params.toString()}`,
+      token ? { authorization: `Bearer ${token}` } : {},
+      (data) => {
+        setResult(data);
+        setStatus("ready");
+      },
+      () => setStatus("error")
+    );
   }, [filters, getToken, apiBaseUrl]);
 
   useEffect(() => {
@@ -126,27 +114,12 @@ export function OrdersListPage() {
   }, [load]);
 
   function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
-    setFilters((current) => ({ ...current, [key]: value, page: key === "page" ? (value as number) : 1 }));
+    setFilters((current) => nextFilterState(current, key, value));
   }
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
     updateFilter("search", searchInput);
-  }
-
-  async function exportCsv() {
-    const token = await getToken().catch(() => null);
-    const response = await fetch(`${apiBaseUrl}/api/v1/admin/export/orders`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {}
-    });
-    if (!response.ok) return;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "orders-export.csv";
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   const hasFilters = Boolean(filters.search || filters.channel || filters.paymentStatus || filters.fulfillmentStatus);
@@ -216,7 +189,7 @@ export function OrdersListPage() {
           secondaryActions={
             <button
               type="button"
-              onClick={() => void exportCsv()}
+              onClick={() => void exportOrdersCsv(apiBaseUrl, getToken)}
               className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-border-strong px-4 text-sm font-semibold text-ink hover:bg-surface-hover"
             >
               <Download size={16} aria-hidden />

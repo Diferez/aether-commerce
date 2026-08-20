@@ -13,6 +13,7 @@ import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { countSubtitle, loadList, nextFilterState } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type AdminProductSummary = {
@@ -55,14 +56,6 @@ function readFiltersFromUrl() {
     stock: params.get("stock") ?? "",
     page: Number(params.get("page")) || 1
   };
-}
-
-// Repeated shape behind this page's (and every other list page's) header
-// subtitle: "{count} things" once the total is known, a loading fallback
-// while it's still null.
-function countSubtitle(total: number | null, singular: string, plural: string, fallback: string): string {
-  if (total === null) return fallback;
-  return (total === 1 ? singular : plural).replace("{count}", String(total));
 }
 
 function stockColorClass(stock: number, lowStockThreshold: number): string {
@@ -131,20 +124,15 @@ export function InventoryListPage() {
 
     window.history.replaceState(null, "", `?${params.toString()}`);
 
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/products?${params.toString()}`, {
-        headers: await authHeader()
-      });
-      const payload = (await response.json()) as { success: boolean; data?: ListResponse };
-      if (!payload.success || !payload.data) {
-        setStatus("error");
-        return;
-      }
-      setResult(payload.data);
-      setStatus("ready");
-    } catch {
-      setStatus("error");
-    }
+    await loadList<ListResponse>(
+      `${apiBaseUrl}/api/v1/admin/products?${params.toString()}`,
+      await authHeader(),
+      (data) => {
+        setResult(data);
+        setStatus("ready");
+      },
+      () => setStatus("error")
+    );
   }, [filters, authHeader, apiBaseUrl]);
 
   useEffect(() => {
@@ -152,7 +140,7 @@ export function InventoryListPage() {
   }, [load]);
 
   function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
-    setFilters((current) => ({ ...current, [key]: value, page: key === "page" ? (value as number) : 1 }));
+    setFilters((current) => nextFilterState(current, key, value));
   }
 
   function submitSearch(event: React.FormEvent) {
@@ -204,20 +192,15 @@ export function InventoryListPage() {
     }
     setHistoryProductId(productId);
     setHistoryStatus("loading");
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/inventory/movements?productId=${encodeURIComponent(productId)}`, {
-        headers: await authHeader()
-      });
-      const payload = (await response.json()) as { success: boolean; data?: InventoryMovement[] };
-      if (!payload.success || !payload.data) {
-        setHistoryStatus("error");
-        return;
-      }
-      setHistory(payload.data);
-      setHistoryStatus("ready");
-    } catch {
-      setHistoryStatus("error");
-    }
+    await loadList<InventoryMovement[]>(
+      `${apiBaseUrl}/api/v1/admin/inventory/movements?productId=${encodeURIComponent(productId)}`,
+      await authHeader(),
+      (data) => {
+        setHistory(data);
+        setHistoryStatus("ready");
+      },
+      () => setHistoryStatus("error")
+    );
   }
 
   const hasFilters = Boolean(filters.search || filters.stock);

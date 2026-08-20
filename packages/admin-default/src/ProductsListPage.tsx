@@ -13,6 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { countSubtitle, loadList, nextFilterState } from "./admin-list-helpers";
 
 type AdminProductSummary = {
   id: string;
@@ -57,14 +58,6 @@ function money(cents: number, locale: string) {
   return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-// Repeated shape behind this page's (and every other list page's) header
-// subtitle: "{count} things" once the total is known, a loading fallback
-// while it's still null.
-function countSubtitle(total: number | null, singular: string, plural: string, fallback: string): string {
-  if (total === null) return fallback;
-  return (total === 1 ? singular : plural).replace("{count}", String(total));
-}
-
 function stockColorClass(stock: number, lowStockThreshold: number): string {
   if (stock <= 0) return "font-semibold text-danger";
   if (stock <= lowStockThreshold) return "font-semibold text-warning";
@@ -106,20 +99,15 @@ export function ProductsListPage() {
     window.history.replaceState(null, "", `?${params.toString()}`);
 
     const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/products?${params.toString()}`, {
-        headers: token ? { authorization: `Bearer ${token}` } : {}
-      });
-      const payload = (await response.json()) as { success: boolean; data?: ListResponse };
-      if (!payload.success || !payload.data) {
-        setStatus("error");
-        return;
-      }
-      setResult(payload.data);
-      setStatus("ready");
-    } catch {
-      setStatus("error");
-    }
+    await loadList<ListResponse>(
+      `${apiBaseUrl}/api/v1/admin/products?${params.toString()}`,
+      token ? { authorization: `Bearer ${token}` } : {},
+      (data) => {
+        setResult(data);
+        setStatus("ready");
+      },
+      () => setStatus("error")
+    );
   }, [filters, getToken, apiBaseUrl]);
 
   useEffect(() => {
@@ -128,7 +116,7 @@ export function ProductsListPage() {
 
   function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
     setSelected(new Set());
-    setFilters((current) => ({ ...current, [key]: value, page: key === "page" ? (value as number) : 1 }));
+    setFilters((current) => nextFilterState(current, key, value));
   }
 
   function submitSearch(event: React.FormEvent) {
