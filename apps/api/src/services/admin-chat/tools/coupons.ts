@@ -53,7 +53,7 @@ export const prepareCreateCouponTool = defineAdminChatTool({
   schema: z.object({
     code: z.string().trim().min(3).max(32),
     type: z.enum(["percentage", "fixed"]),
-    value: z.number().int().positive().describe("Percentage points (e.g. 10 for 10%) or cents for a fixed amount"),
+    value: z.number().int().min(1).describe("Percentage points (e.g. 10 for 10%) or cents for a fixed amount"),
     minimumSubtotal: z.number().int().min(0).default(0).describe("Minimum cart subtotal in cents required to use this coupon")
   }),
   requires: { permission: "coupons.manage", mutation: true },

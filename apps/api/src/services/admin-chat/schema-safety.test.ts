@@ -18,7 +18,17 @@ import { ADMIN_CHAT_TOOLS } from "./registry";
 // known-safe allowlist shows up anywhere in the tree, so a future tool
 // author reintroducing z.record() (or any other construct Gemini
 // rejects) is caught here instead of in production.
-const KNOWN_UNSAFE_KEYS = ["propertyNames", "patternProperties", "unevaluatedProperties", "if", "then", "else", "const"];
+const KNOWN_UNSAFE_KEYS = [
+  "propertyNames",
+  "patternProperties",
+  "unevaluatedProperties",
+  "if",
+  "then",
+  "else",
+  "const",
+  "exclusiveMinimum",
+  "exclusiveMaximum"
+];
 
 // Keys @langchain/google-genai's converter itself removes before sending
 // to Gemini - safe to appear in the raw z.toJSONSchema() output.

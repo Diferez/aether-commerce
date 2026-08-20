@@ -74,6 +74,18 @@ describe("ActivityPage", () => {
     expect(screen.getByText("Settings updated")).toBeInTheDocument();
   });
 
+  it("shows the resolved actor name instead of the raw Clerk id when the API provides one, falling back to the id otherwise", async () => {
+    fetchMock.mockResolvedValueOnce(
+      listResponse([
+        { ...sampleEntries[0], actor_name: "Diego Martinez" },
+        { ...sampleEntries[1], actor_name: null }
+      ])
+    );
+    render(<ActivityPage />);
+    expect(await screen.findByText("Diego Martinez")).toBeInTheDocument();
+    expect(screen.getByText("usr_admin")).toBeInTheDocument();
+  });
+
   it("shows an error state when the request fails", async () => {
     fetchMock.mockResolvedValueOnce({ json: () => Promise.resolve({ success: false }) } as Response);
     render(<ActivityPage />);
@@ -115,7 +127,7 @@ describe("ActivityPage", () => {
     await user.click(screen.getByText("Product updated"));
 
     expect(await screen.findByText("What changed")).toBeInTheDocument();
-    expect(screen.getByText("priceCents")).toBeInTheDocument();
+    expect(screen.getByText("Price")).toBeInTheDocument();
     expect(screen.getByText("1000")).toBeInTheDocument();
     expect(screen.getByText("1200")).toBeInTheDocument();
   });

@@ -514,17 +514,17 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
       </section>
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-border bg-surface p-5">
+        <a href="/coupons/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <TicketPercent size={17} aria-hidden />
             {t.dashboard.couponsHeading}
           </h2>
           <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.couponsDescription}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-5">
+        </a>
+        <a href="/reviews/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
           <h2 className="text-base font-semibold text-ink">{t.dashboard.reviewsHeading}</h2>
           <p className="mt-2 text-sm leading-6 text-ink-muted">{t.dashboard.reviewsDescription}</p>
-        </div>
+        </a>
         <a href="/activity/" className="focus-ring rounded-lg border border-border bg-surface p-5 transition hover:border-border-strong hover:bg-surface-hover">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <History size={17} aria-hidden />

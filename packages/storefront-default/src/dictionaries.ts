@@ -57,6 +57,13 @@ export const dictionaries = {
     trackingHeading: "Tracking",
     trackShipment: "Track shipment",
     trackingCarrierNumber: "{carrier} - {number}",
+    fulfillmentStatus: {
+      unfulfilled: "Pending",
+      processing: "Processing",
+      shipped: "Shipped",
+      delivered: "Delivered",
+      cancelled: "Cancelled"
+    },
     remove: "Remove",
     summary: "Summary",
     subtotal: "Subtotal",
@@ -350,6 +357,13 @@ export const dictionaries = {
     qty: "Cant.",
     trackingHeading: "Seguimiento",
     trackShipment: "Rastrear envío",
+    fulfillmentStatus: {
+      unfulfilled: "Pendiente",
+      processing: "Procesando",
+      shipped: "Enviado",
+      delivered: "Entregado",
+      cancelled: "Cancelado"
+    },
     trackingCarrierNumber: "{carrier} - {number}",
     remove: "Eliminar",
     summary: "Resumen",

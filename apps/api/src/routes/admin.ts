@@ -878,31 +878,31 @@ adminRoutes.get("/audit", requirePermission("audit.read"), zValidator("query", a
   const params: unknown[] = [];
 
   if (query.actorId) {
-    where.push("actor_id = ?");
+    where.push("audit_logs.actor_id = ?");
     params.push(query.actorId);
   }
   if (query.action) {
-    where.push("action = ?");
+    where.push("audit_logs.action = ?");
     params.push(query.action);
   }
   if (query.targetType) {
-    where.push("target_type = ?");
+    where.push("audit_logs.target_type = ?");
     params.push(query.targetType);
   }
   if (query.targetId) {
-    where.push("target_id = ?");
+    where.push("audit_logs.target_id = ?");
     params.push(query.targetId);
   }
   if (query.requestId) {
-    where.push("request_id = ?");
+    where.push("audit_logs.request_id = ?");
     params.push(query.requestId);
   }
   if (query.from) {
-    where.push("date(created_at) >= date(?)");
+    where.push("date(audit_logs.created_at) >= date(?)");
     params.push(query.from);
   }
   if (query.to) {
-    where.push("date(created_at) <= date(?)");
+    where.push("date(audit_logs.created_at) <= date(?)");
     params.push(query.to);
   }
 
@@ -911,9 +911,17 @@ adminRoutes.get("/audit", requirePermission("audit.read"), zValidator("query", a
     .bind(...params)
     .first<{ count: number }>();
   const offset = (query.page - 1) * query.pageSize;
+  // Resolves actor_id (a raw Clerk id) to a human name for the admin UI -
+  // audit_logs.actor_id is the same Clerk id users.clerk_id stores, kept in
+  // sync via the Clerk webhook (routes/webhooks.ts). LEFT JOIN so
+  // non-human actors (stripe/webhook/system) or a user whose sync predates
+  // the name column still return a row, just with actor_name null.
   const rows = await c.env.DB.prepare(
-    `select id, actor_id, actor_role, action, target_type, target_id, payload_json, previous_data, new_data, request_id, created_at
-     from audit_logs ${whereClause} order by created_at desc limit ? offset ?`
+    `select audit_logs.id, audit_logs.actor_id, audit_logs.actor_role, audit_logs.action, audit_logs.target_type, audit_logs.target_id,
+            audit_logs.payload_json, audit_logs.previous_data, audit_logs.new_data, audit_logs.request_id, audit_logs.created_at,
+            users.name as actor_name
+     from audit_logs left join users on users.clerk_id = audit_logs.actor_id
+     ${whereClause} order by audit_logs.created_at desc limit ? offset ?`
   )
     .bind(...params, query.pageSize, offset)
     .all<Record<string, unknown>>();
