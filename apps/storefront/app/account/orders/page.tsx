@@ -189,6 +189,26 @@ export default function OrdersPage() {
                     </div>
                   ))}
                 </div>
+                {order.tracking ? (
+                  <div className="mt-4 rounded-md border border-zinc-100 bg-zinc-50 p-3">
+                    <p className="text-xs font-semibold uppercase text-zinc-500">{t.trackingHeading}</p>
+                    <p className="mt-1 text-sm text-zinc-700">
+                      {t.trackingCarrierNumber
+                        .replace("{carrier}", order.tracking.carrier ?? "")
+                        .replace("{number}", order.tracking.number ?? "")}
+                    </p>
+                    {order.tracking.url ? (
+                      <a
+                        href={order.tracking.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="focus-ring mt-2 inline-block text-sm font-semibold text-teal-700 underline underline-offset-2"
+                      >
+                        {t.trackShipment}
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
                 {actions.length > 0 ? (
                   <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-4">
                     {actions.map(({ action, target, label }) => (

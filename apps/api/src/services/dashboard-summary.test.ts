@@ -22,7 +22,7 @@ describe("computeDashboardSummary", () => {
 
     const summary = await computeDashboardSummary(env);
 
-    expect(summary).toEqual({ revenue: 543200, orders: 12, conversionRate: 4.8, lowStock: 4 });
+    expect(summary).toEqual({ revenue: 543200, orders: 12, conversionRate: null, lowStock: 4 });
   });
 
   it("defaults every real figure to zero when the queries return nothing", async () => {
@@ -30,6 +30,6 @@ describe("computeDashboardSummary", () => {
 
     const summary = await computeDashboardSummary(env);
 
-    expect(summary).toEqual({ revenue: 0, orders: 0, conversionRate: 4.8, lowStock: 0 });
+    expect(summary).toEqual({ revenue: 0, orders: 0, conversionRate: null, lowStock: 0 });
   });
 });

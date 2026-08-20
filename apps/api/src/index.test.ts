@@ -14,7 +14,11 @@ describe("scheduled handler", () => {
             statement.args = args;
             return statement;
           }),
-          run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 0 } }))
+          run: vi.fn(() => Promise.resolve({ success: true, meta: { changes: 0 } })),
+          // sendDueRestockNotifications' own bind-less select - no pending
+          // notifications to send in this test, so an empty result is a
+          // safe, correct default rather than a mock gap.
+          all: vi.fn(() => Promise.resolve({ results: [] }))
         };
         statements.push(statement);
         return statement;

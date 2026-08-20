@@ -21,9 +21,8 @@ import { createCheckoutSettingsService } from "../services/checkout-settings";
 import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import { createIntegrationSettingsService, summarizeIntegrationSecrets } from "../services/integration-settings";
 import { createUploadSignature } from "../services/cloudinary";
-import { changeOrderState, createManualOrder } from "../services/orders";
-import { createRefund } from "../services/stripe";
-import { sendOrderEmail } from "../services/email";
+import { changeOrderState, createManualOrder, withOrderTracking } from "../services/orders";
+import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../services/refunds";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
 import { writeAuditLog } from "../services/audit";
@@ -451,14 +450,11 @@ adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
     .all();
 
   return ok(c, {
-    ...parsed,
+    ...withOrderTracking(parsed, row),
     channel: row.channel,
     paymentStatus: row.payment_status,
     fulfillmentStatus: row.fulfillment_status,
     internalNotes: row.internal_notes,
-    tracking: row.tracking_carrier || row.tracking_number || row.tracking_url
-      ? { carrier: row.tracking_carrier, number: row.tracking_number, url: row.tracking_url }
-      : null,
     history: history.results
   });
 });
@@ -625,8 +621,8 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
     .bind(orderId)
     .first<{ channel: string; payment_status: string; payload_json: string; total: number; stock_restored_at: string | null; email: string; number: string }>();
   if (!order) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
-  if (order.channel !== "stripe") {
-    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe orders can be refunded through Stripe.");
+  if (!isRefundableChannel(order.channel)) {
+    return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only Stripe or Wompi orders can be refunded through their payment provider.");
   }
   if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
     return fail(c, 409, "REFUND_NOT_APPLICABLE", "Only a paid order can be refunded.");
@@ -635,66 +631,29 @@ adminRoutes.post("/orders/:id/refund", requirePermission("refunds.create"), zVal
   const payload = JSON.parse(order.payload_json) as { payment?: { providerPaymentIntentId?: string } };
   const paymentIntentId = payload.payment?.providerPaymentIntentId;
   if (!paymentIntentId) {
-    return fail(c, 422, "REFUND_MISSING_PAYMENT_INTENT", "This order has no Stripe payment intent to refund.");
+    return fail(c, 422, "REFUND_MISSING_PAYMENT_INTENT", "This order has no payment reference to refund.");
   }
 
   try {
-    const refund = await createRefund(c.env, paymentIntentId, body.amountCents);
-    const nextStatus = body.amountCents && body.amountCents < order.total ? "partially_refunded" : "refunded";
-    // Only a FULL refund restores stock - a partial refund is ambiguous
-    // (could be a shipping/discount adjustment rather than returned goods),
-    // and stock_restored_at guards against restocking twice if this order
-    // was already restocked via a fulfillment cancellation.
-    const shouldRestock = nextStatus === "refunded" && order.stock_restored_at === null;
-    const restockStatements = shouldRestock
-      ? await buildRestockStatements(c.env, orderId, {
-          actorId: c.get("actor").userId ?? "admin",
-          requestId: c.get("requestId"),
-          reason: body.reason ?? `stripe_refund:${refund.id}`
-        })
-      : [];
-
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        shouldRestock
-          ? "update orders set payment_status = ?, updated_at = ?, stock_restored_at = CURRENT_TIMESTAMP where id = ?"
-          : "update orders set payment_status = ?, updated_at = ? where id = ?"
-      ).bind(nextStatus, new Date().toISOString(), orderId),
-      c.env.DB.prepare(
-        "update payments set status = ?, updated_at = CURRENT_TIMESTAMP where order_id = ?"
-      ).bind(nextStatus === "refunded" ? "refunded" : "paid", orderId),
-      // order_status_history's previous_state/new_state columns are plain
-      // TEXT (no CHECK against orderStateSchema) - reused here for the
-      // payment-status axis's own audit trail rather than adding a new
-      // table, same table other admin order actions already write to.
-      c.env.DB.prepare(
-        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-         values (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        crypto.randomUUID(),
-        orderId,
-        order.payment_status,
-        nextStatus,
-        c.get("actor").userId ?? "admin",
-        body.reason ?? `stripe_refund:${refund.id}`,
-        c.get("requestId")
-      ),
-      ...restockStatements
-    ]);
-    if (shouldRestock) {
-      await clearCatalogCache(c.env);
-    }
-    await writeAuditLog(c.env, {
+    const refund = await createProviderRefund(c.env, order.channel, paymentIntentId, body.amountCents, order.total);
+    const { paymentStatus } = await applyRefundLocally(c.env, {
+      orderId,
+      channel: order.channel,
+      currentPaymentStatus: order.payment_status,
+      totalCents: order.total,
+      stockRestoredAt: order.stock_restored_at,
+      email: order.email,
+      number: order.number,
+      amountCents: body.amountCents,
+      providerRefundId: refund.id,
+      ...(body.reason !== undefined ? { reason: body.reason } : {}),
       actorId: c.get("actor").userId ?? "admin",
-      action: "order.refunded",
-      targetType: "order",
-      targetId: orderId,
-      payload: { paymentStatus: nextStatus, amountCents: body.amountCents ?? order.total, stripeRefundId: refund.id }
+      requestId: c.get("requestId"),
+      source: "admin"
     });
-    await sendOrderEmail(c.env, { email: order.email, number: order.number, state: nextStatus }).catch(() => {});
-    return ok(c, { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id }, 201);
+    return ok(c, { orderId, paymentStatus, providerRefundId: refund.id }, 201);
   } catch (error) {
-    return fail(c, 500, "STRIPE_REFUND_FAILED", error instanceof Error ? error.message : "Stripe refund failed.");
+    return fail(c, 500, "REFUND_FAILED", error instanceof Error ? error.message : "Refund failed.");
   }
 });
 

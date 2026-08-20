@@ -6,6 +6,7 @@ import { fail, ok } from "../http";
 import { verifyStripeSignature, mapStripeSessionToPaidCheckoutSession } from "../services/stripe";
 import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession } from "../services/wompi";
 import { createOrderFromPaidSession } from "../services/orders";
+import { syncChargeRefunded, syncDisputeCreated } from "../services/payment-sync";
 import { resolveCheckoutSettings } from "../services/checkout-provider";
 import { type ClerkUser, primaryEmailFromUser, verifyClerkSignature } from "../services/clerk";
 import { markWebhookFailed, markWebhookProcessing, markWebhookProcessed, recordWebhookReceived } from "../services/webhooks";
@@ -62,6 +63,10 @@ webhookRoutes.post("/stripe", async (c) => {
       const session = mapStripeSessionToPaidCheckoutSession(payload.data.object);
       const result = await createOrderFromPaidSession(c.env, session, "stripe");
       orderCreated = result.created;
+    } else if (payload.type === "charge.refunded" && payload.data?.object) {
+      await syncChargeRefunded(c.env, payload.data.object, requestId);
+    } else if (payload.type === "charge.dispute.created" && payload.data?.object) {
+      await syncDisputeCreated(c.env, payload.data.object, requestId);
     }
     await markWebhookProcessed(c.env, "stripe", payload.id);
     logger.info(OBSERVABILITY_EVENTS.webhookProcessed, {

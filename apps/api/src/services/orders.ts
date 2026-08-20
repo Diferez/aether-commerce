@@ -9,6 +9,29 @@ import { getLogger } from "./observability";
 import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
 import { sendOrderEmail } from "./email";
 
+export type OrderTrackingColumns = {
+  tracking_carrier: string | null;
+  tracking_number: string | null;
+  tracking_url: string | null;
+};
+
+/**
+ * Overlays the live tracking_carrier/tracking_number/tracking_url columns
+ * (set later by an admin via PATCH /admin/orders/:id/tracking) onto an
+ * order's payload_json snapshot, which is frozen at checkout time and never
+ * updated afterwards - so a shopper actually sees the tracking info an
+ * admin entered, instead of it only ever surfacing in the admin panel.
+ */
+export function withOrderTracking(payload: Record<string, unknown>, row: OrderTrackingColumns): Record<string, unknown> {
+  return {
+    ...payload,
+    tracking:
+      row.tracking_carrier || row.tracking_number || row.tracking_url
+        ? { carrier: row.tracking_carrier, number: row.tracking_number, url: row.tracking_url }
+        : null
+  };
+}
+
 function orderNumber(sessionId: string) {
   const suffix = sessionId.replace(/^cs_(test|live)_/, "").slice(0, 10).toUpperCase();
   return `AETH-${suffix}`;

@@ -100,6 +100,10 @@ function statusLabel(t: AdminDictionary, value: string) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+function refundProviderLabel(channel: string): string {
+  return channel === "wompi" ? "Wompi" : "Stripe";
+}
+
 export default function OrderDetailPage() {
   const id = useOrderIdParam();
   const { getToken, isLoaded: authLoaded } = useAuth();
@@ -387,7 +391,7 @@ export default function OrderDetailPage() {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-sm text-ink-muted">{t.orderDetailPage.stripeRefundOnly}</p>
+                      <p className="text-sm text-ink-muted">{t.orderDetailPage.refundOnlyVia}</p>
                       {(order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded") && order.payment?.providerPaymentIntentId ? (
                         <button
                           type="button"
@@ -395,7 +399,7 @@ export default function OrderDetailPage() {
                           className="focus-ring mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-danger/30 px-3 text-sm font-semibold text-danger hover:bg-danger-soft"
                         >
                           <RotateCcw size={14} aria-hidden />
-                          {t.orderDetailPage.refundViaStripe}
+                          {t.orderDetailPage.refundVia.replace("{provider}", refundProviderLabel(order.channel))}
                         </button>
                       ) : null}
                     </div>
@@ -406,8 +410,10 @@ export default function OrderDetailPage() {
 
             <ConfirmDialog
               open={refundConfirming}
-              title={t.orderDetailPage.refundViaStripeTitle}
-              description={t.orderDetailPage.refundDescription.replace("{amount}", money(order.totals.total, order.totals.currency, locale))}
+              title={t.orderDetailPage.refundViaTitle.replace("{provider}", refundProviderLabel(order.channel))}
+              description={t.orderDetailPage.refundDescription
+                .replace("{amount}", money(order.totals.total, order.totals.currency, locale))
+                .replaceAll("{provider}", refundProviderLabel(order.channel))}
               confirmLabel={t.orderDetailPage.confirmRefund}
               tone="danger"
               pending={actionStatus === "pending"}

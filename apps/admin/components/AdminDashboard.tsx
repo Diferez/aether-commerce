@@ -46,7 +46,11 @@ type Summary = {
   mode: "private" | "demo";
   revenue: number;
   orders: number;
-  conversionRate: number;
+  // null on the real (private) summary - nothing in this codebase records
+  // storefront pageviews/sessions, so there is no real conversion rate to
+  // compute. Only ever a number on the demo-mode fallback below, whose
+  // figures are illustrative by design.
+  conversionRate: number | null;
   lowStock: number;
   notice?: { en: string; es: string };
 };
@@ -250,7 +254,7 @@ export function AdminDashboard({ demo = false }: { demo?: boolean }) {
   const metrics: Array<[string, string, LucideIcon]> = [
     [t.dashboard.metricRevenue, money(summary.revenue, locale), PackageCheck],
     [t.dashboard.metricOrders, String(summary.orders), Boxes],
-    [t.dashboard.metricConversion, `${summary.conversionRate}%`, UsersRound],
+    [t.dashboard.metricConversion, summary.conversionRate === null ? t.dashboard.metricConversionUnavailable : `${summary.conversionRate}%`, UsersRound],
     [t.dashboard.metricLowStock, String(summary.lowStock), AlertTriangle]
   ];
 

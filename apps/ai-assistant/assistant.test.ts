@@ -23,7 +23,8 @@ const order = {
   state: "shipped",
   items: [{ quantity: 2 }],
   totals: { total: 12999, currency: "USD" },
-  createdAt: "2026-08-12T18:00:00.000Z"
+  createdAt: "2026-08-12T18:00:00.000Z",
+  tracking: { carrier: "DHL", number: "1Z999", url: "https://track.example.com/1Z999" }
 };
 
 function env(
@@ -263,7 +264,12 @@ describe("interview regressions", () => {
     const payload = await response.json<{ intent: string; orders: unknown[] }>();
     expect(payload).toMatchObject({ intent: "GET_ORDER" });
     expect(payload.orders).toEqual([
-      expect.objectContaining({ number: "AETH-5001", state: "shipped", item_count: 2 })
+      expect.objectContaining({
+        number: "AETH-5001",
+        state: "shipped",
+        item_count: 2,
+        tracking: { carrier: "DHL", number: "1Z999", url: "https://track.example.com/1Z999" }
+      })
     ]);
   });
 

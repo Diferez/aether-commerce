@@ -125,6 +125,7 @@ export function ProductGrid({
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [addingIds, setAddingIds] = useState<string[]>([]);
   const [addedProduct, setAddedProduct] = useState<Product | null>(null);
+  const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
   const [pagination, setPagination] = useState<ApiPagination>({ page: 1, pageSize, total: 0, pageCount: 1 });
 
   useEffect(() => {
@@ -256,6 +257,22 @@ export function ProductGrid({
   function toggleFavorite(product: Product) {
     toggleFavoriteProduct(product, customer);
     setFavoriteIds(readFavoriteProducts(customer).map((candidate) => candidate.id));
+  }
+
+  async function notifyRestock(product: Product) {
+    const email = customer?.email || window.prompt(t.notifyPromptEmail)?.trim();
+    if (!email) return;
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(product.id)}/notify-restock`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      if (!response.ok) throw new Error("notify-restock request failed");
+      setNotifiedIds((current) => (current.includes(product.id) ? current : [...current, product.id]));
+    } catch {
+      window.alert(t.notifyFailed);
+    }
   }
 
   function goToPage(nextPage: number) {
@@ -452,6 +469,8 @@ export function ProductGrid({
                   isAdded={addedProduct?.id === product.id}
                   onToggleFavorite={toggleFavorite}
                   onAddToCart={(item) => void addToCart(item)}
+                  onNotifyRestock={(item) => void notifyRestock(item)}
+                  isNotifySubscribed={notifiedIds.includes(product.id)}
                   {...(onProductOpen ? { onOpenProduct: onProductOpen } : {})}
                 />
               ))}

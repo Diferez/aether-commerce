@@ -2,11 +2,7 @@ import { z } from "zod";
 import { defineAdminChatTool, notFoundResult } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { pick } from "../language";
-import { writeAuditLog } from "../../audit";
-import { createRefund } from "../../stripe";
-import { buildRestockStatements } from "../../inventory";
-import { clearCatalogCache } from "../../catalog";
-import { sendOrderEmail } from "../../email";
+import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../../refunds";
 import type { ActionDiff } from "../artifacts";
 import type { PendingActionExecutor } from "../executors";
 import type { AdminChatContext } from "../context";
@@ -41,20 +37,20 @@ function extractPaymentIntentId(payloadJson: string): string | undefined {
 }
 
 function refundPrecondition(ctx: Pick<AdminChatContext, "language">, order: OrderRefundRow): { code: string; message: string } | null {
-  if (order.channel !== "stripe") {
-    return { code: "REFUND_NOT_APPLICABLE", message: pick(ctx.language, "Only Stripe orders can be refunded through Stripe.", "Solo los pedidos de Stripe se pueden reembolsar a través de Stripe.") };
+  if (!isRefundableChannel(order.channel)) {
+    return { code: "REFUND_NOT_APPLICABLE", message: pick(ctx.language, "Only Stripe or Wompi orders can be refunded through their payment provider.", "Solo los pedidos de Stripe o Wompi se pueden reembolsar a través de su proveedor de pago.") };
   }
   if (order.payment_status !== "paid" && order.payment_status !== "partially_refunded") {
     return { code: "REFUND_NOT_APPLICABLE", message: pick(ctx.language, "Only a paid order can be refunded.", "Solo un pedido pagado se puede reembolsar.") };
   }
   if (!extractPaymentIntentId(order.payload_json)) {
-    return { code: "REFUND_MISSING_PAYMENT_INTENT", message: pick(ctx.language, "This order has no Stripe payment intent to refund.", "Este pedido no tiene un payment intent de Stripe para reembolsar.") };
+    return { code: "REFUND_MISSING_PAYMENT_INTENT", message: pick(ctx.language, "This order has no payment reference to refund.", "Este pedido no tiene una referencia de pago para reembolsar.") };
   }
   return null;
 }
 
 // Mirrors POST /admin/orders/:id/refund's own preconditions exactly
-// (routes/admin.ts) - the actual Stripe API call only happens once the
+// (routes/admin.ts) - the actual provider API call only happens once the
 // operator confirms (executeRefundOrder below), same "no side effect until
 // confirmed" rule every other prepare_* tool in this codebase follows. This
 // one is the one exception whose executor still calls an external API (not
@@ -62,7 +58,7 @@ function refundPrecondition(ctx: Pick<AdminChatContext, "language">, order: Orde
 // tool just gates it behind a confirmation step first.
 export const prepareRefundOrderTool = defineAdminChatTool({
   name: "prepare_refund_order",
-  description: "Prepares refunding a paid Stripe order, in full or a partial amount. Returns a preview that must be confirmed before Stripe is charged.",
+  description: "Prepares refunding a paid Stripe or Wompi order. Stripe supports a partial amount; Wompi only supports a full refund. Returns a preview that must be confirmed before the payment provider is charged.",
   schema: z.object({
     orderId: z.string().min(1).describe("The order id or order number"),
     amountCents: z.number().int().min(1).optional().describe("Partial refund amount in cents - omit for a full refund"),
@@ -127,38 +123,24 @@ export const executeRefundOrder: PendingActionExecutor = async (ctx, params) => 
   const paymentIntentId = extractPaymentIntentId(current.payload_json)!;
 
   try {
-    const refund = await createRefund(ctx.env, paymentIntentId, amountCents);
-    const nextStatus = amountCents && amountCents < current.total ? "partially_refunded" : "refunded";
-    const shouldRestock = nextStatus === "refunded" && current.stock_restored_at === null;
-    const restockStatements = shouldRestock
-      ? await buildRestockStatements(ctx.env, orderId, { actorId: ctx.actor.userId ?? "admin", requestId: ctx.requestId, reason: reason ?? `stripe_refund:${refund.id}` })
-      : [];
-
-    await ctx.env.DB.batch([
-      ctx.env.DB.prepare(
-        shouldRestock
-          ? "update orders set payment_status = ?, updated_at = ?, stock_restored_at = CURRENT_TIMESTAMP where id = ?"
-          : "update orders set payment_status = ?, updated_at = ? where id = ?"
-      ).bind(nextStatus, new Date().toISOString(), orderId),
-      ctx.env.DB.prepare("update payments set status = ?, updated_at = CURRENT_TIMESTAMP where order_id = ?").bind(nextStatus === "refunded" ? "refunded" : "paid", orderId),
-      ctx.env.DB.prepare(
-        `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
-         values (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(crypto.randomUUID(), orderId, current.payment_status, nextStatus, ctx.actor.userId ?? "admin", reason ?? `stripe_refund:${refund.id}`, ctx.requestId),
-      ...restockStatements
-    ]);
-    if (shouldRestock) await clearCatalogCache(ctx.env);
-
-    await writeAuditLog(ctx.env, {
+    const refund = await createProviderRefund(ctx.env, current.channel, paymentIntentId, amountCents, current.total);
+    const { paymentStatus } = await applyRefundLocally(ctx.env, {
+      orderId,
+      channel: current.channel,
+      currentPaymentStatus: current.payment_status,
+      totalCents: current.total,
+      stockRestoredAt: current.stock_restored_at,
+      email: current.email,
+      number: current.number,
+      amountCents,
+      providerRefundId: refund.id,
+      ...(reason !== undefined ? { reason } : {}),
       actorId: ctx.actor.userId ?? "admin",
-      action: "order.refunded",
-      targetType: "order",
-      targetId: orderId,
-      payload: { paymentStatus: nextStatus, amountCents: amountCents ?? current.total, stripeRefundId: refund.id, source: "admin_chat" }
+      requestId: ctx.requestId,
+      source: "admin_chat"
     });
-    await sendOrderEmail(ctx.env, { email: current.email, number: current.number, state: nextStatus }).catch(() => {});
-    return { success: true, result: { orderId, paymentStatus: nextStatus, stripeRefundId: refund.id } };
+    return { success: true, result: { orderId, paymentStatus, providerRefundId: refund.id } };
   } catch (error) {
-    return { success: false, code: "STRIPE_REFUND_FAILED", message: error instanceof Error ? error.message : pick(ctx.language, "Stripe refund failed.", "El reembolso de Stripe falló.") };
+    return { success: false, code: "REFUND_FAILED", message: error instanceof Error ? error.message : pick(ctx.language, "Refund failed.", "El reembolso falló.") };
   }
 };
