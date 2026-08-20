@@ -13,7 +13,7 @@ import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type AdminProductSummary = {
@@ -127,11 +127,7 @@ export function InventoryListPage() {
     await loadList<ListResponse>(
       `${apiBaseUrl}/api/v1/admin/products?${params.toString()}`,
       await authHeader(),
-      (data) => {
-        setResult(data);
-        setStatus("ready");
-      },
-      () => setStatus("error")
+      ...listResultHandlers(setResult, setStatus)
     );
   }, [filters, authHeader, apiBaseUrl]);
 
@@ -195,11 +191,7 @@ export function InventoryListPage() {
     await loadList<InventoryMovement[]>(
       `${apiBaseUrl}/api/v1/admin/inventory/movements?productId=${encodeURIComponent(productId)}`,
       await authHeader(),
-      (data) => {
-        setHistory(data);
-        setHistoryStatus("ready");
-      },
-      () => setHistoryStatus("error")
+      ...listResultHandlers(setHistory, setHistoryStatus)
     );
   }
 

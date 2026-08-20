@@ -13,7 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, exportOrdersCsv, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, exportOrdersCsv, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type AdminOrderSummary = {
@@ -101,11 +101,7 @@ export function OrdersListPage() {
     await loadList<ListResponse>(
       `${apiBaseUrl}/api/v1/admin/orders?${params.toString()}`,
       token ? { authorization: `Bearer ${token}` } : {},
-      (data) => {
-        setResult(data);
-        setStatus("ready");
-      },
-      () => setStatus("error")
+      ...listResultHandlers(setResult, setStatus)
     );
   }, [filters, getToken, apiBaseUrl]);
 

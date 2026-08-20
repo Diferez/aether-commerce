@@ -42,6 +42,24 @@ export async function loadList<T>(
   }
 }
 
+// The (onSuccess, onError) pair loadList() takes, built from a page's own
+// setResult/setStatus - shared because the pair itself is identical
+// boilerplate across every list page that has no extra per-row state to
+// reset (contrast ProductsListPage, which also clears its selection and
+// so writes this out by hand instead of using the factory).
+export function listResultHandlers<T>(
+  setResult: (data: T) => void,
+  setStatus: (status: "ready" | "error") => void
+): [(data: T) => void, () => void] {
+  return [
+    (data: T) => {
+      setResult(data);
+      setStatus("ready");
+    },
+    () => setStatus("error")
+  ];
+}
+
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

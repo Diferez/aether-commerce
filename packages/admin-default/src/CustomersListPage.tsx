@@ -13,7 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import { countSubtitle, loadList, nextFilterState } from "./admin-list-helpers";
+import { countSubtitle, listResultHandlers, loadList, nextFilterState } from "./admin-list-helpers";
 
 type AdminCustomerSummary = {
   id: string;
@@ -78,11 +78,7 @@ export function CustomersListPage() {
     await loadList<ListResponse>(
       `${apiBaseUrl}/api/v1/admin/users?${params.toString()}`,
       token ? { authorization: `Bearer ${token}` } : {},
-      (data) => {
-        setResult(data);
-        setStatus("ready");
-      },
-      () => setStatus("error")
+      ...listResultHandlers(setResult, setStatus)
     );
   }, [filters, getToken, apiBaseUrl]);
 
