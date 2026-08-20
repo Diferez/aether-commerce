@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@clerk/react";
 import { CheckCircle2, CreditCard, ShieldAlert } from "lucide-react";
 import { useAdminConfig } from "./AetherAdminProvider";
+import { loadSettings } from "./admin-list-helpers";
 
 type ProviderId = "stripe" | "wompi";
 
@@ -187,24 +188,16 @@ export function CheckoutProviderSettings() {
   async function load() {
     setStatus("loading");
     const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/checkout-settings`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (response.status === 403) {
-        setStatus("forbidden");
-        return;
-      }
-      const payload = (await response.json()) as { success: boolean; data?: SettingsSummary };
-      if (payload.success && payload.data) {
-        setSummary(payload.data);
+    await loadSettings<SettingsSummary>(
+      `${apiBaseUrl}/api/v1/admin/checkout-settings`,
+      token ? { Authorization: `Bearer ${token}` } : {},
+      () => setStatus("forbidden"),
+      (data) => {
+        setSummary(data);
         setStatus("ready");
-      } else {
-        setStatus("error");
-      }
-    } catch {
-      setStatus("error");
-    }
+      },
+      () => setStatus("error")
+    );
   }
 
   useEffect(() => {

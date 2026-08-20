@@ -47,6 +47,35 @@ export async function loadList<T>(
   }
 }
 
+// The fetch/403-check/parse/dispatch shape a single-resource settings
+// panel follows (CheckoutProviderSettings, IntegrationSecretsSettings):
+// like loadList() but for one object instead of a paginated collection,
+// and with its own "forbidden" outcome for a 403 (a role without
+// settings.manage), which loadList()'s callers don't need.
+export async function loadSettings<T>(
+  url: string,
+  headers: Record<string, string>,
+  onForbidden: () => void,
+  onSuccess: (data: T) => void,
+  onError: () => void
+): Promise<void> {
+  try {
+    const response = await fetch(url, { headers });
+    if (response.status === 403) {
+      onForbidden();
+      return;
+    }
+    const payload = (await response.json()) as { success: boolean; data?: T };
+    if (!payload.success || !payload.data) {
+      onError();
+      return;
+    }
+    onSuccess(payload.data);
+  } catch {
+    onError();
+  }
+}
+
 // The (onSuccess, onError) pair loadList() takes, built from a page's own
 // setResult/setStatus - shared because the pair itself is identical
 // boilerplate across every list page that has no extra per-row state to
