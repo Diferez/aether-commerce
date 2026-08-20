@@ -43,3 +43,6 @@ export { RegisterPage } from "./RegisterPage";
 export { AccountPage } from "./AccountPage";
 export { OrdersPage } from "./OrdersPage";
 export { FavoritesPage } from "./FavoritesPage";
+
+export { ThemeToggle } from "./ThemeToggle";
+export { SiteHeader } from "./SiteHeader";
