@@ -17,7 +17,7 @@ export default defineConfig({
     // instead - Vitest's supported per-file override.
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["packages/**/*.test.ts", "apps/**/*.test.ts", "apps/**/*.test.tsx"],
+    include: ["packages/**/*.test.ts", "packages/**/*.test.tsx", "apps/**/*.test.ts", "apps/**/*.test.tsx"],
     coverage: {
       reporter: ["text", "html"]
     }

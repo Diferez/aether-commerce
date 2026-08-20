@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { apiBaseUrl } from "../config";
+import { useAdminConfig } from "../AetherAdminProvider";
 import { parseSseFrames } from "./parseSseFrames";
 import { buildChatRequestContext } from "./useAdminChatContext";
 import { useAdminLanguage } from "../AdminLanguageProvider";
@@ -29,6 +29,7 @@ function storeConversationId(id: string) {
 
 export function useAdminChatStream() {
   const { getToken } = useAuth();
+  const { apiBaseUrl } = useAdminConfig();
   const { locale, t } = useAdminLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatusPhase | "idle">("idle");
@@ -70,7 +71,7 @@ export function useAdminChatStream() {
     } catch {
       // A failed rehydrate just starts a fresh conversation on the next send.
     }
-  }, [getToken]);
+  }, [getToken, apiBaseUrl]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -156,7 +157,7 @@ export function useAdminChatStream() {
         setSending(false);
       }
     },
-    [getToken, sending, locale, t]
+    [getToken, sending, locale, t, apiBaseUrl]
   );
 
   const confirmPendingAction = useCallback(
@@ -199,7 +200,7 @@ export function useAdminChatStream() {
         setStatus("idle");
       }
     },
-    [getToken, locale, t]
+    [getToken, locale, t, apiBaseUrl]
   );
 
   return { messages, status, sending, resolvedOperationIds, hydrate, sendMessage, confirmPendingAction };
