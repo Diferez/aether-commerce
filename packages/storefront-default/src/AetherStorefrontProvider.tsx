@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { ClientConfiguration } from "@aether/config-schema";
 
@@ -19,13 +19,11 @@ const StorefrontConfigContext = createContext<StorefrontRuntimeConfig | null>(nu
 
 /** Wraps a storefront app (the reference Aether deployment, or a generated client) so every default-skin component reads its brand/theme/API config from here instead of a build-time import - a shared package can't have one client's config baked in. */
 export function AetherStorefrontProvider({ config, apiBaseUrl, aiAssistantUrl, basePath, children }: StorefrontRuntimeConfig & { children: ReactNode }) {
-  return (
-    <StorefrontConfigContext.Provider
-      value={{ config, apiBaseUrl, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }}
-    >
-      {children}
-    </StorefrontConfigContext.Provider>
+  const value = useMemo<StorefrontRuntimeConfig>(
+    () => ({ config, apiBaseUrl, ...(aiAssistantUrl !== undefined ? { aiAssistantUrl } : {}), ...(basePath !== undefined ? { basePath } : {}) }),
+    [config, apiBaseUrl, aiAssistantUrl, basePath]
   );
+  return <StorefrontConfigContext.Provider value={value}>{children}</StorefrontConfigContext.Provider>;
 }
 
 export function useStorefrontConfig(): StorefrontRuntimeConfig {

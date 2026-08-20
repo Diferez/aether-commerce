@@ -59,3 +59,9 @@ export { ReviewsSection } from "./ReviewsSection";
 export { ProductDetailClient } from "./ProductDetailClient";
 
 export { AssistantWidget } from "./AssistantWidget";
+
+export { Benefits } from "./Benefits";
+export { CookieNotice } from "./CookieNotice";
+export { ContactForm } from "./ContactForm";
+export { HomePage } from "./HomePage";
+export { ComparePage } from "./ComparePage";
