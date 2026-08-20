@@ -30,3 +30,6 @@ export { OrdersListPage } from "./OrdersListPage";
 export { ProductsListPage } from "./ProductsListPage";
 export { CustomersListPage } from "./CustomersListPage";
 export { InventoryListPage } from "./InventoryListPage";
+export { ProductForm, emptyProductForm, type ProductFormValues } from "./ProductForm";
+export { ProductsEditPage } from "./ProductsEditPage";
+export { ProductsNewPage } from "./ProductsNewPage";
