@@ -26,3 +26,7 @@ export { ActivityTimeline, type ActivityTimelineItem } from "./ActivityTimeline"
 export { AdminDashboard } from "./AdminDashboard";
 export { CouponsPage } from "./CouponsPage";
 export { ReviewsPage } from "./ReviewsPage";
+export { OrdersListPage } from "./OrdersListPage";
+export { ProductsListPage } from "./ProductsListPage";
+export { CustomersListPage } from "./CustomersListPage";
+export { InventoryListPage } from "./InventoryListPage";

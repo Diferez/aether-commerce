@@ -10,6 +10,7 @@ import { Metric } from "./Metric";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
+import { exportOrdersCsv } from "./admin-list-helpers";
 import type { AdminDictionary } from "@aether/i18n";
 
 type ProductSummary = {
@@ -248,21 +249,6 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
       .catch(() => {});
   }, [apiBaseUrl]);
 
-  async function exportOrdersCsv() {
-    const token = await getToken().catch(() => null);
-    const response = await fetch(`${apiBaseUrl}/api/v1/admin/export/orders`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {}
-    });
-    if (!response.ok) return;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "orders-export.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   useEffect(() => {
     const path = demo ? "/api/v1/admin/demo/summary" : "/api/v1/admin/summary";
     fetch(`${apiBaseUrl}${path}`)
@@ -390,7 +376,7 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
         <button
           type="button"
           disabled={demo}
-          onClick={() => void exportOrdersCsv()}
+          onClick={() => void exportOrdersCsv(apiBaseUrl, getToken)}
           className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download size={17} aria-hidden />
