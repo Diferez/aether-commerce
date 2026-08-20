@@ -35,3 +35,6 @@ export { ProductsEditPage } from "./ProductsEditPage";
 export { ProductsNewPage } from "./ProductsNewPage";
 export { WhatsappNumberInput } from "./WhatsappNumberInput";
 export { SettingsPage } from "./SettingsPage";
+export { CheckoutProviderSettings } from "./CheckoutProviderSettings";
+export { IntegrationSecretsSettings } from "./IntegrationSecretsSettings";
+export { SettingsIntegrationsPage } from "./SettingsIntegrationsPage";

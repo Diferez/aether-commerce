@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useAuth } from "@clerk/react";
 import { CheckCircle2, CreditCard, ShieldAlert } from "lucide-react";
-import { apiBaseUrl } from "./config";
+import { useAdminConfig } from "./AetherAdminProvider";
+import { loadSettings } from "./admin-list-helpers";
 
 type ProviderId = "stripe" | "wompi";
 
@@ -27,12 +29,14 @@ const PROVIDER_LABEL: Record<ProviderId, string> = { stripe: "Stripe", wompi: "W
 function ProviderForm({
   provider,
   summary,
+  apiBaseUrl,
   onSaved
-}: {
+}: Readonly<{
   provider: ProviderId;
   summary: CredentialsSummary;
+  apiBaseUrl: string;
   onSaved: (next: SettingsSummary) => void;
-}) {
+}>) {
   const [secretKey, setSecretKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -128,7 +132,54 @@ function ProviderForm({
   );
 }
 
+function CheckoutSettingsBody(
+  status: LoadStatus,
+  summary: SettingsSummary | null,
+  apiBaseUrl: string,
+  modeStatus: SaveStatus,
+  onChangeMode: (mode: ProviderId) => void,
+  onSaved: (next: SettingsSummary) => void
+): ReactNode {
+  if (status === "forbidden") {
+    return <p className="p-4 text-sm text-zinc-500">Your role does not have the settings.manage permission.</p>;
+  }
+  if (status === "error") {
+    return <p className="p-4 text-sm text-zinc-500">Could not load checkout settings.</p>;
+  }
+  if (status === "loading" || !summary) {
+    return <p className="p-4 text-sm text-zinc-500">Loading...</p>;
+  }
+  return (
+    <div className="grid gap-4 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-zinc-700">Active provider:</span>
+        {(["stripe", "wompi"] as const).map((provider) => (
+          <button
+            key={provider}
+            type="button"
+            onClick={() => onChangeMode(provider)}
+            disabled={modeStatus === "saving" || summary.mode === provider}
+            className={`focus-ring min-h-9 rounded-full border px-3 text-sm font-semibold disabled:cursor-not-allowed ${
+              summary.mode === provider
+                ? "border-zinc-950 bg-zinc-950 text-white"
+                : "border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+            }`}
+          >
+            {PROVIDER_LABEL[provider]}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ProviderForm provider="stripe" summary={summary.stripe} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
+        <ProviderForm provider="wompi" summary={summary.wompi} apiBaseUrl={apiBaseUrl} onSaved={onSaved} />
+      </div>
+    </div>
+  );
+}
+
 export function CheckoutProviderSettings() {
+  const { apiBaseUrl } = useAdminConfig();
   const [summary, setSummary] = useState<SettingsSummary | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [modeStatus, setModeStatus] = useState<SaveStatus>("idle");
@@ -137,24 +188,16 @@ export function CheckoutProviderSettings() {
   async function load() {
     setStatus("loading");
     const token = await getToken().catch(() => null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/admin/checkout-settings`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (response.status === 403) {
-        setStatus("forbidden");
-        return;
-      }
-      const payload = (await response.json()) as { success: boolean; data?: SettingsSummary };
-      if (payload.success && payload.data) {
-        setSummary(payload.data);
+    await loadSettings<SettingsSummary>(
+      `${apiBaseUrl}/api/v1/admin/checkout-settings`,
+      token ? { Authorization: `Bearer ${token}` } : {},
+      () => setStatus("forbidden"),
+      (data) => {
+        setSummary(data);
         setStatus("ready");
-      } else {
-        setStatus("error");
-      }
-    } catch {
-      setStatus("error");
-    }
+      },
+      () => setStatus("error")
+    );
   }
 
   useEffect(() => {
@@ -198,39 +241,7 @@ export function CheckoutProviderSettings() {
         </p>
       </div>
 
-      {status === "forbidden" ? (
-        <p className="p-4 text-sm text-zinc-500">Your role does not have the settings.manage permission.</p>
-      ) : status === "error" ? (
-        <p className="p-4 text-sm text-zinc-500">Could not load checkout settings.</p>
-      ) : status === "loading" || !summary ? (
-        <p className="p-4 text-sm text-zinc-500">Loading...</p>
-      ) : (
-        <div className="grid gap-4 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-zinc-700">Active provider:</span>
-            {(["stripe", "wompi"] as const).map((provider) => (
-              <button
-                key={provider}
-                type="button"
-                onClick={() => void changeMode(provider)}
-                disabled={modeStatus === "saving" || summary.mode === provider}
-                className={`focus-ring min-h-9 rounded-full border px-3 text-sm font-semibold disabled:cursor-not-allowed ${
-                  summary.mode === provider
-                    ? "border-zinc-950 bg-zinc-950 text-white"
-                    : "border-zinc-300 text-zinc-700 hover:bg-zinc-100"
-                }`}
-              >
-                {PROVIDER_LABEL[provider]}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <ProviderForm provider="stripe" summary={summary.stripe} onSaved={setSummary} />
-            <ProviderForm provider="wompi" summary={summary.wompi} onSaved={setSummary} />
-          </div>
-        </div>
-      )}
+      {CheckoutSettingsBody(status, summary, apiBaseUrl, modeStatus, (mode) => void changeMode(mode), setSummary)}
     </section>
   );
 }
