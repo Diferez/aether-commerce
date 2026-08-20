@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, Boxes, ChevronDown, Download, History, Mail, PackageCheck, Settings, Shield, TicketPercent, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -85,6 +86,125 @@ function stockStatus(product: ProductSummary, t: AdminDictionary): { label: stri
   if (product.stock <= 0) return { label: t.dashboard.outOfStock, tone: stockTone.out };
   if (product.stock <= product.lowStockThreshold) return { label: t.dashboard.lowStock, tone: stockTone.low };
   return { label: t.dashboard.inStock, tone: stockTone.in };
+}
+
+// Shared shape behind the products/orders/customers section subtitles:
+// "{count} thing(s)" once the total is known, a fixed fallback string while
+// it's still loading (total === null).
+function countSubtitle(total: number | null, singular: string, plural: string, fallback: string): string {
+  if (total === null) return fallback;
+  return (total === 1 ? singular : plural).replace("{count}", String(total));
+}
+
+function ordersSectionBody(status: "loading" | "ready" | "error", orders: OrderSummary[], t: AdminDictionary): ReactNode {
+  if (status === "error") return <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadOrders}</p>;
+  if (status === "loading") {
+    return (
+      <div className="grid gap-2 p-4">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="skeleton h-12 rounded-md" />
+        ))}
+      </div>
+    );
+  }
+  if (orders.length === 0) return <EmptyState title={t.dashboard.noOrdersYetTitle} description={t.dashboard.noOrdersYetDescription} />;
+  return orders.map((order) => (
+    <div key={order.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
+      <strong className="text-ink">{order.number}</strong>
+      <span className="truncate text-ink-muted">{order.email}</span>
+      <span className="text-sm text-ink-muted">
+        {t.orderStatus[order.payment_status]} &middot; {t.orderStatus[order.fulfillment_status]}
+      </span>
+      <a
+        href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
+      >
+        {t.dashboard.openOrder}
+      </a>
+    </div>
+  ));
+}
+
+function customersSectionBody(status: "loading" | "ready" | "error", customers: CustomerSummary[], t: AdminDictionary): ReactNode {
+  if (status === "error") return <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadCustomers}</p>;
+  if (status === "loading") {
+    return (
+      <div className="grid gap-2 p-4">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="skeleton h-12 rounded-md" />
+        ))}
+      </div>
+    );
+  }
+  if (customers.length === 0) return <EmptyState title={t.dashboard.noCustomersYetTitle} description={t.dashboard.noCustomersYetDescription} />;
+  return customers.map((customer) => (
+    <div key={customer.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
+      <span className="text-ink">{customer.name ?? customer.email}</span>
+      <span className="text-sm text-ink-muted">{customer.source === "guest" ? t.dashboard.guestCheckout : t.dashboard.registered}</span>
+      <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge>
+      <a
+        href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`}
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
+      >
+        {t.dashboard.openCustomer}
+      </a>
+    </div>
+  ));
+}
+
+function messagesSectionBody(
+  status: "loading" | "ready" | "forbidden" | "error",
+  messages: ContactMessage[],
+  demo: boolean,
+  openMessageId: string | null,
+  onToggleMessage: (id: string) => void,
+  locale: string,
+  t: AdminDictionary
+): ReactNode {
+  if (status === "forbidden") {
+    return <p className="p-4 text-sm text-ink-muted">{demo ? t.dashboard.demoHidesMessages : t.dashboard.noContactPermission}</p>;
+  }
+  if (status === "error") return <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadMessages}</p>;
+  if (status === "loading") {
+    return (
+      <div className="grid gap-2 p-4">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="skeleton h-12 rounded-md" />
+        ))}
+      </div>
+    );
+  }
+  if (messages.length === 0) return <EmptyState title={t.dashboard.noMessagesYetTitle} description={t.dashboard.noMessagesYetDescription} />;
+  return messages.map((entry) => {
+    const isOpen = openMessageId === entry.id;
+    return (
+      <div key={entry.id} className="border-b border-border last:border-b-0">
+        <button
+          type="button"
+          onClick={() => onToggleMessage(entry.id)}
+          aria-expanded={isOpen}
+          className="focus-ring grid w-full gap-1 p-4 text-left md:grid-cols-[1fr_1fr_180px_24px] md:items-center md:gap-3"
+        >
+          <span className="font-medium text-ink">{entry.name}</span>
+          <span className="truncate text-sm text-ink-muted">{entry.subject}</span>
+          <span className="text-xs text-ink-subtle">{new Date(entry.created_at).toLocaleString(locale === "es" ? "es-ES" : "en-US")}</span>
+          <ChevronDown size={16} aria-hidden className={`justify-self-end text-ink-subtle transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+        {isOpen ? (
+          <div className="grid gap-2 border-t border-border bg-surface-hover p-4 text-sm">
+            <p className="flex items-center gap-2 text-ink-muted">
+              <Mail size={14} aria-hidden />
+              <a href={`mailto:${entry.email}`} className="underline">
+                {entry.email}
+              </a>
+              <span className="text-ink-subtle">&middot; {entry.locale}</span>
+            </p>
+            <p className="whitespace-pre-wrap text-ink">{entry.message}</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  });
 }
 
 type StatusKey = "statusDemoData" | "statusPrivateAdmin" | "statusPublicDemo" | "statusLivePrivateAdmin" | "statusOfflineDemo";
@@ -296,9 +416,7 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <div>
             <h2 className="text-base font-semibold text-ink">{t.dashboard.productsHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {productsTotal !== null
-                ? (productsTotal === 1 ? t.dashboard.productsCountOne : t.dashboard.productsCountOther).replace("{count}", String(productsTotal))
-                : t.dashboard.productsSubtitleFallback}
+              {countSubtitle(productsTotal, t.dashboard.productsCountOne, t.dashboard.productsCountOther, t.dashboard.productsSubtitleFallback)}
             </p>
           </div>
           <a href="/products/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
@@ -366,42 +484,14 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <div>
             <h2 className="text-base font-semibold text-ink">{t.dashboard.ordersHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {ordersTotal !== null
-                ? (ordersTotal === 1 ? t.dashboard.ordersCountOne : t.dashboard.ordersCountOther).replace("{count}", String(ordersTotal))
-                : t.dashboard.ordersSubtitleFallback}
+              {countSubtitle(ordersTotal, t.dashboard.ordersCountOne, t.dashboard.ordersCountOther, t.dashboard.ordersSubtitleFallback)}
             </p>
           </div>
           <a href="/orders/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             {t.common.viewAll}
           </a>
         </div>
-        {ordersStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadOrders}</p>
-        ) : ordersStatus === "loading" ? (
-          <div className="grid gap-2 p-4">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="skeleton h-12 rounded-md" />
-            ))}
-          </div>
-        ) : recentOrders.length === 0 ? (
-          <EmptyState title={t.dashboard.noOrdersYetTitle} description={t.dashboard.noOrdersYetDescription} />
-        ) : (
-          recentOrders.map((order) => (
-            <div key={order.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[140px_1fr_140px_160px] md:items-center">
-              <strong className="text-ink">{order.number}</strong>
-              <span className="truncate text-ink-muted">{order.email}</span>
-              <span className="text-sm text-ink-muted">
-                {t.orderStatus[order.payment_status]} &middot; {t.orderStatus[order.fulfillment_status]}
-              </span>
-              <a
-                href={`/orders/detail/?id=${encodeURIComponent(order.id)}`}
-                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
-              >
-                {t.dashboard.openOrder}
-              </a>
-            </div>
-          ))
-        )}
+        {ordersSectionBody(ordersStatus, recentOrders, t)}
       </section>
 
       <section id="customers" className="mt-6 rounded-lg border border-border bg-surface">
@@ -409,40 +499,14 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <div>
             <h2 className="text-base font-semibold text-ink">{t.dashboard.customersHeading}</h2>
             <p className="text-sm text-ink-muted">
-              {customersTotal !== null
-                ? (customersTotal === 1 ? t.dashboard.customersCountOne : t.dashboard.customersCountOther).replace("{count}", String(customersTotal))
-                : t.dashboard.customersSubtitleFallback}
+              {countSubtitle(customersTotal, t.dashboard.customersCountOne, t.dashboard.customersCountOther, t.dashboard.customersSubtitleFallback)}
             </p>
           </div>
           <a href="/customers/" className="focus-ring min-h-9 shrink-0 rounded-md border border-border-strong px-3 text-sm font-semibold leading-9 text-ink hover:bg-surface-hover">
             {t.common.viewAll}
           </a>
         </div>
-        {customersStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadCustomers}</p>
-        ) : customersStatus === "loading" ? (
-          <div className="grid gap-2 p-4">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="skeleton h-12 rounded-md" />
-            ))}
-          </div>
-        ) : recentCustomers.length === 0 ? (
-          <EmptyState title={t.dashboard.noCustomersYetTitle} description={t.dashboard.noCustomersYetDescription} />
-        ) : (
-          recentCustomers.map((customer) => (
-            <div key={customer.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[1fr_140px_100px_160px] md:items-center">
-              <span className="text-ink">{customer.name ?? customer.email}</span>
-              <span className="text-sm text-ink-muted">{customer.source === "guest" ? t.dashboard.guestCheckout : t.dashboard.registered}</span>
-              <StatusBadge tone={customer.status === "suspended" ? "error" : "success"}>{t.customerStatus[customer.status]}</StatusBadge>
-              <a
-                href={`/customers/detail/?id=${encodeURIComponent(customer.id)}`}
-                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-md border border-border-strong px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
-              >
-                {t.dashboard.openCustomer}
-              </a>
-            </div>
-          ))
-        )}
+        {customersSectionBody(customersStatus, recentCustomers, t)}
       </section>
 
       <section id="messages" className="mt-6 rounded-lg border border-border bg-surface">
@@ -450,51 +514,14 @@ export function AdminDashboard({ demo = false }: Readonly<{ demo?: boolean }>) {
           <h2 className="text-base font-semibold text-ink">{t.dashboard.contactMessagesHeading}</h2>
           <p className="text-sm text-ink-muted">{t.dashboard.contactMessagesSubtitle}</p>
         </div>
-        {messagesStatus === "forbidden" ? (
-          <p className="p-4 text-sm text-ink-muted">
-            {demo ? t.dashboard.demoHidesMessages : t.dashboard.noContactPermission}
-          </p>
-        ) : messagesStatus === "error" ? (
-          <p className="p-4 text-sm text-ink-muted">{t.dashboard.couldNotLoadMessages}</p>
-        ) : messagesStatus === "loading" ? (
-          <div className="grid gap-2 p-4">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <div key={index} className="skeleton h-12 rounded-md" />
-            ))}
-          </div>
-        ) : messages.length === 0 ? (
-          <EmptyState title={t.dashboard.noMessagesYetTitle} description={t.dashboard.noMessagesYetDescription} />
-        ) : (
-          messages.map((entry) => {
-            const isOpen = openMessageId === entry.id;
-            return (
-              <div key={entry.id} className="border-b border-border last:border-b-0">
-                <button
-                  type="button"
-                  onClick={() => setOpenMessageId(isOpen ? null : entry.id)}
-                  aria-expanded={isOpen}
-                  className="focus-ring grid w-full gap-1 p-4 text-left md:grid-cols-[1fr_1fr_180px_24px] md:items-center md:gap-3"
-                >
-                  <span className="font-medium text-ink">{entry.name}</span>
-                  <span className="truncate text-sm text-ink-muted">{entry.subject}</span>
-                  <span className="text-xs text-ink-subtle">{new Date(entry.created_at).toLocaleString(locale === "es" ? "es-ES" : "en-US")}</span>
-                  <ChevronDown size={16} aria-hidden className={`justify-self-end text-ink-subtle transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </button>
-                {isOpen ? (
-                  <div className="grid gap-2 border-t border-border bg-surface-hover p-4 text-sm">
-                    <p className="flex items-center gap-2 text-ink-muted">
-                      <Mail size={14} aria-hidden />
-                      <a href={`mailto:${entry.email}`} className="underline">
-                        {entry.email}
-                      </a>
-                      <span className="text-ink-subtle">&middot; {entry.locale}</span>
-                    </p>
-                    <p className="whitespace-pre-wrap text-ink">{entry.message}</p>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
+        {messagesSectionBody(
+          messagesStatus,
+          messages,
+          demo,
+          openMessageId,
+          (id) => setOpenMessageId(openMessageId === id ? null : id),
+          locale,
+          t
         )}
       </section>
 
