@@ -41,6 +41,26 @@ export const featureConfigSchema = z
   })
   .strict();
 
+// Field names and types are deliberately kept structurally identical to
+// @aether/ui/theme.ts's ThemeTokens (primary/secondary/background/surface/
+// text/muted/border/radius/font) so a ThemeConfig can be passed anywhere a
+// ThemeTokens is expected without either package depending on the other -
+// config-schema may not depend on @aether/ui (see
+// scripts/check-platform-boundaries.mjs's policy map).
+export const themeConfigSchema = z
+  .object({
+    primary: z.string().min(1),
+    secondary: z.string().min(1),
+    background: z.string().min(1),
+    surface: z.string().min(1),
+    text: z.string().min(1),
+    muted: z.string().min(1),
+    border: z.string().min(1),
+    radius: z.string().min(1),
+    font: z.string().min(1)
+  })
+  .strict();
+
 export const checkoutConfigSchema = z
   .object({
     mode: z.enum(["stripe", "wompi"]),
@@ -95,6 +115,7 @@ export const clientConfigurationSchema = z
     brand: brandConfigSchema,
     store: storeConfigSchema,
     features: featureConfigSchema,
+    theme: themeConfigSchema,
     checkout: checkoutConfigSchema,
     integrations: integrationConfigSchema,
     agent: agentConfigSchema,
@@ -105,6 +126,7 @@ export const clientConfigurationSchema = z
 export type BrandConfig = z.output<typeof brandConfigSchema>;
 export type StoreConfig = z.output<typeof storeConfigSchema>;
 export type FeatureConfig = z.output<typeof featureConfigSchema>;
+export type ThemeConfig = z.output<typeof themeConfigSchema>;
 export type CheckoutConfig = z.output<typeof checkoutConfigSchema>;
 export type IntegrationConfig = z.output<typeof integrationConfigSchema>;
 export type AgentConfig = z.output<typeof agentConfigSchema>;

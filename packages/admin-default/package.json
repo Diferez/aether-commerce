@@ -1,0 +1,33 @@
+{
+  "name": "@aether/admin-default",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "restricted" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@aether/config-schema": "workspace:*",
+    "@aether/i18n": "workspace:*",
+    "lucide-react": "^1.24.0"
+  },
+  "peerDependencies": {
+    "@clerk/react": "*",
+    "next": "^16.0.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@clerk/react": "^6.12.3",
+    "@types/react": "^19.2.3",
+    "next": "^16.3.0",
+    "react": "^19.2.3",
+    "typescript": "^5.9.0"
+  }
+}

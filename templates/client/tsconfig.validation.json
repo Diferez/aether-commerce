@@ -5,5 +5,14 @@
     "paths": {
       "@aether/config-schema": ["packages/config-schema/src/index.ts"]
     }
-  }
+  },
+  // The .tsx example files (apps/storefront, apps/admin) need real react/next
+  // node_modules to typecheck - templates/client isn't a pnpm workspace
+  // member, so those aren't locally resolvable here. This config's own job is
+  // narrower: verify @aether/config-schema resolves against monorepo source
+  // (see README.md). The .tsx files get their real, authoritative check from
+  // validate-client-template.mjs's other pass - a genuine `pnpm install` +
+  // `pnpm validate` inside a freshly generated client, where react/next
+  // resolve normally because it's a real, standalone npm-style project.
+  "exclude": ["apps/**/*.tsx"]
 }

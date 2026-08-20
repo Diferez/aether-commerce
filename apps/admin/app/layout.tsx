@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AetherAdminProvider, AdminLanguageProvider } from "@aether/admin-default";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
-import { aetherBrandConfig, aetherThemeTokens } from "../components/configuration";
+import { aetherBrandConfig, aetherClientConfiguration, aetherThemeTokens } from "../components/configuration";
+import { apiBaseUrl, storefrontUrl } from "../components/config";
 import { SentryProvider } from "../components/SentryProvider";
-import { AdminLanguageProvider } from "../components/AdminLanguageProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,11 +53,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <SentryProvider>
-          <ClerkAuthProvider>
-            <AdminLanguageProvider>
-              <AdminShell>{children}</AdminShell>
-            </AdminLanguageProvider>
-          </ClerkAuthProvider>
+          <AetherAdminProvider config={aetherClientConfiguration} apiBaseUrl={apiBaseUrl} storefrontUrl={storefrontUrl}>
+            <ClerkAuthProvider>
+              <AdminLanguageProvider>
+                <AdminShell>{children}</AdminShell>
+              </AdminLanguageProvider>
+            </ClerkAuthProvider>
+          </AetherAdminProvider>
         </SentryProvider>
       </body>
     </html>
