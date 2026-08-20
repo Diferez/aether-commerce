@@ -125,7 +125,10 @@ test("cart reads and mutations require signed cart token", () => {
   // implementation now, same move Hero.tsx made in Phase 1) - assert against
   // the package file, where these behaviors actually live.
   const storefrontCartClient = read("packages/storefront-default/src/cart-client.ts");
-  const cartPage = read("apps/storefront/app/cart/page.tsx");
+  // apps/storefront/app/cart/page.tsx is a thin shim since Phase 2b-iv-a -
+  // packages/storefront-default/src/CartPage.tsx owns the real
+  // implementation now, same move as cart-client.ts/AetherAuthProvider.tsx.
+  const cartPage = read("packages/storefront-default/src/CartPage.tsx");
 
   assert.match(cartRoutes, /verifyCartToken/);
   assert.match(cartRoutes, /CART_TOKEN_REQUIRED/);
