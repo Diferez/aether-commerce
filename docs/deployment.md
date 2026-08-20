@@ -48,7 +48,7 @@ Según las funciones habilitadas:
 - `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (solo si se habilita la carga de imágenes de producto vía Cloudinary)
 
-Estos tres últimos (`RESEND_API_KEY`, `GEMINI_API_KEY`, y los tres de Cloudinary) también se pueden configurar - o rotar - desde el panel admin ("Integraciones" en el inicio), sin volver a desplegar: el valor guardado ahí (cifrado en D1) tiene prioridad sobre la variable de entorno. Para `GEMINI_API_KEY` esto aplica tanto al chat del admin (`aether-api`) como al asistente de la tienda (`aether-ai`) - un solo valor guardado cubre ambos.
+Estos tres últimos (`RESEND_API_KEY`, `GEMINI_API_KEY`, y los tres de Cloudinary) también se pueden configurar - o rotar - desde el panel admin (Configuración → Integraciones), sin volver a desplegar: el valor guardado ahí (cifrado en D1) tiene prioridad sobre la variable de entorno. Para `GEMINI_API_KEY` esto aplica tanto al chat del admin (`aether-api`) como al asistente de la tienda (`aether-ai`) - un solo valor guardado cubre ambos.
 
 Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wompi.
 

@@ -38,6 +38,7 @@ export const adminDictionaries = {
       coupons: "Coupons",
       customers: "Customers",
       settings: "Settings",
+      integrations: "Integrations",
       activity: "Activity",
       systemHealth: "System health",
       operationsGroup: "Operations",
@@ -457,6 +458,10 @@ export const adminDictionaries = {
         demo_viewer: "demo viewer"
       }
     },
+    integrationsPage: {
+      title: "Integrations",
+      description: "Payment providers and third-party API keys (Stripe, Wompi, Resend, Gemini, Cloudinary). Secrets are encrypted at rest and never shown again after saving."
+    },
     settingsPage: {
       title: "Settings",
       description: "Branding, checkout method, shipping, and cart reservation hold time.",
@@ -781,6 +786,7 @@ export const adminDictionaries = {
       coupons: "Cupones",
       customers: "Clientes",
       settings: "Configuración",
+      integrations: "Integraciones",
       activity: "Actividad",
       systemHealth: "Estado del sistema",
       operationsGroup: "Operaciones",
@@ -1199,6 +1205,10 @@ export const adminDictionaries = {
         super_admin: "super admin",
         demo_viewer: "visor demo"
       }
+    },
+    integrationsPage: {
+      title: "Integraciones",
+      description: "Proveedores de pago y llaves de API de terceros (Stripe, Wompi, Resend, Gemini, Cloudinary). Los secretos se cifran en reposo y nunca se vuelven a mostrar después de guardarlos."
     },
     settingsPage: {
       title: "Configuración",
