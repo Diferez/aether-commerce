@@ -113,20 +113,35 @@ function NotFound({ t }: Readonly<{ t: AdminDictionary }>) {
   );
 }
 
-function pageBody(
-  state: "loading" | "ready" | "not-found" | "error",
-  order: OrderDetail | null,
-  t: AdminDictionary,
-  locale: string,
-  actionError: string | null,
-  actionStatus: "idle" | "pending" | "error",
-  trackingDraft: { carrier: string; number: string; url: string },
-  onTrackingDraftChange: (draft: { carrier: string; number: string; url: string }) => void,
-  notesDraft: string,
-  onNotesDraftChange: (notes: string) => void,
-  onRunAction: (path: string, method: "PATCH" | "POST", body: unknown) => void,
-  onRefundConfirm: () => void
-): ReactNode {
+type PageBodyProps = {
+  state: "loading" | "ready" | "not-found" | "error";
+  order: OrderDetail | null;
+  t: AdminDictionary;
+  locale: string;
+  actionError: string | null;
+  actionStatus: "idle" | "pending" | "error";
+  trackingDraft: { carrier: string; number: string; url: string };
+  onTrackingDraftChange: (draft: { carrier: string; number: string; url: string }) => void;
+  notesDraft: string;
+  onNotesDraftChange: (notes: string) => void;
+  onRunAction: (path: string, method: "PATCH" | "POST", body: unknown) => void;
+  onRefundConfirm: () => void;
+};
+
+function pageBody({
+  state,
+  order,
+  t,
+  locale,
+  actionError,
+  actionStatus,
+  trackingDraft,
+  onTrackingDraftChange,
+  notesDraft,
+  onNotesDraftChange,
+  onRunAction,
+  onRefundConfirm
+}: Readonly<PageBodyProps>): ReactNode {
   if (state === "loading") {
     return (
       <div className="grid gap-3">
@@ -437,7 +452,7 @@ export function OrdersDetailPage() {
   return (
     <RequireAdminAuth>
       <main id="main-content" className="admin-shell py-8">
-        {pageBody(
+        {pageBody({
           state,
           order,
           t,
@@ -445,12 +460,12 @@ export function OrdersDetailPage() {
           actionError,
           actionStatus,
           trackingDraft,
-          setTrackingDraft,
+          onTrackingDraftChange: setTrackingDraft,
           notesDraft,
-          setNotesDraft,
-          (path, method, body) => void runAction(path, method, body),
-          () => setRefundConfirming(true)
-        )}
+          onNotesDraftChange: setNotesDraft,
+          onRunAction: (path, method, body) => void runAction(path, method, body),
+          onRefundConfirm: () => setRefundConfirming(true)
+        })}
 
         {order ? (
           <ConfirmDialog
