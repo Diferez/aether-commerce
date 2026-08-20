@@ -26,7 +26,7 @@ export function buildCartWhatsappMessage(cart: Cart, locale: "en" | "es"): strin
     locale === "es"
       ? "Hola, me gustaria comprar estos productos:"
       : "Hi, I would like to buy these products:";
-  const totalLabel = locale === "es" ? "Total" : "Total";
+  const totalLabel = "Total";
   return [header, "", ...lines, "", `${totalLabel}: ${formatUsd(cart.totals.total, numberLocale)}`].join("\n");
 }
 
