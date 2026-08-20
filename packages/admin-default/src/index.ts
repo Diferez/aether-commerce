@@ -40,3 +40,4 @@ export { IntegrationSecretsSettings } from "./IntegrationSecretsSettings";
 export { SettingsIntegrationsPage } from "./SettingsIntegrationsPage";
 export { OrdersNewPage } from "./OrdersNewPage";
 export { CustomersDetailPage } from "./CustomersDetailPage";
+export { OrdersDetailPage } from "./OrdersDetailPage";
