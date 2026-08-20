@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 
@@ -9,6 +10,7 @@ const noticeStorageKey = "aether.cookieNotice.v1";
 
 export function CookieNotice() {
   const { locale } = useLanguage();
+  const { config } = useStorefrontConfig();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -30,8 +32,8 @@ export function CookieNotice() {
       <div className="flex items-start gap-3">
         <p className="min-w-0 flex-1 text-sm leading-6 text-ink-muted">
           {locale === "es"
-            ? "Aether usa almacenamiento funcional para la sesión, el carrito, el idioma y el tema. No usa publicidad ni analítica."
-            : "Aether uses functional storage for the session, cart, language, and theme. It uses no advertising or analytics."}{" "}
+            ? `${config.brand.name} usa almacenamiento funcional para la sesión, el carrito, el idioma y el tema. No usa publicidad ni analítica.`
+            : `${config.brand.name} uses functional storage for the session, cart, language, and theme. It uses no advertising or analytics.`}{" "}
           <StorefrontLink
             className="focus-ring font-semibold text-ink underline decoration-accent underline-offset-4"
             href="/cookies"

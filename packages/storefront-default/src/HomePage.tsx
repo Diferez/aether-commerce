@@ -1,10 +1,19 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { Benefits, CategoryGrid, Hero, ProductGrid, useLanguage, StorefrontLink } from "@aether/storefront-default";
-import { ContactForm } from "../components/ContactForm";
+import { Benefits } from "./Benefits";
+import { CategoryGrid } from "./CategoryGrid";
+import { ContactForm } from "./ContactForm";
+import { Hero } from "./Hero";
+import { ProductGrid } from "./ProductGrid";
+import { useLanguage } from "./LanguageProvider";
+import { StorefrontLink } from "./StorefrontLink";
 
-export default function HomePage() {
+// Generic default-skin home, for a generated client that keeps every piece
+// as-is. The Aether reference deployment keeps its own composition instead
+// (apps/storefront/app/page.tsx) so it can use its own real ContactForm
+// override rather than this generic one - same reasoning as SiteFooter.
+export function HomePage({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
   const { t } = useLanguage();
 
   return (
@@ -56,7 +65,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <ContactForm />
+      <ContactForm legalPolicyVersion={legalPolicyVersion} />
     </main>
   );
 }

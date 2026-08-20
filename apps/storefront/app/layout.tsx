@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget } from "@aether/storefront-default";
+import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget, CookieNotice } from "@aether/storefront-default";
 import { AppProviders } from "../components/AppProviders";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
@@ -10,7 +10,6 @@ import { aetherClientConfiguration, aetherThemeTokens } from "../../../config/ae
 import { apiBaseUrl, aiAssistantUrl, storefrontBasePath } from "../components/config";
 import { legalPolicyVersion } from "../components/legal-content";
 import { WhatsappBubble } from "../components/WhatsappBubble";
-import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
 import { SentryProvider } from "../components/SentryProvider";
 
