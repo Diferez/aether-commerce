@@ -103,7 +103,13 @@ export function MobileNav({ open, onClose }: Readonly<{ open: boolean; onClose: 
               </a>
             ) : null}
           </div>
-          <div
+          {/* A real <button> can't wrap this row: it contains Clerk's own
+              <UserButton/> control, and nesting interactive elements inside
+              a <button> is invalid HTML. role="button" + tabIndex + the
+              onKeyDown below is the standard fallback for exactly this case
+              - same pattern AdminSidebar.tsx already uses for its own
+              identical row. */}
+          <div // NOSONAR - see comment above
             role={isSignedIn ? "button" : undefined}
             tabIndex={isSignedIn ? 0 : undefined}
             className={`flex items-center gap-2.5 rounded-md px-1.5 py-1.5 ${isSignedIn ? "cursor-pointer hover:bg-surface-hover" : ""}`}

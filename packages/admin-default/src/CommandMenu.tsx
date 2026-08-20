@@ -198,17 +198,17 @@ export function CommandMenu({ open, onClose }: Readonly<{ open: boolean; onClose
   // use. The panel's own onClick only stops propagation to the backdrop -
   // it performs no action a keyboard user would need a key handler for.
   return (
-    <div
+    <div // NOSONAR - see comment above
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[12vh]"
-      role="presentation" // NOSONAR - see comment above
+      role="presentation"
       onClick={onClose}
     >
-      <div
-        role="dialog" // NOSONAR - see comment above
+      <div // NOSONAR - see comment above
+        role="dialog"
         aria-modal="true"
         aria-label={t.commandMenu.dialogLabel}
         className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-elevate-md"
-        onClick={(event) => event.stopPropagation()} // NOSONAR - see comment above
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-border px-4">
           <Search size={16} aria-hidden className="text-ink-subtle" />

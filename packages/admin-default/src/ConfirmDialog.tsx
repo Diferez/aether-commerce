@@ -66,18 +66,18 @@ export function ConfirmDialog({
   // to the backdrop - it performs no action a keyboard user would need a
   // key handler for.
   return (
-    <div
+    <div // NOSONAR - see comment above
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="presentation" // NOSONAR - see comment above
+      role="presentation"
       onClick={onCancel}
     >
-      <div
-        role="alertdialog" // NOSONAR - see comment above
+      <div // NOSONAR - see comment above
+        role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby={description ? "confirm-dialog-description" : undefined}
         className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-elevate-md"
-        onClick={(event) => event.stopPropagation()} // NOSONAR - see comment above
+        onClick={(event) => event.stopPropagation()}
       >
         <p id="confirm-dialog-title" className="text-base font-semibold text-ink">
           {title}
