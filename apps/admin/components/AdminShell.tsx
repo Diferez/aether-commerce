@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AdminSidebar } from "./AdminSidebar";
+import { AdminSidebar, AdminTopBar } from "@aether/admin-default";
 import { MobileNav } from "./MobileNav";
-import { AdminTopBar } from "./AdminTopBar";
 import { CommandMenu } from "./CommandMenu";
 import { AdminChatProvider } from "./AdminChat/AdminChatProvider";
 import { AdminChatTrigger } from "./AdminChat/AdminChatTrigger";

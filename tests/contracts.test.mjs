@@ -288,7 +288,9 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
 });
 
 test("storefront assistant CTA keeps readable active and hover colors", () => {
-  const hero = read("apps/storefront/components/Hero.tsx");
+  // Hero moved into the default-skin package (packages/storefront-default) -
+  // apps/storefront/components/Hero.tsx is now a thin re-export.
+  const hero = read("packages/storefront-default/src/Hero.tsx");
 
   assert.match(hero, /heroCtaSecondary/);
   assert.match(hero, /hover:bg-accent/);

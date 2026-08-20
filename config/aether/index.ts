@@ -6,6 +6,7 @@ import { aetherFeatureConfig } from "./features";
 import { aetherIntegrationConfig } from "./integrations";
 import { aetherNavigationConfig } from "./navigation";
 import { aetherStoreConfig } from "./store";
+import { aetherThemeTokens } from "./theme";
 export { aetherThemeTokens } from "./theme";
 
 export * from "./agent";
@@ -21,6 +22,7 @@ export const aetherClientConfiguration = defineClientConfiguration({
   brand: aetherBrandConfig,
   store: aetherStoreConfig,
   features: aetherFeatureConfig,
+  theme: aetherThemeTokens,
   checkout: aetherCheckoutConfig,
   integrations: aetherIntegrationConfig,
   agent: aetherAgentConfig,

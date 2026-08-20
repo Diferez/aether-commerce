@@ -4,5 +4,6 @@ export {
   aetherCheckoutConfig,
   aetherFeatureConfig,
   aetherStoreConfig,
-  aetherThemeTokens
+  aetherThemeTokens,
+  aetherClientConfiguration
 } from "../../../config/aether";

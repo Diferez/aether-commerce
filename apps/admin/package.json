@@ -10,7 +10,9 @@
     "lint": "eslint app components"
   },
   "dependencies": {
+    "@aether/admin-default": "workspace:*",
     "@aether/api-client": "workspace:*",
+    "@aether/config-schema": "workspace:*",
     "@aether/core": "workspace:^",
     "@aether/i18n": "workspace:*",
     "@aether/schemas": "workspace:*",

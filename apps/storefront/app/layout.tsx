@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AetherStorefrontProvider } from "@aether/storefront-default";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
 import { AssistantWidget } from "../components/AssistantWidget";
 import { themeTokensToCssVariables } from "@aether/ui/theme";
-import { aetherThemeTokens } from "../config/theme";
+import { aetherClientConfiguration, aetherThemeTokens } from "../../../config/aether";
+import { apiBaseUrl, storefrontBasePath } from "../components/config";
 import { WhatsappBubble } from "../components/WhatsappBubble";
 import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
@@ -51,17 +53,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <SentryProvider>
-          <ClerkAuthProvider>
-            <LanguageProvider>
-              <SiteHeader />
-              {children}
-              <SiteFooter />
-              <CookieNotice />
-              <AssistantWidget />
-              <WhatsappBubble />
-              <FloatingCart />
-            </LanguageProvider>
-          </ClerkAuthProvider>
+          <AetherStorefrontProvider config={aetherClientConfiguration} apiBaseUrl={apiBaseUrl} basePath={storefrontBasePath}>
+            <ClerkAuthProvider>
+              <LanguageProvider>
+                <SiteHeader />
+                {children}
+                <SiteFooter />
+                <CookieNotice />
+                <AssistantWidget />
+                <WhatsappBubble />
+                <FloatingCart />
+              </LanguageProvider>
+            </ClerkAuthProvider>
+          </AetherStorefrontProvider>
         </SentryProvider>
       </body>
     </html>
