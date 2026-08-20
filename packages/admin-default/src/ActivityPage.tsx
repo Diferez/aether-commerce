@@ -14,7 +14,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import { fieldLabel } from "./AdminChat/format";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary, Locale } from "@aether/i18n";
 
 type AuditLogRow = {
   id: string;
@@ -185,6 +185,35 @@ function DiffTable({ entry }: Readonly<{ entry: AuditLogRow }>) {
   );
 }
 
+function AuditMetadataGrid({ entry, t, locale }: Readonly<{ entry: AuditLogRow; t: AdminDictionary; locale: Locale }>) {
+  return (
+    <dl className="grid grid-cols-2 gap-3 text-sm">
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colWhen}</dt>
+        <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colAdmin}</dt>
+        <dd className="mt-0.5 text-xs text-ink [overflow-wrap:anywhere]">
+          <span className={entry.actor_name ? undefined : "font-mono"}>{actorLabel(entry)}</span>
+          {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colEntity}</dt>
+        <dd className="mt-0.5 text-ink [overflow-wrap:anywhere]">
+          {entry.target_type}
+          {entry.target_id ? <span className="text-ink-subtle"> · {entry.target_id}</span> : ""}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colRequestId}</dt>
+        <dd className="mt-0.5">{entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>}</dd>
+      </div>
+    </dl>
+  );
+}
+
 function AuditDetailSheet({ entry, onClose }: Readonly<{ entry: AuditLogRow | null; onClose: () => void }>) {
   const { t, locale } = useAdminLanguage();
   const [showRaw, setShowRaw] = useState(false);
@@ -193,30 +222,7 @@ function AuditDetailSheet({ entry, onClose }: Readonly<{ entry: AuditLogRow | nu
     <Sheet open={Boolean(entry)} onClose={onClose} side="right" {...(entry ? { title: humanizeAction(entry.action) } : {})} width="min(480px,100vw)">
       {entry ? (
         <div className="grid gap-4">
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colWhen}</dt>
-              <dd className="mt-0.5 text-ink">{new Date(entry.created_at.replace(" ", "T") + "Z").toLocaleString(locale === "es" ? "es-ES" : "en-US")}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colAdmin}</dt>
-              <dd className="mt-0.5 text-xs text-ink [overflow-wrap:anywhere]">
-                <span className={entry.actor_name ? undefined : "font-mono"}>{actorLabel(entry)}</span>
-                {entry.actor_role ? <span className="ml-1 text-ink-subtle">({entry.actor_role})</span> : null}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colEntity}</dt>
-              <dd className="mt-0.5 text-ink [overflow-wrap:anywhere]">
-                {entry.target_type}
-                {entry.target_id ? <span className="text-ink-subtle"> · {entry.target_id}</span> : ""}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{t.activityPage.colRequestId}</dt>
-              <dd className="mt-0.5">{entry.request_id ? <CopyRequestId requestId={entry.request_id} /> : <span className="text-ink-subtle">—</span>}</dd>
-            </div>
-          </dl>
+          <AuditMetadataGrid entry={entry} t={t} locale={locale} />
 
           <div>
             <div className="mb-2 flex items-center justify-between">
