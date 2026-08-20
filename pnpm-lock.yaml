@@ -431,6 +431,9 @@ importers:
 
   packages/storefront-default:
     dependencies:
+      '@aether/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       '@aether/config-schema':
         specifier: workspace:*
         version: link:../config-schema

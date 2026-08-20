@@ -41,3 +41,5 @@ export { clerkAppearance, resolveAuthNextPath } from "./clerk-appearance";
 export { LoginPage } from "./LoginPage";
 export { RegisterPage } from "./RegisterPage";
 export { AccountPage } from "./AccountPage";
+export { OrdersPage } from "./OrdersPage";
+export { FavoritesPage } from "./FavoritesPage";
