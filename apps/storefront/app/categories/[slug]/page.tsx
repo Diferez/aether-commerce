@@ -1,5 +1,6 @@
 import { humanizeCategorySlug } from "@aether/core";
 import { ProductGrid } from "../../../components/ProductGrid";
+import { demoProducts } from "../../../components/demo-products";
 
 // The 10 real category slugs in the local catalog (see
 // apps/storefront/data/products.json and apps/api/src/services/catalog.ts).
@@ -28,6 +29,7 @@ export default async function CategoryProductsPage({ params }: { params: Promise
         fixedCategory={slug}
         heading={categoryName}
         description="Products filtered by category through the Aether Catalog Adapter."
+        fallbackProducts={demoProducts}
       />
     </main>
   );

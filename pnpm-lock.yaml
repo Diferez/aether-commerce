@@ -434,9 +434,15 @@ importers:
       '@aether/config-schema':
         specifier: workspace:*
         version: link:../config-schema
+      '@aether/core':
+        specifier: workspace:*
+        version: link:../core
       '@aether/schemas':
         specifier: workspace:*
         version: link:../schemas
+      '@aether/ui':
+        specifier: workspace:*
+        version: link:../ui
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.3)

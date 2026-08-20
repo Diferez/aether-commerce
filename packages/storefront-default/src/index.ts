@@ -4,3 +4,33 @@ export { dictionaries, locales, type Locale } from "./dictionaries";
 export { StorefrontLink } from "./StorefrontLink";
 export { Hero } from "./Hero";
 export { SiteFooter } from "./SiteFooter";
+
+export { createCartClient, type CartClient, type CheckoutSessionResult } from "./cart-client";
+export { CartProvider, useCart, type CartContextValue } from "./CartProvider";
+
+export {
+  readFavoriteProducts,
+  isFavoriteProduct,
+  toggleFavoriteProduct,
+  removeFavoriteProduct,
+  migrateGuestFavoritesToCustomer
+} from "./favorites-client";
+export { FavoritesProvider, useFavorites, type FavoritesContextValue } from "./FavoritesProvider";
+
+export {
+  readCompareProducts,
+  isCompareProduct,
+  toggleCompareProduct,
+  removeCompareProduct,
+  clearCompareProducts,
+  type ToggleCompareResult
+} from "./compare-client";
+export { CompareProvider, useCompare, type CompareContextValue } from "./CompareProvider";
+
+export { getLocalizedProduct } from "./product-localization";
+export { LOW_STOCK_THRESHOLD, EXPOSE_EXACT_STOCK_COUNT, getImageBadge, isLowStock, getLowStockLabel, type ImageBadge } from "./product-badge-logic";
+export { ProductBadge } from "./ProductBadge";
+export { ProductCard, ProductCardSkeleton } from "./ProductCard";
+export { CategoryGrid } from "./CategoryGrid";
+export { ProductGrid } from "./ProductGrid";
+export { FloatingCart } from "./FloatingCart";

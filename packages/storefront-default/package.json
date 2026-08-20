@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@aether/config-schema": "workspace:*",
+    "@aether/core": "workspace:*",
     "@aether/schemas": "workspace:*",
+    "@aether/ui": "workspace:*",
     "lucide-react": "^1.24.0"
   },
   "peerDependencies": {

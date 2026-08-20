@@ -96,7 +96,7 @@ try {
       'import { isCheckoutSessionPaid } from "@aether/api-core";',
       'import { supportedAgentIntents } from "@aether/agent-core";',
       'import { createRequestId } from "@aether/observability";',
-      'import { Hero } from "@aether/storefront-default";',
+      'import { Hero, ProductGrid, CartProvider } from "@aether/storefront-default";',
       'import { AdminSidebar } from "@aether/admin-default";',
       "",
       "export const packageResolutionSmoke = [",
@@ -110,6 +110,8 @@ try {
       "  supportedAgentIntents,",
       "  createRequestId,",
       "  Hero,",
+      "  ProductGrid,",
+      "  CartProvider,",
       "  AdminSidebar",
       "] as const;",
       ""

@@ -120,7 +120,11 @@ test("order state machine includes required commerce states", () => {
 test("cart reads and mutations require signed cart token", () => {
   const cartRoutes = read("apps/api/src/routes/cart.ts");
   const cartTokenService = read("apps/api/src/services/cart-token.ts");
-  const storefrontCartClient = read("apps/storefront/components/cart-client.ts");
+  // apps/storefront/components/cart-client.ts is a thin shim since Phase 2a
+  // (packages/storefront-default/src/cart-client.ts owns the real
+  // implementation now, same move Hero.tsx made in Phase 1) - assert against
+  // the package file, where these behaviors actually live.
+  const storefrontCartClient = read("packages/storefront-default/src/cart-client.ts");
   const cartPage = read("apps/storefront/app/cart/page.tsx");
 
   assert.match(cartRoutes, /verifyCartToken/);
@@ -149,7 +153,9 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
   const wompiService = read("apps/api/src/services/wompi.ts");
   const accountRoutes = read("apps/api/src/routes/account.ts");
   const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
-  const cartClient = read("apps/storefront/components/cart-client.ts");
+  // See the comment above the earlier read() of this same file: the real
+  // implementation is now packages/storefront-default/src/cart-client.ts.
+  const cartClient = read("packages/storefront-default/src/cart-client.ts");
   const clerkService = read("apps/api/src/services/clerk.ts");
   const publicRoutes = read("apps/api/src/routes/public.ts");
   const clerkProvider = read("apps/storefront/components/ClerkAuthProvider.tsx");
