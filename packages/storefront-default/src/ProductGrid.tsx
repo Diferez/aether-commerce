@@ -374,7 +374,7 @@ export function ProductGrid({
   );
 
   return (
-    <section className={compact ? "aether-shell py-8" : "aether-shell py-8"} aria-labelledby="catalog-heading">
+    <section className="aether-shell py-8" aria-labelledby="catalog-heading">
       <div className="mb-5">
         <p className="text-sm font-semibold uppercase text-accent">
           {eyebrow ?? (statusMessage || (status === "live" ? t.liveCatalog : status === "offline" ? t.offlineCatalog : t.demoReady))}
