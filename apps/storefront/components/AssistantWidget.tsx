@@ -13,7 +13,7 @@ import {
 import type { Cart, CartItem } from "@aether/schemas";
 import { aiAssistantUrl } from "./config";
 import { useCustomerSession } from "./customer-client";
-import { useAetherAuth } from "./ClerkAuthProvider";
+import { useAetherAuth } from "./customer-client";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";
 import { legalPolicyVersion } from "./legal-content";

@@ -5,7 +5,7 @@ import { CartProvider, CompareProvider, FavoritesProvider } from "@aether/storef
 import { useCustomerSession } from "./customer-client";
 
 // Composes the reactive Phase-2a providers (cart/favorites/compare) so
-// app/layout.tsx stays simple. Nested inside ClerkAuthProvider so
+// app/layout.tsx stays simple. Nested inside AetherAuthProvider so
 // useCustomerSession() (Clerk-backed) can resolve the customerId
 // FavoritesProvider scopes favorites by - this package itself has no auth
 // dependency, the app supplies the id.

@@ -7,10 +7,9 @@ import { canTransitionOrder, formatMoney } from "@aether/core";
 import { createCommerceClient } from "@aether/api-client";
 import type { Order, OrderState } from "@aether/schemas";
 import { apiBaseUrl } from "../../../components/config";
-import { useCustomerSession } from "../../../components/customer-client";
+import { useAetherAuth, useCustomerSession } from "../../../components/customer-client";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { StorefrontLink } from "../../../components/StorefrontLink";
-import { useAetherAuth } from "../../../components/ClerkAuthProvider";
 
 type OrderStatus = "loading" | "ready" | "empty" | "signed-out" | "error";
 

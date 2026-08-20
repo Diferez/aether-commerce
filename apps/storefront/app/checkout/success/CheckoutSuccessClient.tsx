@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiBaseUrl } from "../../../components/config";
-import { useAetherAuth } from "../../../components/ClerkAuthProvider";
+import { useAetherAuth } from "../../../components/customer-client";
 
 type ConfirmState = "idle" | "confirming" | "created" | "existing" | "missing-session" | "error";
 

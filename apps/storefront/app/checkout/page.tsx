@@ -9,8 +9,7 @@ import { Button } from "@aether/ui";
 import { apiBaseUrl, storefrontPath } from "../../components/config";
 import { createCheckoutSession, getCartCredentials, readLocalCart, readLocalCartItems, syncLocalCartToApi } from "../../components/cart-client";
 import { useCheckoutOptions, useShippingSettings } from "../../components/checkout-options";
-import { useAetherAuth } from "../../components/ClerkAuthProvider";
-import { useCustomerSession } from "../../components/customer-client";
+import { useAetherAuth, useCustomerSession } from "../../components/customer-client";
 import { useLanguage } from "../../components/LanguageProvider";
 import { StorefrontLink } from "../../components/StorefrontLink";
 

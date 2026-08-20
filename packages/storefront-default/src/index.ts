@@ -34,3 +34,9 @@ export { ProductCard, ProductCardSkeleton } from "./ProductCard";
 export { CategoryGrid } from "./CategoryGrid";
 export { ProductGrid } from "./ProductGrid";
 export { FloatingCart } from "./FloatingCart";
+
+export { AetherAuthProvider, useAetherAuth, type AuthCustomer } from "./AetherAuthProvider";
+export { useCustomerSession, useSignOutCustomer, type CustomerSession } from "./customer-client";
+export { LoginPage } from "./LoginPage";
+export { RegisterPage } from "./RegisterPage";
+export { AccountPage } from "./AccountPage";
