@@ -57,3 +57,5 @@ export { CheckoutCancelPage } from "./CheckoutCancelPage";
 
 export { ReviewsSection } from "./ReviewsSection";
 export { ProductDetailClient } from "./ProductDetailClient";
+
+export { AssistantWidget } from "./AssistantWidget";

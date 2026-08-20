@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherAuthProvider, AetherStorefrontProvider } from "@aether/storefront-default";
+import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget } from "@aether/storefront-default";
 import { AppProviders } from "../components/AppProviders";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
-import { AssistantWidget } from "../components/AssistantWidget";
 import { themeTokensToCssVariables } from "@aether/ui/theme";
 import { aetherClientConfiguration, aetherThemeTokens } from "../../../config/aether";
-import { apiBaseUrl, storefrontBasePath } from "../components/config";
+import { apiBaseUrl, aiAssistantUrl, storefrontBasePath } from "../components/config";
+import { legalPolicyVersion } from "../components/legal-content";
 import { WhatsappBubble } from "../components/WhatsappBubble";
 import { CookieNotice } from "../components/CookieNotice";
 import { SiteFooter } from "../components/SiteFooter";
@@ -53,7 +53,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <SentryProvider>
-          <AetherStorefrontProvider config={aetherClientConfiguration} apiBaseUrl={apiBaseUrl} basePath={storefrontBasePath}>
+          <AetherStorefrontProvider
+            config={aetherClientConfiguration}
+            apiBaseUrl={apiBaseUrl}
+            aiAssistantUrl={aiAssistantUrl}
+            basePath={storefrontBasePath}
+          >
             <AetherAuthProvider>
               <AppProviders>
                 <LanguageProvider>
@@ -61,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {children}
                   <SiteFooter />
                   <CookieNotice />
-                  <AssistantWidget />
+                  <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
                   <WhatsappBubble />
                   <FloatingCart />
                 </LanguageProvider>
