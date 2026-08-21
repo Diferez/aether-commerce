@@ -30,8 +30,13 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
+      # --ignore-scripts: no dependency here needs a lifecycle script to
+      # work (validate-client-template.mjs's own install already proves
+      # this template installs and builds clean without them) - skipping
+      # them closes off arbitrary code execution from a compromised
+      # transitive dependency during CI install.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
       # Gate before any deploy step runs - wrangler types+tsc for apps/api
       # needs no live Cloudflare auth (it only reads wrangler.jsonc locally),
       # same for admin/storefront's next.config-driven typecheck.
