@@ -1,7 +1,7 @@
 "use client";
 
 import { HomePage } from "@aether/storefront-default";
-import { legalPolicyVersion } from "../../config/legal.js";
+import { legalPolicyVersion } from "../../../config/legal";
 
 /**
  * Default home page - keep this file as-is to use the default skin, or
