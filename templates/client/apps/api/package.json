@@ -1,0 +1,25 @@
+{
+  "name": "client-store-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787 --config ./wrangler.jsonc --show-interactive-dev-session false",
+    "build": "wrangler deploy --dry-run --outdir dist --config ./wrangler.jsonc",
+    "deploy": "wrangler deploy --config ./wrangler.jsonc",
+    "types": "wrangler types ./src/worker-configuration.d.ts --config ./wrangler.jsonc",
+    "typecheck": "pnpm types && tsc -p tsconfig.json --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --config ./wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config ./wrangler.jsonc"
+  },
+  "dependencies": {
+    "@aether/api-worker": "^0.1.0",
+    "@sentry/cloudflare": "10.70.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260812.1",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.120.0"
+  }
+}

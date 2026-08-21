@@ -11,6 +11,7 @@
     "@aether/agent-core": "^0.1.0",
     "@aether/api-client": "^0.1.0",
     "@aether/api-core": "^0.1.0",
+    "@aether/api-worker": "^0.1.0",
     "@aether/config-schema": "^0.1.0",
     "@aether/core": "^0.1.0",
     "@aether/observability": "^0.1.0",
