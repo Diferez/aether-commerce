@@ -102,7 +102,6 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background-color: var(--color-bg);
   background:
     radial-gradient(circle at 18% 12%, var(--color-accent-soft), transparent 34vw),
     radial-gradient(circle at 82% 0%, var(--color-accent-2-soft), transparent 30vw),

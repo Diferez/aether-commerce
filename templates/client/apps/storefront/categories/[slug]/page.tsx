@@ -10,7 +10,7 @@ export function generateStaticParams() {
   return [] as Array<{ slug: string }>;
 }
 
-export default async function CategoryProductsPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CategoryProductsPage({ params }: Readonly<{ params: Promise<{ slug: string }> }>) {
   const { slug } = await params;
   const categoryName = humanizeCategorySlug(slug);
 

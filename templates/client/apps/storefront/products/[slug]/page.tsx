@@ -9,7 +9,7 @@ export function generateStaticParams() {
   return [] as Array<{ slug: string }>;
 }
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ProductDetailPage({ params }: Readonly<{ params: Promise<{ slug: string }> }>) {
   const { slug } = await params;
   return <ProductDetailClient slug={slug} fallbackProduct={null} />;
 }
