@@ -219,7 +219,7 @@ test("checkout provider abstraction covers Stripe and Wompi behind one port", ()
 });
 
 test("readiness and order status updates fail safely", () => {
-  const index = read("apps/api/src/index.ts");
+  const app = read("packages/api-worker/src/app.ts");
   const http = read("packages/api-worker/src/http.ts");
   const admin = read("packages/api-worker/src/routes/admin.ts");
   // The state-machine check, history insert, and batched write live in
@@ -228,8 +228,8 @@ test("readiness and order status updates fail safely", () => {
   // this guarantee is checked where the logic actually is, not duplicated.
   const orders = read("packages/api-worker/src/services/orders.ts");
 
-  assert.match(index, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
-  assert.match(index, /status: "degraded"/);
+  assert.match(app, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
+  assert.match(app, /status: "degraded"/);
   assert.match(http, /\| 503/);
   assert.match(admin, /orderStateSchema/);
   assert.match(admin, /ORDER_STATE_CONFLICT/);
@@ -270,7 +270,7 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
 
 test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   const middleware = read("packages/api-worker/src/middleware/rate-limit.ts");
-  const index = read("apps/api/src/index.ts");
+  const app = read("packages/api-worker/src/app.ts");
   const types = read("packages/api-worker/src/types.ts");
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
@@ -296,7 +296,7 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.doesNotMatch(middleware, /digest\(authorization\)/);
   assert.doesNotMatch(middleware, /digest\(cartToken\)/);
   assert.match(middleware, /Only verified identities receive their own bucket/);
-  assert.ok(index.indexOf('app.use("*", auth())') < index.indexOf('app.use("*", rateLimit())'));
+  assert.ok(app.indexOf('app.use("*", auth())') < app.indexOf('app.use("*", rateLimit())'));
 });
 
 test("storefront assistant CTA keeps readable active and hover colors", () => {
