@@ -13,7 +13,7 @@ import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import { countSubtitle, exportOrdersCsv, useAdminList } from "./admin-list-helpers";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 type AdminOrderSummary = {
   id: string;

@@ -1,7 +1,7 @@
 "use client";
 
-import { calculateCartTotals } from "@aether/core";
-import type { Address, Cart, CartItem, Product } from "@aether/schemas";
+import { calculateCartTotals } from "@aether-commerce/core";
+import type { Address, Cart, CartItem, Product } from "@aether-commerce/schemas";
 
 export type CheckoutSessionResult = {
   success: boolean;
@@ -95,7 +95,7 @@ export function createCartClient(apiBaseUrl: string) {
       unitPrice: product.price,
       finalUnitPrice,
       lineTotal: finalUnitPrice,
-      currency: "USD"
+      currency: product.currency
     };
   }
 

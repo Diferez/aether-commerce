@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
-import { Button } from "@aether/ui";
+import { Button } from "@aether-commerce/ui";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
 import { useLanguage } from "./LanguageProvider";

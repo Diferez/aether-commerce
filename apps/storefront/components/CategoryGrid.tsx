@@ -1,1 +1,1 @@
-export { CategoryGrid } from "@aether/storefront-default";
+export { CategoryGrid } from "@aether-commerce/storefront-default";

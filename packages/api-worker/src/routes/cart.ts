@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { cartItemInputSchema } from "@aether/schemas";
+import { cartItemInputSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { createCartToken, verifyCartToken } from "../services/cart-token";

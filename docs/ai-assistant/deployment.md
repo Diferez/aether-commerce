@@ -5,10 +5,10 @@ The assistant is deployed directly to Cloudflare Workers; there is no Python or 
 Validation:
 
 ```bash
-pnpm --filter @aether/ai-assistant typecheck
-pnpm --filter @aether/ai-assistant lint
-pnpm --filter @aether/ai-assistant test
-pnpm --filter @aether/ai-assistant build
+pnpm --filter @aether-commerce/ai-assistant typecheck
+pnpm --filter @aether-commerce/ai-assistant lint
+pnpm --filter @aether-commerce/ai-assistant test
+pnpm --filter @aether-commerce/ai-assistant build
 ```
 
 Production deploys use `wrangler.production.json` and the `AETHER_API` service binding. Required Worker secrets are `GEMINI_API_KEY` and `AI_OPERATIONS_TOKEN`; cart authorization is performed by the Aether API using the browser-issued signed cart token.

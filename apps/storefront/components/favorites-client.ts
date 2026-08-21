@@ -1,18 +1,18 @@
 "use client";
 
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 import {
   readFavoriteProducts as readFavoriteProductsById,
   isFavoriteProduct as isFavoriteProductById,
   toggleFavoriteProduct as toggleFavoriteProductById,
   removeFavoriteProduct as removeFavoriteProductById,
   migrateGuestFavoritesToCustomer as migrateGuestFavoritesToCustomerById
-} from "@aether/storefront-default";
+} from "@aether-commerce/storefront-default";
 import type { CustomerSession } from "./customer-client";
 
 // Thin adapter: not-yet-migrated app consumers (SiteHeader, ProductDetailClient,
 // app/account/favorites/page.tsx, app/compare/page.tsx) still call these with a
-// full CustomerSession, while @aether/storefront-default's functions take a
+// full CustomerSession, while @aether-commerce/storefront-default's functions take a
 // bare customerId (the package has no Clerk/auth dependency). This keeps
 // every existing call site working unchanged.
 export function readFavoriteProducts(customer: CustomerSession | null) {

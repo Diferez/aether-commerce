@@ -1,1 +1,1 @@
-export { ErrorState } from "@aether/admin-default";
+export { ErrorState } from "@aether-commerce/admin-default";

@@ -1,1 +1,1 @@
-export { getLocalizedProduct } from "@aether/storefront-default";
+export { getLocalizedProduct } from "@aether-commerce/storefront-default";

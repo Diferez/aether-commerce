@@ -15,7 +15,7 @@ import type {
   PendingWrite
 } from "@langchain/langgraph-checkpoint";
 import { z } from "zod";
-import { decryptSecret } from "@aether/core";
+import { decryptSecret } from "@aether-commerce/core";
 
 declare global {
   interface SubtleCrypto {

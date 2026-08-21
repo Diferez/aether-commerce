@@ -1,2 +1,2 @@
-// Re-exports the default skin's LanguageToggle from @aether/admin-default.
-export { LanguageToggle } from "@aether/admin-default";
+// Re-exports the default skin's LanguageToggle from @aether-commerce/admin-default.
+export { LanguageToggle } from "@aether-commerce/admin-default";

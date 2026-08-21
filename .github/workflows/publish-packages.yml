@@ -2,6 +2,12 @@ name: Publish Aether packages
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and pack without publishing
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,10 +25,17 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@aether-commerce"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test:client-template
       - run: pnpm changeset status
-      - run: pnpm publish:packages
+      - name: Verify package archives
+        if: ${{ inputs.dry_run }}
+        run: pnpm --recursive --filter "./packages/*" pack --pack-destination "${{ runner.temp }}/aether-packages"
+      - name: Publish packages
+        if: ${{ !inputs.dry_run }}
+        run: pnpm publish:packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

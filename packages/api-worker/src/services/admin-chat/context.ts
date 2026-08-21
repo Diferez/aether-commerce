@@ -1,4 +1,4 @@
-import type { Actor } from "@aether/schemas";
+import type { Actor } from "@aether-commerce/schemas";
 import type { Env } from "../../types";
 import type { ChatLanguage } from "./language";
 

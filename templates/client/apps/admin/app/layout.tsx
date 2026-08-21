@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AdminLanguageProvider, AetherAdminProvider } from "@aether/admin-default";
+import { AdminLanguageProvider, AetherAdminProvider } from "@aether-commerce/admin-default";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { clientConfiguration } from "../../../src/configuration";
+import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -41,7 +42,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        <style>{`html[data-locale-pending] body { visibility: hidden; } :root { --color-accent: ${clientConfiguration.theme.primary}; }`}</style>
+        <style>{themeTokensToCssVariables(clientConfiguration.theme)}</style>
+        <style>{`html[data-locale-pending] body { visibility: hidden; }`}</style>
       </head>
       <body>
         <a

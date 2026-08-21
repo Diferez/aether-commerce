@@ -13,8 +13,8 @@ copy Aether demo data, provider secrets or deployment resources.
    wired together by the root `pnpm-workspace.yaml` - `pnpm --filter ./apps/admin build`
    (or `./apps/storefront`) produces a static `out/` directory for each.
    `apps/admin/app/{layout,page}.tsx` and `apps/storefront/app/{layout,page}.tsx`
-   already render a working default skin - `@aether/admin-default` and
-   `@aether/storefront-default` - wired to `config/`. Both directories also ship
+   already render a working default skin - `@aether-commerce/admin-default` and
+   `@aether-commerce/storefront-default` - wired to `config/`. Both directories also ship
    every business page as one-line re-exports, each in its own file under the
    matching route folder: `apps/admin/app/` has orders, products, customers,
    inventory, coupons, reviews, settings, activity, and system health;
@@ -30,7 +30,7 @@ copy Aether demo data, provider secrets or deployment resources.
    module-eval time, so the build fails fast without it, the same as this
    repo's own `apps/admin`/`apps/storefront`).
    - `apps/api/` is also a real, deployable Cloudflare Worker -
-     `apps/api/src/index.ts` wires up `@aether/api-worker`'s `createApiApp()`
+     `apps/api/src/index.ts` wires up `@aether-commerce/api-worker`'s `createApiApp()`
      (every commerce/admin/admin-chat route, already built) the same way this
      repo's own `apps/api` does. Before it can run: `wrangler d1 create
      <name>` and paste the real `database_id` into `apps/api/wrangler.jsonc`
@@ -42,12 +42,13 @@ copy Aether demo data, provider secrets or deployment resources.
      `WOMPI_SECRET_KEY`, `RESEND_API_KEY`, `CLOUDINARY_*`, and `GEMINI_API_KEY`
      are each optional - every integration already degrades gracefully
      without its secret set, so only configure the providers you actually
-     use. `apps/api/wrangler.jsonc`'s `vars` block also carries `BRAND_NAME`,
+     use. `apps/api/wrangler.jsonc`'s `vars` block also carries
+     `STORE_CURRENCY`, `STORE_LOCALE`, `STORE_COUNTRY`, `BRAND_NAME`,
      `EMAIL_FROM`, `OBSERVABILITY_SERVICE_NAME`, and `AI_ASSISTANT_NAME` -
      override these to replace the "client-store" placeholders `create:client`
      already substituted. `apps/ai/adapter.ts` has no packaged default yet -
      implement it using its typed `adapter.ts`, `src/configuration.ts`, and
-     the versioned `@aether/*` packages.
+     the versioned `@aether-commerce/*` packages.
    - `apps/storefront/app/products/[slug]/page.tsx` and `categories/[slug]/page.tsx`
      ship `generateStaticParams()` returning a single `"example"` placeholder
      slug - `output: "export"` refuses to emit zero pages for a dynamic
@@ -60,7 +61,7 @@ copy Aether demo data, provider secrets or deployment resources.
 5. `apps/storefront/wrangler.jsonc` and `apps/api/wrangler.jsonc` each deploy
    their own Cloudflare Worker (`wrangler deploy`, or each app's own
    `pnpm deploy`) - the storefront's serves its static `out/` directory, the
-   API's runs `@aether/api-worker` directly. The admin panel has no
+   API's runs `@aether-commerce/api-worker` directly. The admin panel has no
    `wrangler.jsonc` of its own - deploy its `out/` directory to Cloudflare
    Pages instead (`wrangler pages deploy apps/admin/out --project-name=<name>`),
    the same split this repo's own `apps/admin`/`apps/storefront` use.
@@ -102,12 +103,23 @@ the first run can succeed:
 The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
 (see point 5).
 
+## Aether updates
+
+Add the repository secret `AETHER_PACKAGES_TOKEN` with read access to the
+Aether package registry. Dependabot groups Aether releases into a weekly pull
+request. You can also run **Update Aether platform** manually; it updates every
+workspace dependency, synchronizes D1 migrations, validates the store and opens
+a pull request. The normal deployment synchronizes migrations once more before
+applying them.
+
 `config/` is public configuration (including `config/theme.ts` - colors and
 fonts, separate from `config/brand.ts`'s name/logo); `custom/` contains
 client-only pages, components, styling, animations and assets; `database/`
 contains only client-specific extensions and optional seeds. The generator
 also creates `database/migrations/` from the reusable Aether schema
 migrations; it excludes the Aether demo's historical data migrations.
+Keep `STORE_CURRENCY`, `STORE_LOCALE` and `STORE_COUNTRY` in
+`apps/api/wrangler.jsonc` aligned with `config/store.ts`.
 
 Never put provider secrets in `config/`; runtime secrets belong in the chosen
 deployment platform's secret manager.

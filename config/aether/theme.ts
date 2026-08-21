@@ -1,4 +1,4 @@
-import type { ThemeTokens } from "@aether/ui/theme";
+import type { ThemeTokens } from "@aether-commerce/ui/theme";
 
 /** Aether demo visual identity; client stores supply their own token set. */
 export const aetherThemeTokens: ThemeTokens = {

@@ -1,5 +1,5 @@
-import { AgentToolTelemetry, type AgentToolTelemetryRepository } from "@aether/agent-core";
-import type { AgentAuditEvent } from "@aether/observability";
+import { AgentToolTelemetry, type AgentToolTelemetryRepository } from "@aether-commerce/agent-core";
+import type { AgentAuditEvent } from "@aether-commerce/observability";
 
 type D1Database = {
   prepare(query: string): D1PreparedStatement;

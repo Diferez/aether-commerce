@@ -1,1 +1,1 @@
-export { ProductForm, emptyProductForm, type ProductFormValues } from "@aether/admin-default";
+export { ProductForm, emptyProductForm, type ProductFormValues } from "@aether-commerce/admin-default";

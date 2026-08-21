@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Actor } from "@aether/schemas";
+import type { Actor } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { auditService, recordAudit, writeAuditLog } from "./audit";
 

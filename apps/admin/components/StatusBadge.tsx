@@ -1,1 +1,1 @@
-export { StatusBadge, type StatusTone } from "@aether/admin-default";
+export { StatusBadge, type StatusTone } from "@aether-commerce/admin-default";

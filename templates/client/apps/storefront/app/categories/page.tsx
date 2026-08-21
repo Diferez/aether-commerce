@@ -1,6 +1,6 @@
 "use client";
 
-import { CategoryGrid, useLanguage } from "@aether/storefront-default";
+import { CategoryGrid, useLanguage } from "@aether-commerce/storefront-default";
 
 export default function CategoriesPage() {
   const { t } = useLanguage();

@@ -1,7 +1,7 @@
 "use client";
 
 import * as Sentry from "@sentry/react";
-import { redact } from "@aether/core";
+import { redact } from "@aether-commerce/core";
 
 // This is a static export (no Next.js server) deployed straight to
 // Cloudflare, same reason this app uses @clerk/react instead of

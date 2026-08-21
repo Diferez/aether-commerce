@@ -1,1 +1,1 @@
-export { CouponsPage as default } from "@aether/admin-default";
+export { CouponsPage as default } from "@aether-commerce/admin-default";

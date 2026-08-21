@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AetherAdminProvider, AdminLanguageProvider } from "@aether/admin-default";
+import { AetherAdminProvider, AdminLanguageProvider } from "@aether-commerce/admin-default";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { aetherBrandConfig, aetherClientConfiguration, aetherThemeTokens } from "../components/configuration";

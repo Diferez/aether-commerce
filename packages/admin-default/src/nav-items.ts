@@ -1,6 +1,6 @@
 import { Activity, BarChart3, Boxes, ClipboardList, History, MessageSquareText, Plug, Rocket, Settings, TicketPercent, UsersRound, Warehouse } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 export type NavItem = {
   href: string;

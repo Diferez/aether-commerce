@@ -1,6 +1,6 @@
 "use client";
 
-import { HomePage } from "@aether/storefront-default";
+import { HomePage } from "@aether-commerce/storefront-default";
 import { legalPolicyVersion } from "../../../config/legal";
 
 /**

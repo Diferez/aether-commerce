@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { productQuerySchema } from "@aether/schemas";
+import { productQuerySchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getCategoryCounts, getProductBySlug } from "../services/catalog";

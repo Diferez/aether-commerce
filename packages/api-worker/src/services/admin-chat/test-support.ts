@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Env } from "../../types";
-import type { Actor } from "@aether/schemas";
+import type { Actor } from "@aether-commerce/schemas";
 import type { AdminChatContext } from "./context";
 
 // Shared by every admin-chat test file (tools, pending-actions, routes) -

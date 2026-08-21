@@ -1,1 +1,1 @@
-export { ConfirmDialog } from "@aether/admin-default";
+export { ConfirmDialog } from "@aether-commerce/admin-default";

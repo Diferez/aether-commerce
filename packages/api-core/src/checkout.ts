@@ -1,4 +1,4 @@
-import type { Cart } from "@aether/schemas";
+import type { Cart } from "@aether-commerce/schemas";
 
 /** Portable result returned by a hosted payment checkout. sessionId is Stripe-only (returned so its immutable checkout snapshot can be bound to it). */
 export type CheckoutRedirect = { checkoutUrl: string; sessionId?: string };

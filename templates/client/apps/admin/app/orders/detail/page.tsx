@@ -1,1 +1,1 @@
-export { OrdersDetailPage as default } from "@aether/admin-default";
+export { OrdersDetailPage as default } from "@aether-commerce/admin-default";

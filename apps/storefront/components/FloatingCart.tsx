@@ -1,1 +1,1 @@
-export { FloatingCart } from "@aether/storefront-default";
+export { FloatingCart } from "@aether-commerce/storefront-default";

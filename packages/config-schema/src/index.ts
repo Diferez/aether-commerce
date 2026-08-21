@@ -42,10 +42,10 @@ export const featureConfigSchema = z
   .strict();
 
 // Field names and types are deliberately kept structurally identical to
-// @aether/ui/theme.ts's ThemeTokens (primary/secondary/background/surface/
+// @aether-commerce/ui/theme.ts's ThemeTokens (primary/secondary/background/surface/
 // text/muted/border/radius/font) so a ThemeConfig can be passed anywhere a
 // ThemeTokens is expected without either package depending on the other -
-// config-schema may not depend on @aether/ui (see
+// config-schema may not depend on @aether-commerce/ui (see
 // scripts/check-platform-boundaries.mjs's policy map).
 export const themeConfigSchema = z
   .object({
@@ -89,7 +89,7 @@ export const integrationConfigSchema = z
       .object({ provider: z.literal("cloudinary") })
       .strict(),
     payments: z
-      .object({ provider: z.literal("stripe") })
+      .object({ provider: z.enum(["stripe", "wompi"]) })
       .strict()
   })
   .strict();

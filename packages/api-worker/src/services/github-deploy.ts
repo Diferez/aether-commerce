@@ -1,4 +1,4 @@
-import type { PlatformDeployCredentials } from "@aether/api-core";
+import type { PlatformDeployCredentials } from "@aether-commerce/api-core";
 
 const GITHUB_API_BASE = "https://api.github.com";
 
@@ -33,7 +33,7 @@ export function requireCompleteCredentials(credentials: PlatformDeployCredential
  * The most recent commit SHA on the repo's main branch - compared against
  * this Worker's own DEPLOYED_COMMIT_SHA to tell an admin "there's undeployed
  * code" without needing any package version to have actually changed (see
- * the version-comparison design note in the plan: @aether/* packages are
+ * the version-comparison design note in the plan: @aether-commerce/* packages are
  * rarely re-versioned in practice, so commit SHA is the signal that's
  * actually meaningful day to day).
  */
@@ -51,22 +51,29 @@ export async function getLatestCommitSha(credentials: RequiredPlatformDeployCred
 }
 
 /**
- * Best-effort lookup of the latest published @aether/api-worker version on
+ * Best-effort lookup of the latest published @aether-commerce/api-worker version on
  * the GitHub Packages npm registry. Returns null on any failure (wrong
  * scope on the PAT, org- vs user-owned package endpoint mismatch, package
  * never published yet) rather than throwing - this is a secondary,
  * informational data point (see the plan's version-comparison design note),
  * never something that should block the panel or the deploy button.
  */
-export async function getLatestPublishedPackageVersion(credentials: RequiredPlatformDeployCredentials, packageName = "api-worker"): Promise<string | null> {
+export async function getLatestPublishedPackageVersion(
+  credentials: RequiredPlatformDeployCredentials,
+  packageName = "api-worker",
+  packageOwner = credentials.githubOwner
+): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${GITHUB_API_BASE}/orgs/${credentials.githubOwner}/packages/npm/${encodeURIComponent(packageName)}/versions?per_page=1`,
-      { headers: authHeaders(credentials.githubPat) }
-    );
-    if (!response.ok) return null;
-    const payload: Array<{ name?: string }> = await response.json();
-    return payload[0]?.name ?? null;
+    for (const ownerKind of ["orgs", "users"] as const) {
+      const response = await fetch(
+        `${GITHUB_API_BASE}/${ownerKind}/${encodeURIComponent(packageOwner)}/packages/npm/${encodeURIComponent(packageName)}/versions?per_page=1`,
+        { headers: authHeaders(credentials.githubPat) }
+      );
+      if (!response.ok) continue;
+      const payload: Array<{ name?: string }> = await response.json();
+      return payload[0]?.name ?? null;
+    }
+    return null;
   } catch {
     return null;
   }

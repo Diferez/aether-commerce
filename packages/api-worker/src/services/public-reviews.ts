@@ -1,4 +1,4 @@
-import { PublicReviewService, type PublicReviewRepository } from "@aether/api-core";
+import { PublicReviewService, type PublicReviewRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for public, moderation-filtered product reviews. */
 export function createPublicReviewService(db: D1Database): PublicReviewService {

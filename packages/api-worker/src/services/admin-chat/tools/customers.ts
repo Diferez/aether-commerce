@@ -5,6 +5,7 @@ import type { AdminCustomerSummary } from "../../customers";
 import type { CustomerSummaryArtifact, OrderSummaryArtifact } from "../artifacts";
 import { summarizeOrdersForModel } from "./orders";
 import { pick } from "../language";
+import { getRuntimeStoreConfig } from "../../store-config";
 
 function asString(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
@@ -113,7 +114,7 @@ export const getCustomerOrderHistoryTool = defineAdminChatTool({
         paymentStatus: asString(raw.paymentStatus),
         fulfillmentStatus: asString(raw.fulfillmentStatus),
         totalCents: Number(totals?.total ?? 0),
-        currency: totals?.currency ? asString(totals.currency) : "USD",
+        currency: totals?.currency ? asString(totals.currency) : getRuntimeStoreConfig(ctx.env).currency,
         createdAt: asString(raw.createdAt),
         href: `/orders/detail/?id=${encodeURIComponent(id)}`
       };

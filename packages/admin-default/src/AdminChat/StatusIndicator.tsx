@@ -1,5 +1,5 @@
 import { Loader2, Search, ClipboardCheck, Play, HelpCircle } from "lucide-react";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import { useAdminLanguage } from "../AdminLanguageProvider";
 import type { ChatStatusPhase } from "./types";
 

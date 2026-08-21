@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Truck } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Address, Cart } from "@aether/schemas";
-import { Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Address, Cart } from "@aether-commerce/schemas";
+import { Button } from "@aether-commerce/ui";
 import { useStorefrontConfig, useStorefrontPath } from "./AetherStorefrontProvider";
 import { createCartClient } from "./cart-client";
 import { useCheckoutOptions, useShippingSettings } from "./checkout-options";
@@ -45,7 +45,7 @@ function fieldClass() {
 export function CheckoutPage() {
   const { locale, t } = useLanguage();
   const router = useRouter();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
   const storefrontPath = useStorefrontPath();
   const { createCheckoutSession, getCartCredentials, readLocalCart, readLocalCartItems, syncLocalCartToApi } = useMemo(
     () => createCartClient(apiBaseUrl),
@@ -162,7 +162,7 @@ export function CheckoutPage() {
       city: form.city.trim(),
       region: form.region.trim(),
       postalCode: form.postalCode.trim() || "000000",
-      country: "CO"
+      country: config.store.country
     };
 
     setSubmitting(true);
@@ -209,7 +209,7 @@ export function CheckoutPage() {
     }
   }
 
-  const money = (cents: number) => formatMoney(cents, "USD", locale === "es" ? "es-CO" : "en-US");
+  const money = (cents: number) => formatMoney(cents, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US");
 
   return (
     <main className="aether-shell py-8">

@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether/core";
-import type { Permission } from "@aether/schemas";
+import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
+import type { Permission } from "@aether-commerce/schemas";
 import type { AdminChatContext } from "./context";
 import type { ChatArtifact } from "./artifacts";
 import { getLogger } from "../observability";
@@ -59,7 +59,7 @@ function capitalize(value: string): string {
 // through one place so the model can never bypass a permission check just by
 // phrasing a request differently. Permission/demo/mutation-kill-switch
 // checks reuse the exact same functions requirePermission uses on the plain
-// REST admin routes (hasPermission, isDemoMutationBlocked from @aether/core)
+// REST admin routes (hasPermission, isDemoMutationBlocked from @aether-commerce/core)
 // - independent of anything the model claims about itself.
 export function defineAdminChatTool<Schema extends z.ZodType>(spec: AdminChatToolSpec<Schema>): AdminChatTool {
   return {

@@ -1,4 +1,4 @@
-import type { Product, ProductQuery } from "@aether/schemas";
+import type { Product, ProductQuery } from "@aether-commerce/schemas";
 
 /** Normalizes text for catalog search without assuming a store language. */
 export function foldCatalogText(value: string): string {

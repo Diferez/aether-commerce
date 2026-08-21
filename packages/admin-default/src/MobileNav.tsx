@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAuth, UserButton, useUser } from "@clerk/react";
-import { Sheet } from "@aether/ui";
+import { Sheet } from "@aether-commerce/ui";
 import { ExternalLink, Sparkles } from "lucide-react";
 import { getNavGroups } from "./nav-items";
 import { ThemeToggle } from "./ThemeToggle";

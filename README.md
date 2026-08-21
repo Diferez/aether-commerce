@@ -26,7 +26,7 @@ URLs locales:
 - Tienda: `http://localhost:3000`
 - Admin: `http://localhost:3001`
 - API: `http://localhost:8787/api/v1/health`
-- Asistente: `pnpm --filter @aether/ai-assistant exec wrangler dev`
+- Asistente: `pnpm --filter @aether-commerce/ai-assistant exec wrangler dev`
 
 ## Conexión con el portafolio
 

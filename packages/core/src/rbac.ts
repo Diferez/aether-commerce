@@ -1,4 +1,4 @@
-import type { Actor, Permission, Role } from "@aether/schemas";
+import type { Actor, Permission, Role } from "@aether-commerce/schemas";
 
 const rolePermissions: Record<Role, Permission[]> = {
   guest: ["products.read"],

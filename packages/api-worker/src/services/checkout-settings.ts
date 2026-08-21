@@ -1,5 +1,5 @@
-import { CheckoutSettingsService, type CheckoutProviderCredentials, type CheckoutSettings, type CheckoutSettingsRepository } from "@aether/api-core";
-import { decryptSecret, encryptSecret } from "@aether/core";
+import { CheckoutSettingsService, type CheckoutProviderCredentials, type CheckoutSettings, type CheckoutSettingsRepository } from "@aether-commerce/api-core";
+import { decryptSecret, encryptSecret } from "@aether-commerce/core";
 
 type StoredCredentials = { secretKey?: string; webhookSecret?: string };
 type StoredSettings = { mode?: string; stripe?: StoredCredentials; wompi?: StoredCredentials };

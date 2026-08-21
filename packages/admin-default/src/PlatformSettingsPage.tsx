@@ -114,7 +114,7 @@ function GitHubSettingsForm({
         <StatusBadge configured={summary.configured} label="Configured" />
       </div>
       <p className="text-xs text-zinc-500">
-        The PAT needs <code>actions:write</code> (to trigger the deploy workflow) and <code>read:packages</code> (to look up the latest published
+        The PAT needs <code>actions:write</code> (to trigger the update workflow) and <code>read:packages</code> (to look up the latest published
         version). It is encrypted at rest and never shown again after saving.
       </p>
       <label className="grid gap-1 text-sm">
@@ -140,13 +140,13 @@ function GitHubSettingsForm({
         />
       </label>
       <label className="grid gap-1 text-sm">
-        <span className="text-zinc-600">Deploy workflow file</span>
+        <span className="text-zinc-600">Update workflow file</span>
         <input
           type="text"
           autoComplete="off"
           value={githubWorkflowFile}
           onChange={(event) => setGithubWorkflowFile(event.target.value)}
-          placeholder={summary.githubWorkflowFile ?? "deploy.yml"}
+          placeholder={summary.githubWorkflowFile ?? "aether-update.yml"}
           className="focus-ring min-h-10 rounded-md border border-zinc-300 px-3 text-sm"
         />
       </label>
@@ -227,12 +227,12 @@ function VersionCard({
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">Deployed</p>
           <p className="font-mono">{shortSha(version.deployed.commitSha)}</p>
-          <p className="text-zinc-500">@aether/api-worker {version.deployed.packageVersion}</p>
+          <p className="text-zinc-500">@aether-commerce/api-worker {version.deployed.packageVersion}</p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">Latest on main</p>
           <p className="font-mono">{version.credentialsConfigured ? shortSha(version.latest.commitSha) : "unknown"}</p>
-          <p className="text-zinc-500">@aether/api-worker {version.latest.packageVersion ?? "unknown"}</p>
+          <p className="text-zinc-500">@aether-commerce/api-worker {version.latest.packageVersion ?? "unknown"}</p>
         </div>
       </div>
       <VersionStatusMessage version={version} upToDate={upToDate} />
@@ -244,10 +244,10 @@ function VersionCard({
           className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-zinc-400"
         >
           <Rocket size={16} aria-hidden />
-          {deployStatus === "deploying" ? "Triggering..." : "Update now"}
+          {deployStatus === "deploying" ? "Triggering..." : "Check for updates"}
         </button>
         {deployStatus === "triggered" ? (
-          <p className="mt-2 text-xs text-teal-700">Deploy triggered - it will take a few minutes to complete.</p>
+          <p className="mt-2 text-xs text-teal-700">Update workflow triggered. It will open a pull request when changes are available.</p>
         ) : null}
         {deployStatus === "error" ? <p className="mt-2 text-xs text-red-700">Could not trigger the deploy. Check the credentials above.</p> : null}
       </div>
@@ -358,7 +358,7 @@ export function PlatformSettingsPage() {
           <Rocket size={18} aria-hidden />
           Platform
         </h2>
-        <p className="text-sm text-zinc-500">Check the deployed version and trigger a production redeploy.</p>
+        <p className="text-sm text-zinc-500">Check the deployed version and ask GitHub to prepare an Aether update pull request.</p>
       </div>
       <PlatformSettingsBody
         status={status}
@@ -376,10 +376,10 @@ export function PlatformSettingsPage() {
       />
       <ConfirmDialog
         open={deployStatus === "confirming"}
-        title="Trigger a production redeploy?"
-        description="This starts a real deploy of the latest commit on main. It cannot be undone once started."
-        confirmLabel="Update now"
-        tone="danger"
+        title="Check for Aether updates?"
+        description="GitHub will update the Aether packages, synchronize migrations, validate the store and open a pull request when changes exist."
+        confirmLabel="Check for updates"
+        tone="default"
         onConfirm={() => void triggerDeploy()}
         onCancel={() => setDeployStatus("idle")}
       />

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Cart } from "@aether/schemas";
-import type { PaidCheckoutSession } from "@aether/api-core";
+import type { Cart } from "@aether-commerce/schemas";
+import type { PaidCheckoutSession } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { changeOrderState, createManualOrder, createOrderFromPaidSession, orderWithCurrentData, withOrderTracking } from "./orders";
 

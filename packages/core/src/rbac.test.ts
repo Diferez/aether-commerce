@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Actor } from "@aether/schemas";
+import type { Actor } from "@aether-commerce/schemas";
 import { hasPermission, isDemoMutationBlocked, permissionsForRoles } from "./rbac";
 
 function actorWithRoles(roles: Actor["roles"]): Actor {

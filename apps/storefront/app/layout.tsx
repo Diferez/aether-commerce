@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget, CookieNotice } from "@aether/storefront-default";
+import { AetherAuthProvider, AetherStorefrontProvider, AssistantWidget, CookieNotice } from "@aether-commerce/storefront-default";
 import { AppProviders } from "../components/AppProviders";
 import { LanguageProvider } from "../components/LanguageProvider";
 import { FloatingCart } from "../components/FloatingCart";
 import { SiteHeader } from "../components/SiteHeader";
-import { themeTokensToCssVariables } from "@aether/ui/theme";
+import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 import { aetherClientConfiguration, aetherThemeTokens } from "../../../config/aether";
 import { apiBaseUrl, aiAssistantUrl, storefrontBasePath } from "../components/config";
 import { legalPolicyVersion } from "../components/legal-content";

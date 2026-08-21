@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { canTransitionFulfillment } from "@aether/core";
-import type { FulfillmentStatus } from "@aether/schemas";
+import { canTransitionFulfillment } from "@aether-commerce/core";
+import type { FulfillmentStatus } from "@aether-commerce/schemas";
 import { defineAdminChatTool, notFoundMessage, notFoundResult } from "../define-tool";
 import { createPendingAction } from "../pending-actions";
 import { pick } from "../language";

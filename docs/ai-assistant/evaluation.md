@@ -5,7 +5,7 @@ The default gate is `apps/ai-assistant/assistant.test.ts`. It covers graph struc
 Run locally:
 
 ```bash
-pnpm --filter @aether/ai-assistant test
+pnpm --filter @aether-commerce/ai-assistant test
 ```
 
 The larger JSONL corpus lives at `apps/ai-assistant/evaluation/cases.jsonl` (categories: search, recommendation, details, comparison, cart_mutation, orders, favorites, language, context_bleed, adversarial). The weekly/manual workflow calls a deployed evaluation Worker through `evaluation/run.mjs` (`--limit`, default 10, capped at 300) and requires at least 90 percent case agreement. Configure `AETHER_AI_EVAL_URL`; Gemini credentials stay inside the Worker and are never injected into the evaluator.

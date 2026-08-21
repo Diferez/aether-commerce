@@ -57,14 +57,14 @@ Usa únicamente modo de prueba/sandbox en esta demo, tanto en Stripe como en Wom
 Las migraciones versionadas están en `database/core/migrations`. El workflow genera configuraciones de producción ignoradas por Git y ejecuta:
 
 ```bash
-pnpm --filter @aether/api db:migrate:remote
+pnpm --filter @aether-commerce/api db:migrate:remote
 ```
 
 Para desarrollo local:
 
 ```bash
-pnpm --filter @aether/api db:migrate:local
-pnpm --filter @aether/api db:seed
+pnpm --filter @aether-commerce/api db:migrate:local
+pnpm --filter @aether-commerce/api db:seed
 ```
 
 ## Publicación

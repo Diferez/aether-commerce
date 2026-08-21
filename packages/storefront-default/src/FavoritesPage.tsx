@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useState } from "react";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Product } from "@aether/schemas";
-import { Badge, Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Product } from "@aether-commerce/schemas";
+import { Badge, Button } from "@aether-commerce/ui";
 import { useCart } from "./CartProvider";
 import { useCustomerSession } from "./customer-client";
 import { useFavorites } from "./FavoritesProvider";
@@ -89,7 +89,7 @@ export function FavoritesPage() {
                   </div>
                   <p className="line-clamp-2 text-sm leading-6 text-zinc-600">{localized.description}</p>
                   <div className="flex items-center justify-between gap-3">
-                    <strong className="text-zinc-950">{formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">{formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}</strong>
                     <div className="flex gap-2">
                       <Button
                         type="button"

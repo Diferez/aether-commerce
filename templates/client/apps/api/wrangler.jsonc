@@ -2,7 +2,7 @@
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "client-store-api",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-08",
+  "compatibility_date": "2026-08-21",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": true,
@@ -49,6 +49,9 @@
     "APP_ORIGIN_STORE": "http://localhost:3000",
     "APP_ORIGIN_ADMIN": "http://localhost:3001",
     "APP_STORE_BASE_PATH": "",
+    "STORE_CURRENCY": "USD",
+    "STORE_LOCALE": "en-US",
+    "STORE_COUNTRY": "US",
     "GEMINI_MODEL": "gemini-3.5-flash-lite",
     "AI_PROVIDER": "gemini",
     "ADMIN_CHAT_MUTATIONS_ENABLED": "true",
@@ -57,7 +60,9 @@
     "BRAND_NAME": "client-store",
     "EMAIL_FROM": "client-store <onboarding@resend.dev>",
     "OBSERVABILITY_SERVICE_NAME": "client-store-api",
-    "AI_ASSISTANT_NAME": "client-store Chat"
+    "AI_ASSISTANT_NAME": "client-store Chat",
+    "AETHER_PACKAGE_OWNER": "aether-commerce",
+    "PLATFORM_GITHUB_WORKFLOW_FILE": "aether-update.yml"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

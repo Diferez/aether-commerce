@@ -1,1 +1,1 @@
-export { ProductsEditPage as default } from "@aether/admin-default";
+export { ProductsEditPage as default } from "@aether-commerce/admin-default";

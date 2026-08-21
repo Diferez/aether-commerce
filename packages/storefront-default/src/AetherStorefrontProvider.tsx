@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
-import type { ClientConfiguration } from "@aether/config-schema";
+import type { ClientConfiguration } from "@aether-commerce/config-schema";
 
 export type StorefrontRuntimeConfig = {
   /** Public config (brand, theme, store, features, ...) - the same object apps/storefront's reference deployment builds from config/aether/*. */

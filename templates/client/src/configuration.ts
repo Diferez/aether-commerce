@@ -1,4 +1,4 @@
-import { defineClientConfiguration } from "@aether/config-schema";
+import { defineClientConfiguration } from "@aether-commerce/config-schema";
 import { agentConfig } from "../config/agent";
 import { brandConfig } from "../config/brand";
 import { checkoutConfig } from "../config/checkout";

@@ -1,1 +1,1 @@
-export { useCheckoutOptions, useShippingSettings, type CheckoutOptions, type ShippingSettings } from "@aether/storefront-default";
+export { useCheckoutOptions, useShippingSettings, type CheckoutOptions, type ShippingSettings } from "@aether-commerce/storefront-default";
