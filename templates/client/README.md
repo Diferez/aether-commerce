@@ -10,18 +10,29 @@ copy Aether demo data, provider secrets or deployment resources.
 3. Run `pnpm install`, `pnpm validate`, then `git init`.
 4. `apps/storefront/{layout,page}.tsx` and `apps/admin/{layout,page}.tsx` already
    render a working default skin - `@aether/storefront-default` and
-   `@aether/admin-default` - wired to `config/`. `apps/admin/` also ships every
-   business page (orders, products, customers, inventory, coupons, reviews,
-   settings, activity, system health) as one-line re-exports, each in its own
-   file under the matching route folder (e.g. `apps/admin/orders/page.tsx`).
-   Keep them as-is to use the default skin, or edit any individual file to
-   design your own (you can still import individual pieces from the packages,
-   or replace everything) - this is a per-file choice: keep the default admin
-   panel while redesigning the storefront, replace one business page while
-   keeping the rest, or vice versa. `apps/api/adapter.ts` and `apps/ai/adapter.ts`
-   have no packaged default yet - implement those using their typed
-   `adapter.ts`, `src/configuration.ts`, and the versioned `@aether/*`
-   packages. Store secrets only in the deployment platform secret manager.
+   `@aether/admin-default` - wired to `config/`. Both directories also ship
+   every business page as one-line re-exports, each in its own file under the
+   matching route folder: `apps/admin/` has orders, products, customers,
+   inventory, coupons, reviews, settings, activity, and system health;
+   `apps/storefront/` has cart, checkout, account (favorites/orders),
+   login/register, categories, products (catalog + detail), compare, and
+   contact. Keep them as-is to use the default skin, or edit any individual
+   file to design your own (you can still import individual pieces from the
+   packages, or replace everything) - this is a per-file choice: keep the
+   default admin panel while redesigning the storefront, replace one business
+   page while keeping the rest, or vice versa. `apps/api/adapter.ts` and
+   `apps/ai/adapter.ts` have no packaged default yet - implement those using
+   their typed `adapter.ts`, `src/configuration.ts`, and the versioned
+   `@aether/*` packages. Store secrets only in the deployment platform secret
+   manager.
+   - `apps/storefront/products/[slug]/page.tsx` and `categories/[slug]/page.tsx`
+     have empty `generateStaticParams()` - static export needs real slugs to
+     pre-render at build time, and a fresh client has no catalog yet. Wire
+     these up once you have one.
+   - Privacy, cookies, terms, returns, and shipping pages aren't included -
+     that content is genuinely yours to write, not something a starter can
+     provide. `config/legal.ts`'s `legalPolicyVersion` (sent by the contact
+     form and the AI assistant) is a placeholder until you add real pages.
 5. Every file under `apps/admin/` and `apps/storefront/` here is meant to be
    copied into the equivalent path inside a real Next.js project's `app/`
    directory (App Router) - this template intentionally doesn't scaffold
