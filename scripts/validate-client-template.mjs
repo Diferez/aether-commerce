@@ -7,11 +7,11 @@ import { createClient } from "./create-client.mjs";
 const root = process.cwd();
 const required = [
   "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
-  "apps/storefront/adapter.ts", "apps/storefront/layout.tsx", "apps/storefront/page.tsx",
-  "apps/admin/adapter.ts", "apps/admin/layout.tsx", "apps/admin/page.tsx",
+  "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
+  "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
   "apps/api/adapter.ts", "apps/ai/adapter.ts", "src/adapters.ts",
   "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
-  "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", "README.md", "package.json", "tsconfig.json", "tsconfig.validation.json"
+  "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
 ];
 const template = resolve(root, "templates/client");
 const distributablePackages = [
@@ -34,8 +34,8 @@ const temporaryParent = mkdtempSync(join(tmpdir(), "aether-client-template-"));
 try {
   const generated = createClient("validation-store", { destinationParent: temporaryParent });
   for (const entry of [
-    "apps/storefront/adapter.ts", "apps/storefront/layout.tsx", "apps/storefront/page.tsx",
-    "apps/admin/adapter.ts", "apps/admin/layout.tsx", "apps/admin/page.tsx",
+    "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
+    "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
     "apps/api/adapter.ts", "apps/ai/adapter.ts",
     "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", ".npmrc"
   ]) {
@@ -130,6 +130,25 @@ try {
     shell: process.platform === "win32",
     env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
   });
+
+  // pnpm typecheck (above, via `validate`) only proves the TS types resolve -
+  // it doesn't prove Next can actually export a static site from these
+  // files. Build both apps for real against the packed tarballs. A real
+  // deploy CI supplies NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY from a secret before
+  // building (both apps require it at module-eval time, matching this
+  // repo's own apps/admin and apps/storefront) - stand in a placeholder here.
+  for (const appPath of ["./apps/admin", "./apps/storefront"]) {
+    execFileSync("pnpm", ["--filter", appPath, "build"], {
+      cwd: generated,
+      stdio: "inherit",
+      shell: process.platform === "win32",
+      env: {
+        ...process.env,
+        GITHUB_PACKAGES_TOKEN: "template-validation-token",
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_template_validation_placeholder"
+      }
+    });
+  }
 } finally {
   rmSync(temporaryParent, { recursive: true, force: true });
 }

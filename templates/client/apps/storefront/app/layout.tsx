@@ -15,8 +15,8 @@ import {
   WhatsappBubble
 } from "@aether/storefront-default";
 import { themeTokensToCssVariables } from "@aether/ui/theme";
-import { clientConfiguration } from "../../src/configuration.js";
-import { legalPolicyVersion } from "../../config/legal.js";
+import { clientConfiguration } from "../../../src/configuration";
+import { legalPolicyVersion } from "../../../config/legal";
 
 export const metadata: Metadata = {
   title: clientConfiguration.brand.name,
@@ -42,10 +42,9 @@ const themeInitScript = `
 `;
 
 /**
- * Wire this into your Next.js project's real app/layout.tsx - or copy it
- * there directly, since this file already is one. apiBaseUrl/aiAssistantUrl
- * resolution (env vars, hostname sniffing, ...) is deliberately your app's
- * own concern, not the package's - it differs per deployment. Using
+ * apiBaseUrl/aiAssistantUrl resolution (env vars, hostname sniffing, ...) is
+ * deliberately your app's own concern, not the package's - it differs per
+ * deployment. Using
  * productionBaseUrl unconditionally here is illustrative; a real app
  * typically branches on environment the way apps/storefront's own
  * reference layout does. FavoritesProvider's customerId is null (guest-

@@ -8,7 +8,7 @@ function replaceText(directory, name) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const target = resolve(directory, entry.name);
     if (entry.isDirectory()) replaceText(target, name);
-    else if (/\.(json|md|ts|tsx)$/.test(entry.name)) {
+    else if (/\.(json|jsonc|md|ts|tsx|ya?ml)$/.test(entry.name)) {
       writeFileSync(target, readFileSync(target, "utf8").replaceAll("client-store", name).replaceAll("Client Store", name));
     }
   }

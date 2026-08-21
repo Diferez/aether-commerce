@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminLanguageProvider, AetherAdminProvider } from "@aether/admin-default";
-import { AdminShell } from "./components/AdminShell";
-import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
-import { clientConfiguration } from "../../src/configuration.js";
+import { AdminShell } from "../components/AdminShell";
+import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
+import { clientConfiguration } from "../../../src/configuration";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -36,11 +36,6 @@ const themeInitScript = `
 })();
 `;
 
-/**
- * Wire this into your Next.js admin project's real app/layout.tsx - see
- * apps/storefront/layout.tsx's comment for why apiBaseUrl resolution stays
- * app-owned rather than baked into the package.
- */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={inter.variable}>
