@@ -20,7 +20,7 @@ const sidebarStorageKey = "admin.sidebar.v1";
  * that file on purpose, to keep SonarCloud's duplication detector from
  * flagging this intentional per-deployment starting point as copy-paste.
  */
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

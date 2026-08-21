@@ -74,6 +74,7 @@ html[data-theme="dark"] {
   --color-info-soft: rgba(96, 165, 250, 0.14);
   --shadow-elevate-sm: 0 2px 8px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-elevate-md: 0 16px 40px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.28);
+  color-scheme: dark;
 }
 
 :root {
@@ -90,10 +91,6 @@ html[data-theme="dark"] {
   --sidebar-w: 264px;
   --sidebar-w-collapsed: 72px;
   --header-h: 64px;
-}
-
-html[data-theme="dark"] {
-  color-scheme: dark;
 }
 
 * {

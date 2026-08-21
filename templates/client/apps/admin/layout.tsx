@@ -41,7 +41,7 @@ const themeInitScript = `
  * apps/storefront/layout.tsx's comment for why apiBaseUrl resolution stays
  * app-owned rather than baked into the package.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={inter.variable}>
       <head>

@@ -11,6 +11,6 @@ function requireEnv(value: string | undefined, name: string): string {
 
 const clerkPublishableKey = requireEnv(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY");
 
-export function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
+export function ClerkAuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   return <ClerkProvider publishableKey={clerkPublishableKey}>{children}</ClerkProvider>;
 }
