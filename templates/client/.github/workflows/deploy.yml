@@ -1,0 +1,117 @@
+name: Deploy client-store
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: client-store-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.APP_ORIGIN_STORE }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 8.15.9
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      # --ignore-scripts: no dependency here needs a lifecycle script to
+      # work (validate-client-template.mjs's own install already proves
+      # this template installs and builds clean without them) - skipping
+      # them closes off arbitrary code execution from a compromised
+      # transitive dependency during CI install.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      # Gate before any deploy step runs - wrangler types+tsc for apps/api
+      # needs no live Cloudflare auth (it only reads wrangler.jsonc locally),
+      # same for admin/storefront's next.config-driven typecheck.
+      - name: Typecheck
+        run: |
+          pnpm --filter ./apps/admin typecheck
+          pnpm --filter ./apps/storefront typecheck
+          pnpm --filter ./apps/api typecheck
+      - name: Build admin
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+        run: pnpm --filter ./apps/admin build
+      - name: Build storefront
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_AETHER_BASE_PATH: ${{ vars.NEXT_PUBLIC_AETHER_BASE_PATH }}
+        run: pnpm --filter ./apps/storefront build
+      # wrangler.jsonc's database_id/APP_ORIGIN_STORE/APP_ORIGIN_ADMIN are
+      # committed with their real values (see README's "Deploy" section) -
+      # nothing generated here, unlike the Aether reference repo's own
+      # multi-environment wrangler.production.json/.development.json split,
+      # which this template deliberately doesn't need for a single
+      # production deployment.
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config apps/api/wrangler.jsonc
+      - name: Deploy API Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config apps/api/wrangler.jsonc
+      # Every key below is optional - each integration already degrades
+      # gracefully without its secret set (see README's "Deploy" section),
+      # so this only ever writes the ones actually configured in this repo's
+      # secrets, same tolerant pattern the Aether reference workflow uses.
+      - name: Configure API secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AETHER_CART_TOKEN_SECRET: ${{ secrets.AETHER_CART_TOKEN_SECRET }}
+          AETHER_SETTINGS_ENCRYPTION_KEY: ${{ secrets.AETHER_SETTINGS_ENCRYPTION_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_JWT_ISSUER: ${{ secrets.CLERK_JWT_ISSUER }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          WOMPI_SECRET_KEY: ${{ secrets.WOMPI_SECRET_KEY }}
+          WOMPI_EVENTS_SECRET: ${{ secrets.WOMPI_EVENTS_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          umask 077
+          trap 'rm -f .api-secrets.json' EXIT
+          node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
+          pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.jsonc
+      - name: Deploy storefront Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config apps/storefront/wrangler.jsonc
+      # Admin has no wrangler.jsonc of its own (it's a static export served
+      # from Cloudflare Pages, not a Worker) - the Pages project name isn't
+      # stored anywhere else, so it's the one deploy-time value this
+      # workflow needs as a GitHub variable rather than reading it from a
+      # committed config file.
+      - name: Deploy admin Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ADMIN_PAGES_PROJECT: ${{ vars.ADMIN_PAGES_PROJECT || 'client-store-admin' }}
+        run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${ADMIN_PAGES_PROJECT}" --branch=main
