@@ -140,7 +140,8 @@ function pageBody(
                   >
                     <strong className="text-ink">{order.number}</strong>
                     <span className="text-sm text-ink-muted">
-                      {orderStatusLabel(t, order.paymentStatus)} &middot; {orderStatusLabel(t, order.fulfillmentStatus)}
+                      {t.ordersPage.fulfillmentChip.replace("{value}", orderStatusLabel(t, order.fulfillmentStatus))} &middot;{" "}
+                      {t.ordersPage.paymentChip.replace("{value}", orderStatusLabel(t, order.paymentStatus))}
                     </span>
                     <span className="text-sm tabular-nums text-ink-muted">{money(order.totals.total, order.totals.currency, locale)}</span>
                     <span className="text-xs text-ink-subtle">{new Date(order.createdAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US")}</span>

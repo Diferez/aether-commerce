@@ -50,6 +50,42 @@ describe("CustomerDetailPage", () => {
     expect(screen.getByText(/jane@example.com/i)).toBeInTheDocument();
   });
 
+  it("shows fulfillment before payment for shipped and processing orders", async () => {
+    fetchMock.mockResolvedValueOnce(
+      detailResponse(
+        baseCustomer({
+          orders: [
+            {
+              id: "ord_shipped",
+              number: "AETH-SHIPPED",
+              state: "paid",
+              channel: "stripe",
+              paymentStatus: "paid",
+              fulfillmentStatus: "shipped",
+              totals: { total: 4200, currency: "USD" },
+              createdAt: "2026-08-20T00:00:00.000Z"
+            },
+            {
+              id: "ord_processing",
+              number: "AETH-PROCESSING",
+              state: "paid",
+              channel: "stripe",
+              paymentStatus: "paid",
+              fulfillmentStatus: "processing",
+              totals: { total: 5200, currency: "USD" },
+              createdAt: "2026-08-19T00:00:00.000Z"
+            }
+          ]
+        })
+      )
+    );
+
+    render(<CustomerDetailPage />);
+
+    expect(await screen.findByText(/Fulfillment: Shipped · Payment: Paid/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fulfillment: Processing · Payment: Paid/i)).toBeInTheDocument();
+  });
+
   it("shows a guest banner instead of suspend/role controls for guest customers", async () => {
     fetchMock.mockResolvedValueOnce(detailResponse(baseCustomer({ source: "guest", name: null })));
     render(<CustomerDetailPage />);
