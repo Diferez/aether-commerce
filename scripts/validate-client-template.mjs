@@ -18,6 +18,7 @@ const required = [
   "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
   "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
+  ".github/workflows/deploy.yml",
   "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
   "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
 ];
@@ -46,11 +47,18 @@ try {
     "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
     "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
+    ".github/workflows/deploy.yml",
     "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", ".npmrc"
   ]) {
     if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
   }
   if (existsSync(resolve(generated, "tsconfig.validation.json"))) throw new Error("Generated client retained monorepo-only validation config");
+  // create-client.mjs's replaceText() only rewrites .json/.jsonc/.md/.ts/
+  // .tsx/.yml/.yaml files - a stray "client-store" anywhere in the deploy
+  // workflow (e.g. a copy-paste of a placeholder name into a new step)
+  // would otherwise silently ship un-renamed.
+  const deployWorkflow = readFileSync(resolve(generated, ".github/workflows/deploy.yml"), "utf8");
+  if (deployWorkflow.includes("client-store")) throw new Error("Generated client's deploy.yml still contains the client-store placeholder");
   const archivesDirectory = resolve(temporaryParent, "archives");
   const archives = new Map();
   for (const [name, packageDirectory] of distributablePackages) {

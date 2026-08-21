@@ -66,7 +66,41 @@ copy Aether demo data, provider secrets or deployment resources.
    the same split this repo's own `apps/admin`/`apps/storefront` use.
    `apps/ai/` is a configuration adapter only, not a deployable project yet
    (see point 4) - there is no AI Worker to deploy from this template until
-   you implement one.
+   you implement one. `.github/workflows/deploy.yml` runs all of this
+   automatically on every push to `main` (see "Deploy" below).
+
+## Deploy
+
+`.github/workflows/deploy.yml` builds and deploys all three apps on every
+push to `main` (or manually via the Actions tab's "Run workflow"). Before
+the first run can succeed:
+
+1. `wrangler d1 create <name>` and paste the real `database_id` into
+   `apps/api/wrangler.jsonc` (see point 4 above).
+2. In the repo's GitHub Settings -> Secrets and variables -> Actions, add:
+   - **Secrets** (`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are
+     required - nothing deploys without them; every other one is optional,
+     matching what each service already tolerates missing):
+     `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+     `AETHER_CART_TOKEN_SECRET`, `AETHER_SETTINGS_ENCRYPTION_KEY`,
+     `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER`, `CLERK_WEBHOOK_SECRET`,
+     `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `WOMPI_SECRET_KEY`,
+     `WOMPI_EVENTS_SECRET`, `RESEND_API_KEY`, `CONTACT_RECIPIENT_EMAIL`,
+     `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`,
+     `GEMINI_API_KEY`, `SENTRY_DSN`.
+   - **Variables**: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (required - admin and
+     storefront both fail to build without it); `ADMIN_PAGES_PROJECT` if you
+     want a Cloudflare Pages project name other than the default
+     `<name>-admin`; `NEXT_PUBLIC_AETHER_BASE_PATH` only if the storefront
+     isn't served from its domain's root.
+3. After the first successful deploy, Cloudflare will have assigned real
+   URLs to the admin Pages project and the storefront/API Workers - set
+   `APP_ORIGIN_STORE`/`APP_ORIGIN_ADMIN` as GitHub variables (and update the
+   same-named entries in `apps/api/wrangler.jsonc`'s `vars` block) to those
+   real URLs; nothing reads them automatically before that first deploy.
+
+The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
+(see point 5).
 
 `config/` is public configuration (including `config/theme.ts` - colors and
 fonts, separate from `config/brand.ts`'s name/logo); `custom/` contains
