@@ -17,7 +17,7 @@ const required = [
   "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
   "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
-  "apps/api/adapter.ts", "apps/ai/adapter.ts", "src/adapters.ts",
+  "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
   "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
   "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
 ];
@@ -30,6 +30,7 @@ const distributablePackages = [
   ["@aether/i18n", "packages/i18n"],
   ["@aether/config-schema", "packages/config-schema"],
   ["@aether/api-core", "packages/api-core"],
+  ["@aether/api-worker", "packages/api-worker"],
   ["@aether/agent-core", "packages/agent-core"],
   ["@aether/observability", "packages/observability"],
   ["@aether/storefront-default", "packages/storefront-default"],
@@ -44,7 +45,7 @@ try {
   for (const entry of [
     "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
-    "apps/api/adapter.ts", "apps/ai/adapter.ts",
+    "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
     "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", ".npmrc"
   ]) {
     if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
@@ -102,6 +103,7 @@ try {
       'import { getDictionary } from "@aether/i18n";',
       'import { defineClientConfiguration } from "@aether/config-schema";',
       'import { isCheckoutSessionPaid } from "@aether/api-core";',
+      'import { createApiApp } from "@aether/api-worker";',
       'import { supportedAgentIntents } from "@aether/agent-core";',
       'import { createRequestId } from "@aether/observability";',
       'import { Hero, ProductGrid, CartProvider } from "@aether/storefront-default";',
@@ -117,6 +119,7 @@ try {
       "  isCheckoutSessionPaid,",
       "  supportedAgentIntents,",
       "  createRequestId,",
+      "  createApiApp,",
       "  Hero,",
       "  ProductGrid,",
       "  CartProvider,",
@@ -157,6 +160,28 @@ try {
       }
     });
   }
+
+  // apps/api/src is excluded from the root tsconfig.json (it needs
+  // @sentry/cloudflare and Workers ambient globals that only apps/api's own
+  // devDependencies+tsconfig provide - see tsconfig.json's comment), so
+  // `pnpm validate` above never actually typechecked it. Its own typecheck
+  // script (which also runs `wrangler types` first) is its real check.
+  execFileSync(pnpmBinary, ["--filter", "./apps/api", "typecheck"], {
+    cwd: generated,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
+  // Proves the Worker actually bundles against the packed @aether/api-worker
+  // tarball, not just that its types resolve - --dry-run stops short of a
+  // real Cloudflare deploy (no account/API token needed), same as this
+  // repo's own apps/api build script.
+  execFileSync(pnpmBinary, ["--filter", "./apps/api", "build"], {
+    cwd: generated,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
+  });
 } finally {
   rmSync(temporaryParent, { recursive: true, force: true });
 }

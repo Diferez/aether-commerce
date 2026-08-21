@@ -1,4 +1,7 @@
 import type { Env } from "../types";
+import { recordTaskRun } from "./metrics";
+import { sendDueRestockNotifications } from "./restock-notifications";
+import { sendLowStockAlerts } from "./low-stock-alerts";
 
 function retentionDays(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -27,4 +30,38 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     ),
     env.DB.prepare("delete from admin_chat_conversations where updated_at <= datetime('now', '-30 days')")
   ]);
+}
+
+// The cron entrypoint every deployment's own scheduled() handler should call
+// - each task is independent (no ordering requirement between them) and its
+// outcome is recorded under its own task name regardless of whether the
+// others succeeded, so "System health" can flag exactly which one went
+// stale rather than just "the cron failed".
+export async function runScheduledTasks(env: Env): Promise<void> {
+  try {
+    await runScheduledMaintenance(env);
+    // "System health" reads this back to flag a critical task that's gone
+    // stale (see health-status.ts's scheduledTasks component) - recorded
+    // regardless of whether any row actually needed expiring.
+    await recordTaskRun(env, "inventory_reservation_expiry", "ok");
+  } catch (error) {
+    await recordTaskRun(env, "inventory_reservation_expiry", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
+    throw error;
+  }
+
+  try {
+    await sendDueRestockNotifications(env);
+    await recordTaskRun(env, "restock_notifications", "ok");
+  } catch (error) {
+    await recordTaskRun(env, "restock_notifications", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
+    throw error;
+  }
+
+  try {
+    await sendLowStockAlerts(env);
+    await recordTaskRun(env, "low_stock_alerts", "ok");
+  } catch (error) {
+    await recordTaskRun(env, "low_stock_alerts", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
+    throw error;
+  }
 }
