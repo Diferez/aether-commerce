@@ -1,4 +1,4 @@
-import { type CheckoutProvider, type CheckoutProviderId, type CheckoutSettings } from "@aether/api-core";
+import { type CheckoutProvider, type CheckoutProviderId, type CheckoutSettings } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { createCheckoutSettingsService } from "./checkout-settings";
 import { createStripeCheckoutProvider } from "./stripe";

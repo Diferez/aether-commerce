@@ -1,1 +1,1 @@
-export { MobileNav } from "@aether/admin-default";
+export { MobileNav } from "@aether-commerce/admin-default";

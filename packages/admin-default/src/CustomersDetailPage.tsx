@@ -13,7 +13,7 @@ import { ErrorState } from "./ErrorState";
 import { StatusBadge } from "./StatusBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 // Same reason as orders/detail/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime ids (and customer ids can be a raw

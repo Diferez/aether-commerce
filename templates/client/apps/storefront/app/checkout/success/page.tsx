@@ -1,4 +1,4 @@
-import { CheckoutSuccessClient } from "@aether/storefront-default";
+import { CheckoutSuccessClient } from "@aether-commerce/storefront-default";
 
 export default function CheckoutSuccessPage() {
   return (

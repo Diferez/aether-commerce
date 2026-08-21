@@ -1,5 +1,5 @@
-import type { Cart } from "@aether/schemas";
-import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession, type WompiWebhookPayload } from "@aether/api-core";
+import type { Cart } from "@aether-commerce/schemas";
+import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession, type WompiWebhookPayload } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 

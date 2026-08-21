@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { CartProvider, CompareProvider, FavoritesProvider } from "@aether/storefront-default";
+import { CartProvider, CompareProvider, FavoritesProvider } from "@aether-commerce/storefront-default";
 import { useCustomerSession } from "./customer-client";
 import { migrateLegacyAetherStorage } from "./legacy-storage";
 
@@ -16,7 +16,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   // One-time cleanup of pre-DummyJSON-migration localStorage keys - purely
   // Aether-reference-specific (see legacy-storage.ts), so it lives here at
-  // the app level rather than in @aether/storefront-default's SiteHeader,
+  // the app level rather than in @aether-commerce/storefront-default's SiteHeader,
   // which used to run it. The "your data was cleared" notice SiteHeader
   // used to show alongside this is dropped: cosmetic, for a years-old
   // one-time migration, not worth a package-level API just to preserve it.

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, MessageCircle } from "lucide-react";
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";

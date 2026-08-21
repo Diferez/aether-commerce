@@ -1,1 +1,1 @@
-export { AdminDashboard } from "@aether/admin-default";
+export { AdminDashboard } from "@aether-commerce/admin-default";

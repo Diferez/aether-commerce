@@ -1,1 +1,1 @@
-export { CartPage as default } from "@aether/storefront-default";
+export { CartPage as default } from "@aether-commerce/storefront-default";

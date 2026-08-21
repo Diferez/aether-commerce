@@ -1,7 +1,7 @@
 "use client";
 
-import { calculateCartTotals } from "@aether/core";
-import type { Address, Cart, CartItem, Product } from "@aether/schemas";
+import { calculateCartTotals } from "@aether-commerce/core";
+import type { Address, Cart, CartItem, Product } from "@aether-commerce/schemas";
 
 export type CheckoutSessionResult = {
   success: boolean;

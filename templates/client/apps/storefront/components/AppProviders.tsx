@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CartProvider, CompareProvider, FavoritesProvider, useAetherAuth } from "@aether/storefront-default";
+import { CartProvider, CompareProvider, FavoritesProvider, useAetherAuth } from "@aether-commerce/storefront-default";
 
 /** Keeps account-scoped favorites connected to the authenticated customer. */
 export function AppProviders({ children }: { children: ReactNode }) {

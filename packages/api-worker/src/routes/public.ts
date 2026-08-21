@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { productQuerySchema } from "@aether/schemas";
-import { defaultCheckoutSettings } from "@aether/core";
+import { productQuerySchema } from "@aether-commerce/schemas";
+import { defaultCheckoutSettings } from "@aether-commerce/core";
 import { defaultShippingSettings } from "../defaults";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";

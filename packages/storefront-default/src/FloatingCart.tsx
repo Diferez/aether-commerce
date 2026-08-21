@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ChevronRight, Trash2, X } from "lucide-react";
-import { formatMoney } from "@aether/core";
+import { formatMoney } from "@aether-commerce/core";
 import { useCart } from "./CartProvider";
 import { useLanguage } from "./LanguageProvider";
 import { StorefrontLink } from "./StorefrontLink";

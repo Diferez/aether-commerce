@@ -1,4 +1,4 @@
-import { storeConfigSchema } from "@aether/config-schema";
+import { storeConfigSchema } from "@aether-commerce/config-schema";
 
 export const aetherStoreConfig = storeConfigSchema.parse({
   currency: "USD",

@@ -1,5 +1,5 @@
 import { withSentry } from "@sentry/cloudflare";
-import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@aether/api-worker";
+import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@aether-commerce/api-worker";
 
 // Deliberately a named handler (not the inline object literal
 // apps/api/src/index.ts's own copy of this same composition uses) - this
@@ -7,7 +7,7 @@ import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@
 // own deployment needs (e.g. adding a queue consumer export here later),
 // and Sonar's duplication check otherwise flags the two nearly-identical
 // entrypoints as copy-pasted even though the shared shape (wrap
-// @aether/api-worker's createApiApp() with Sentry, delegate scheduled() to
+// @aether-commerce/api-worker's createApiApp() with Sentry, delegate scheduled() to
 // runScheduledTasks) is the intended default every generated client starts
 // from.
 const handler: ExportedHandler<Env> = {

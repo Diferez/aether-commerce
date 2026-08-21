@@ -1,7 +1,7 @@
 "use client";
 
 import { Mail, MapPin, Phone } from "lucide-react";
-import { ContactForm as PackagedContactForm } from "@aether/storefront-default";
+import { ContactForm as PackagedContactForm } from "@aether-commerce/storefront-default";
 import { legalPolicyVersion } from "./legal-content";
 
 // Wraps the package's generic ContactForm instead of duplicating its form

@@ -1,1 +1,1 @@
-export { InventoryListPage as default } from "@aether/admin-default";
+export { InventoryListPage as default } from "@aether-commerce/admin-default";

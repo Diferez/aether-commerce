@@ -15,17 +15,17 @@ The repository is a pnpm/Turborepo workspace with these runtime applications:
 | `apps/api` | Hono + Cloudflare Workers + D1 | Public/admin commerce API, checkout, webhooks and integrations |
 | `apps/ai-assistant` | Cloudflare Worker (TypeScript) and a retained Python container implementation | Customer-facing sales assistant, audit trail, rate limits and Gemini access |
 
-Existing shared packages are `@aether/api-client`, `@aether/config`, `@aether/core`,
-`@aether/i18n`, `@aether/schemas`, `@aether/testing`, `@aether/types`, and `@aether/ui`.
+Existing shared packages are `@aether-commerce/api-client`, `@aether-commerce/config`, `@aether-commerce/core`,
+`@aether-commerce/i18n`, `@aether-commerce/schemas`, `@aether-commerce/testing`, `@aether-commerce/types`, and `@aether-commerce/ui`.
 All shared packages are currently private and their `build` scripts only run TypeScript
 with `--noEmit`; therefore none is currently a publishable artifact.
 
 ## Dependency map
 
 ```text
-@aether/schemas -> @aether/core -> @aether/ui -> storefront
-@aether/schemas -> @aether/api-client -> storefront/admin
-@aether/schemas + @aether/core -> apps/api
+@aether-commerce/schemas -> @aether-commerce/core -> @aether-commerce/ui -> storefront
+@aether-commerce/schemas -> @aether-commerce/api-client -> storefront/admin
+@aether-commerce/schemas + @aether-commerce/core -> apps/api
 apps/ai-assistant -> public API and AETHER_API service binding
 ```
 

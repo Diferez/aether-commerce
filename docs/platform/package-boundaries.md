@@ -9,4 +9,4 @@
 
 Apps/config own branding, products, provider adapters, deploy config and business copy. Packages never own secrets.
 
-`pnpm check:boundaries` rejects platform imports of application internals, package `src` deep imports and direct cross-app imports. Public package subpaths must be declared explicitly (currently `@aether/ui/theme`).
+`pnpm check:boundaries` rejects platform imports of application internals, package `src` deep imports and direct cross-app imports. Public package subpaths must be declared explicitly (currently `@aether-commerce/ui/theme`).

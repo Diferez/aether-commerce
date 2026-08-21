@@ -1,1 +1,1 @@
-export { ProductDetailClient } from "@aether/storefront-default";
+export { ProductDetailClient } from "@aether-commerce/storefront-default";

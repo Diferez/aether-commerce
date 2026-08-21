@@ -1,5 +1,5 @@
 {
-  "name": "@aether/api-core",
+  "name": "@aether-commerce/api-core",
   "version": "0.1.0",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
@@ -16,8 +16,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aether/core": "workspace:*",
-    "@aether/schemas": "workspace:*"
+    "@aether-commerce/core": "workspace:*",
+    "@aether-commerce/schemas": "workspace:*"
   },
   "devDependencies": { "typescript": "^5.9.0" }
 }

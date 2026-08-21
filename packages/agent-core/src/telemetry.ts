@@ -1,4 +1,4 @@
-import type { AgentAuditEvent } from "@aether/observability";
+import type { AgentAuditEvent } from "@aether-commerce/observability";
 
 export interface AgentToolTelemetryRepository {
   appendAuditEvent(event: AgentAuditEvent): Promise<void>;

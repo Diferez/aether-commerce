@@ -1,6 +1,6 @@
 "use client";
 
-import { createCartClient } from "@aether/storefront-default";
+import { createCartClient } from "@aether-commerce/storefront-default";
 import { apiBaseUrl } from "./config";
 
 export const {
@@ -19,4 +19,4 @@ export const {
   createCheckoutSession
 } = createCartClient(apiBaseUrl);
 
-export type { CheckoutSessionResult } from "@aether/storefront-default";
+export type { CheckoutSessionResult } from "@aether-commerce/storefront-default";

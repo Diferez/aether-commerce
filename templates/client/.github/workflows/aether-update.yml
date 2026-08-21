@@ -23,14 +23,14 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
           registry-url: https://npm.pkg.github.com
-          scope: "@aether"
+          scope: "@aether-commerce"
       - name: Update Aether packages
         env:
           GITHUB_PACKAGES_TOKEN: ${{ secrets.AETHER_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.AETHER_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
-          pnpm update --recursive --latest "@aether/*"
+          pnpm update --recursive --latest "@aether-commerce/*"
           pnpm aether:migrations
           pnpm validate
       - name: Open update pull request

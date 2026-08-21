@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/cloudflare";
-import { createLogger, redact, type Logger, type LogLevel } from "@aether/core";
+import { createLogger, redact, type Logger, type LogLevel } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 function resolveLogLevel(env: Env): LogLevel {

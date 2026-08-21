@@ -1,1 +1,1 @@
-export { ProductGrid } from "@aether/storefront-default";
+export { ProductGrid } from "@aether-commerce/storefront-default";

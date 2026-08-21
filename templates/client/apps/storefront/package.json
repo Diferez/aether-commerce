@@ -11,12 +11,12 @@
     "lint": "eslint app"
   },
   "dependencies": {
-    "@aether/api-client": "^0.1.0",
-    "@aether/config-schema": "^0.1.0",
-    "@aether/core": "^0.1.0",
-    "@aether/schemas": "^0.1.0",
-    "@aether/storefront-default": "^0.1.0",
-    "@aether/ui": "^0.1.0",
+    "@aether-commerce/api-client": "^0.1.0",
+    "@aether-commerce/config-schema": "^0.1.0",
+    "@aether-commerce/core": "^0.1.0",
+    "@aether-commerce/schemas": "^0.1.0",
+    "@aether-commerce/storefront-default": "^0.1.0",
+    "@aether-commerce/ui": "^0.1.0",
     "@clerk/react": "^6.12.3",
     "@hookform/resolvers": "^5.2.0",
     "@tanstack/react-query": "^5.90.0",

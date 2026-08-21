@@ -1,4 +1,4 @@
-import { CustomerAddressService, type CustomerAddressRepository } from "@aether/api-core";
+import { CustomerAddressService, type CustomerAddressRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for reusable customer address operations. */
 export function createCustomerAddressService(db: D1Database): CustomerAddressService {

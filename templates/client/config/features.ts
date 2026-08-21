@@ -1,4 +1,4 @@
-import { featureConfigSchema } from "@aether/config-schema";
+import { featureConfigSchema } from "@aether-commerce/config-schema";
 
 export const features = featureConfigSchema.parse({
   reviews: true,

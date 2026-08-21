@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": "../..",
     "paths": {
-      "@aether/config-schema": ["packages/config-schema/src/index.ts"]
+      "@aether-commerce/config-schema": ["packages/config-schema/src/index.ts"]
     }
   },
   // The .tsx example files (apps/storefront, apps/admin) need real react/next
@@ -11,7 +11,7 @@
   // @sentry/cloudflare plus Cloudflare Workers' ambient globals
   // (ScheduledController, ExecutionContext, ExportedHandler) - templates/client
   // isn't a pnpm workspace member, so none of that is locally resolvable
-  // here. This config's own job is narrower: verify @aether/config-schema
+  // here. This config's own job is narrower: verify @aether-commerce/config-schema
   // resolves against monorepo source (see README.md). Both get their real,
   // authoritative check from validate-client-template.mjs's other pass - a
   // genuine `pnpm install` + `pnpm validate` (+ a `wrangler deploy --dry-run`

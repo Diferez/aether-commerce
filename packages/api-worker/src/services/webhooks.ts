@@ -1,4 +1,4 @@
-import { redact } from "@aether/core";
+import { redact } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 // Shared state-tracking for every webhook provider (Stripe, Clerk) against

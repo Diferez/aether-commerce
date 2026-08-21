@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Check, ClipboardCopy, Code2 } from "lucide-react";
-import { Sheet } from "@aether/ui";
+import { Sheet } from "@aether-commerce/ui";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
@@ -14,7 +14,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import { fieldLabel } from "./AdminChat/format";
-import type { AdminDictionary, Locale } from "@aether/i18n";
+import type { AdminDictionary, Locale } from "@aether-commerce/i18n";
 
 type AuditLogRow = {
   id: string;

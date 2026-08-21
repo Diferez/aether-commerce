@@ -2,14 +2,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { checkoutProviderIds } from "@aether/api-core";
+import { checkoutProviderIds } from "@aether-commerce/api-core";
 import {
   canTransitionFulfillment,
   canTransitionPayment,
   isValidHexColor,
   isValidWhatsappNumber
-} from "@aether/core";
-import { orderStateSchema } from "@aether/schemas";
+} from "@aether-commerce/core";
+import { orderStateSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { requirePermission } from "../middleware/admin";

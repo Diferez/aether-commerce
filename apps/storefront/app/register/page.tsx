@@ -1,1 +1,1 @@
-export { RegisterPage as default } from "@aether/storefront-default";
+export { RegisterPage as default } from "@aether-commerce/storefront-default";

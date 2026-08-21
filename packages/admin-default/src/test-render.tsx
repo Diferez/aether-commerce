@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { render as rtlRender, type RenderOptions, type RenderResult } from "@testing-library/react";
-import type { ClientConfiguration } from "@aether/config-schema";
+import type { ClientConfiguration } from "@aether-commerce/config-schema";
 import { AetherAdminProvider } from "./AetherAdminProvider";
 import { AdminLanguageProvider } from "./AdminLanguageProvider";
 

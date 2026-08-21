@@ -1,5 +1,5 @@
 {
-  "name": "@aether/admin-default",
+  "name": "@aether-commerce/admin-default",
   "version": "0.1.0",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
@@ -16,10 +16,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aether/config-schema": "workspace:*",
-    "@aether/core": "workspace:*",
-    "@aether/i18n": "workspace:*",
-    "@aether/ui": "workspace:*",
+    "@aether-commerce/config-schema": "workspace:*",
+    "@aether-commerce/core": "workspace:*",
+    "@aether-commerce/i18n": "workspace:*",
+    "@aether-commerce/ui": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.24.0"
   },

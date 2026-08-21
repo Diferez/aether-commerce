@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Truck } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Address, Cart } from "@aether/schemas";
-import { Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Address, Cart } from "@aether-commerce/schemas";
+import { Button } from "@aether-commerce/ui";
 import { useStorefrontConfig, useStorefrontPath } from "./AetherStorefrontProvider";
 import { createCartClient } from "./cart-client";
 import { useCheckoutOptions, useShippingSettings } from "./checkout-options";

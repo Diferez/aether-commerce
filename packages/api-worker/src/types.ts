@@ -1,4 +1,4 @@
-import type { Actor } from "@aether/schemas";
+import type { Actor } from "@aether-commerce/schemas";
 
 export type Env = {
   DB: D1Database;

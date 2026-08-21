@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Scale, ShoppingBag, Star, Trash2 } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Product } from "@aether/schemas";
-import { Badge, Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Product } from "@aether-commerce/schemas";
+import { Badge, Button } from "@aether-commerce/ui";
 import { createCartClient } from "./cart-client";
 import { clearCompareProducts, readCompareProducts, removeCompareProduct } from "./compare-client";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";

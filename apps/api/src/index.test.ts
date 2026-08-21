@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Env } from "@aether/api-worker";
+import type { Env } from "@aether-commerce/api-worker";
 import worker from "./index";
 
 describe("scheduled handler", () => {

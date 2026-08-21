@@ -1,4 +1,4 @@
-import type { Address, Cart, Order } from "@aether/schemas";
+import type { Address, Cart, Order } from "@aether-commerce/schemas";
 
 export type CompletedPaymentSession = {
   id: string;

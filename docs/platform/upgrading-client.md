@@ -1,11 +1,11 @@
 # Upgrading a client
 
-Client repositories receive grouped weekly Dependabot pull requests for `@aether/*`. An administrator can also run `.github/workflows/aether-update.yml` from GitHub or the platform settings screen; it updates all workspaces, runs `pnpm aether:migrations`, validates the client and opens a pull request only when something changed.
+Client repositories receive grouped weekly Dependabot pull requests for `@aether-commerce/*`. An administrator can also run `.github/workflows/aether-update.yml` from GitHub or the platform settings screen; it updates all workspaces, runs `pnpm aether:migrations`, validates the client and opens a pull request only when something changed.
 
 For a manual upgrade:
 
 ```sh
-pnpm update --recursive --latest "@aether/*"
+pnpm update --recursive --latest "@aether-commerce/*"
 pnpm aether:migrations
 pnpm validate
 ```

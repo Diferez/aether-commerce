@@ -1,1 +1,1 @@
-export { CheckoutPage as default } from "@aether/storefront-default";
+export { CheckoutPage as default } from "@aether-commerce/storefront-default";

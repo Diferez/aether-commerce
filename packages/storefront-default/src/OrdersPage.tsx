@@ -3,10 +3,10 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PackageCheck, ShoppingBag } from "lucide-react";
-import { canTransitionOrder, formatMoney } from "@aether/core";
-import { createCommerceClient } from "@aether/api-client";
-import { Badge } from "@aether/ui";
-import type { FulfillmentStatus, Order, OrderState } from "@aether/schemas";
+import { canTransitionOrder, formatMoney } from "@aether-commerce/core";
+import { createCommerceClient } from "@aether-commerce/api-client";
+import { Badge } from "@aether-commerce/ui";
+import type { FulfillmentStatus, Order, OrderState } from "@aether-commerce/schemas";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { useAetherAuth } from "./AetherAuthProvider";
 import { useCustomerSession } from "./customer-client";

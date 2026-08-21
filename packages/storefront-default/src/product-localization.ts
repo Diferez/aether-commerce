@@ -1,4 +1,4 @@
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 import type { Locale } from "./dictionaries";
 
 const spanishProductCopy: Record<string, { category?: string; description?: string }> = {

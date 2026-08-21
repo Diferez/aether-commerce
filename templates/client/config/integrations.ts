@@ -1,4 +1,4 @@
-import { integrationConfigSchema } from "@aether/config-schema";
+import { integrationConfigSchema } from "@aether-commerce/config-schema";
 
 export const integrations = integrationConfigSchema.parse({
   api: { productionBaseUrl: "https://api.example.com", localBaseUrl: "http://localhost:8787", publicUrlEnv: "NEXT_PUBLIC_AETHER_API_URL" },

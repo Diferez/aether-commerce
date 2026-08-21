@@ -1,1 +1,1 @@
-export { ActivityTimeline, type ActivityTimelineItem } from "@aether/admin-default";
+export { ActivityTimeline, type ActivityTimelineItem } from "@aether-commerce/admin-default";

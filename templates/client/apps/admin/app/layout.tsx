@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AdminLanguageProvider, AetherAdminProvider } from "@aether/admin-default";
+import { AdminLanguageProvider, AetherAdminProvider } from "@aether-commerce/admin-default";
 import { AdminShell } from "../components/AdminShell";
 import { ClerkAuthProvider } from "../components/ClerkAuthProvider";
 import { clientConfiguration } from "../../../src/configuration";
-import { themeTokensToCssVariables } from "@aether/ui/theme";
+import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 
 const inter = Inter({
   subsets: ["latin"],

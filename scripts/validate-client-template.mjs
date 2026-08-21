@@ -24,19 +24,19 @@ const required = [
 ];
 const template = resolve(root, "templates/client");
 const distributablePackages = [
-  ["@aether/core", "packages/core"],
-  ["@aether/schemas", "packages/schemas"],
-  ["@aether/api-client", "packages/api-client"],
-  ["@aether/ui", "packages/ui"],
-  ["@aether/i18n", "packages/i18n"],
-  ["@aether/config-schema", "packages/config-schema"],
-  ["@aether/api-core", "packages/api-core"],
-  ["@aether/api-worker", "packages/api-worker"],
-  ["@aether/agent-core", "packages/agent-core"],
-  ["@aether/observability", "packages/observability"],
-  ["@aether/migrations", "packages/migrations"],
-  ["@aether/storefront-default", "packages/storefront-default"],
-  ["@aether/admin-default", "packages/admin-default"]
+  ["@aether-commerce/core", "packages/core"],
+  ["@aether-commerce/schemas", "packages/schemas"],
+  ["@aether-commerce/api-client", "packages/api-client"],
+  ["@aether-commerce/ui", "packages/ui"],
+  ["@aether-commerce/i18n", "packages/i18n"],
+  ["@aether-commerce/config-schema", "packages/config-schema"],
+  ["@aether-commerce/api-core", "packages/api-core"],
+  ["@aether-commerce/api-worker", "packages/api-worker"],
+  ["@aether-commerce/agent-core", "packages/agent-core"],
+  ["@aether-commerce/observability", "packages/observability"],
+  ["@aether-commerce/migrations", "packages/migrations"],
+  ["@aether-commerce/storefront-default", "packages/storefront-default"],
+  ["@aether-commerce/admin-default", "packages/admin-default"]
 ];
 for (const entry of required) if (!existsSync(resolve(template, entry))) throw new Error(`Client template is missing ${entry}`);
 execFileSync(pnpmBinary, ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
@@ -66,7 +66,7 @@ try {
     // turbo's `^build` graph only builds a package as a side effect of `pnpm
     // typecheck`/`pnpm lint` when something else in the workspace still
     // depends on it. A distributable package can lose its last in-monorepo
-    // consumer (as @aether/i18n and @aether/agent-core have) while still
+    // consumer (as @aether-commerce/i18n and @aether-commerce/agent-core have) while still
     // needing to work for external client consumers, so build it explicitly
     // here rather than trusting it was already built.
     execFileSync(pnpmBinary, ["build"], {
@@ -96,7 +96,7 @@ try {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   // src/adapters.ts and src/configuration.ts only import type-only symbols
-  // from @aether/config-schema, a single-file package - that alone never
+  // from @aether-commerce/config-schema, a single-file package - that alone never
   // exercises the *built* dist/ declarations of a multi-file package (an
   // `export * from "./x"` chain resolves differently than in-monorepo source
   // resolution, e.g. #2094). Import one real value export from every packed
@@ -105,19 +105,19 @@ try {
   writeFileSync(
     resolve(generated, "src/__package_resolution_smoke__.ts"),
     [
-      'import { formatMoney } from "@aether/core";',
-      'import { currencyCodeSchema } from "@aether/schemas";',
-      'import { createCommerceClient } from "@aether/api-client";',
-      'import { Button } from "@aether/ui";',
-      'import { getDictionary } from "@aether/i18n";',
-      'import { defineClientConfiguration } from "@aether/config-schema";',
-      'import { isCheckoutSessionPaid } from "@aether/api-core";',
-      'import { createApiApp } from "@aether/api-worker";',
-      'import { supportedAgentIntents } from "@aether/agent-core";',
-      'import { createRequestId } from "@aether/observability";',
-      'import { Hero, ProductGrid, CartProvider } from "@aether/storefront-default";',
-      'import { AdminSidebar } from "@aether/admin-default";',
-      'import migrationManifest from "@aether/migrations/manifest" with { type: "json" };',
+      'import { formatMoney } from "@aether-commerce/core";',
+      'import { currencyCodeSchema } from "@aether-commerce/schemas";',
+      'import { createCommerceClient } from "@aether-commerce/api-client";',
+      'import { Button } from "@aether-commerce/ui";',
+      'import { getDictionary } from "@aether-commerce/i18n";',
+      'import { defineClientConfiguration } from "@aether-commerce/config-schema";',
+      'import { isCheckoutSessionPaid } from "@aether-commerce/api-core";',
+      'import { createApiApp } from "@aether-commerce/api-worker";',
+      'import { supportedAgentIntents } from "@aether-commerce/agent-core";',
+      'import { createRequestId } from "@aether-commerce/observability";',
+      'import { Hero, ProductGrid, CartProvider } from "@aether-commerce/storefront-default";',
+      'import { AdminSidebar } from "@aether-commerce/admin-default";',
+      'import migrationManifest from "@aether-commerce/migrations/manifest" with { type: "json" };',
       "",
       "export const packageResolutionSmoke = [",
       "  formatMoney,",
@@ -183,7 +183,7 @@ try {
     shell: process.platform === "win32",
     env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
   });
-  // Proves the Worker actually bundles against the packed @aether/api-worker
+  // Proves the Worker actually bundles against the packed @aether-commerce/api-worker
   // tarball, not just that its types resolve - --dry-run stops short of a
   // real Cloudflare deploy (no account/API token needed), same as this
   // repo's own apps/api build script.

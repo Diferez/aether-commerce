@@ -1,4 +1,4 @@
-import { ContactMessageService, type ContactMessageRepository } from "@aether/api-core";
+import { ContactMessageService, type ContactMessageRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for persisted contact-message history. */
 export function createContactMessageService(db: D1Database): ContactMessageService {

@@ -1,1 +1,1 @@
-export { CheckoutSuccessClient } from "@aether/storefront-default";
+export { CheckoutSuccessClient } from "@aether-commerce/storefront-default";

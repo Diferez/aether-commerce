@@ -1,1 +1,1 @@
-export { Breadcrumbs, type BreadcrumbItem } from "@aether/admin-default";
+export { Breadcrumbs, type BreadcrumbItem } from "@aether-commerce/admin-default";

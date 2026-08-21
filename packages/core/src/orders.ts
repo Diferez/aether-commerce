@@ -1,4 +1,4 @@
-import type { CartItem, OrderItemSnapshot, Product } from "@aether/schemas";
+import type { CartItem, OrderItemSnapshot, Product } from "@aether-commerce/schemas";
 
 export function createOrderItemSnapshot(product: Product, item: CartItem): OrderItemSnapshot {
   return {

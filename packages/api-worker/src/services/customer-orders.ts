@@ -1,4 +1,4 @@
-import { CustomerOrderService, type CustomerOrderRepository } from "@aether/api-core";
+import { CustomerOrderService, type CustomerOrderRepository } from "@aether-commerce/api-core";
 import { CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "./orders";
 
 /** D1 adapter for customer-scoped order reads. */

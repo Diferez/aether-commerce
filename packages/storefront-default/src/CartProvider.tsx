@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { Cart, Product } from "@aether/schemas";
+import type { Cart, Product } from "@aether-commerce/schemas";
 import { createCartClient } from "./cart-client";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 

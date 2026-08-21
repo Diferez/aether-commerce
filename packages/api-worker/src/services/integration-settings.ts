@@ -1,5 +1,5 @@
-import { IntegrationSecretsService, type IntegrationSecrets, type IntegrationSecretsRepository } from "@aether/api-core";
-import { decryptSecret, encryptSecret } from "@aether/core";
+import { IntegrationSecretsService, type IntegrationSecrets, type IntegrationSecretsRepository } from "@aether-commerce/api-core";
+import { decryptSecret, encryptSecret } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 type StoredIntegrationSecrets = {

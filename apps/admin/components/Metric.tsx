@@ -1,1 +1,1 @@
-export { Metric } from "@aether/admin-default";
+export { Metric } from "@aether-commerce/admin-default";

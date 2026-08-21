@@ -1,1 +1,1 @@
-export { FormSection } from "@aether/admin-default";
+export { FormSection } from "@aether-commerce/admin-default";

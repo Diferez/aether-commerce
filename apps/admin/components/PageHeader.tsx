@@ -1,1 +1,1 @@
-export { PageHeader } from "@aether/admin-default";
+export { PageHeader } from "@aether-commerce/admin-default";

@@ -1,4 +1,4 @@
-import type { ContactMessage, Order } from "@aether/schemas";
+import type { ContactMessage, Order } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { resolveIntegrationSecrets } from "./integration-settings";
 

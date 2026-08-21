@@ -1,1 +1,1 @@
-export { EmptyState } from "@aether/admin-default";
+export { EmptyState } from "@aether-commerce/admin-default";

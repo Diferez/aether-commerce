@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useState } from "react";
 import { Heart, ShoppingBag, Trash2 } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Product } from "@aether/schemas";
-import { Badge, Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Product } from "@aether-commerce/schemas";
+import { Badge, Button } from "@aether-commerce/ui";
 import { useCart } from "./CartProvider";
 import { useCustomerSession } from "./customer-client";
 import { useFavorites } from "./FavoritesProvider";

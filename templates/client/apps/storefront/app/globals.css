@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * @aether/storefront-default and @aether/ui ship the actual styled UI (the
+ * @aether-commerce/storefront-default and @aether-commerce/ui ship the actual styled UI (the
  * default skin) as a published npm package - Tailwind's automatic content
  * detection doesn't scan node_modules, so classes used only inside those
  * packages' compiled output would otherwise vanish from a production
@@ -9,8 +9,8 @@
  * directives are always scanned regardless of that default exclusion.
  * Adjust the relative path if this file moves within your project.
  */
-@source "../../node_modules/@aether/storefront-default/dist";
-@source "../../node_modules/@aether/ui/dist";
+@source "../../node_modules/@aether-commerce/storefront-default/dist";
+@source "../../node_modules/@aether-commerce/ui/dist";
 
 /*
  * Design tokens. Tailwind v4 @theme is the source of truth; light is the

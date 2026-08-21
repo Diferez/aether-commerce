@@ -1,5 +1,5 @@
-import { InventoryService, type InventoryRepository } from "@aether/api-core";
-import { defaultReservationSettings } from "@aether/core";
+import { InventoryService, type InventoryRepository } from "@aether-commerce/api-core";
+import { defaultReservationSettings } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 /** D1 persistence adapter for reusable inventory operations. */

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
-import { formatMoney } from "@aether/core";
+import { formatMoney } from "@aether-commerce/core";
 import { clsx } from "clsx";
 
 

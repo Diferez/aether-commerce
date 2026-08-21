@@ -1,4 +1,4 @@
-import type { ContactMessage } from "@aether/schemas";
+import type { ContactMessage } from "@aether-commerce/schemas";
 
 export type ContactDelivery = Record<string, unknown> & { queued?: boolean };
 

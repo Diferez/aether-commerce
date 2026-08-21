@@ -1,1 +1,1 @@
-export { SettingsIntegrationsPage as default } from "@aether/admin-default";
+export { SettingsIntegrationsPage as default } from "@aether-commerce/admin-default";

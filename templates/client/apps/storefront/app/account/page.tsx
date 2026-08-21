@@ -1,1 +1,1 @@
-export { AccountPage as default } from "@aether/storefront-default";
+export { AccountPage as default } from "@aether-commerce/storefront-default";

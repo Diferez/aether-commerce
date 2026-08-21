@@ -1,1 +1,1 @@
-export { FilterBar, type FilterChip } from "@aether/admin-default";
+export { FilterBar, type FilterChip } from "@aether-commerce/admin-default";

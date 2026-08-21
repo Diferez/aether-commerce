@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@aether/ui";
+import { Button } from "@aether-commerce/ui";
 import { useAdminLanguage } from "../AdminLanguageProvider";
 import { fieldLabel } from "./format";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ActionDiff } from "./types";
 
 function DiffRow({ field, before, after, t }: { field: string; before: unknown; after: unknown; t: AdminDictionary }) {

@@ -1,1 +1,1 @@
-export { TableToolbar } from "@aether/admin-default";
+export { TableToolbar } from "@aether-commerce/admin-default";

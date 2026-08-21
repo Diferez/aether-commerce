@@ -1,1 +1,1 @@
-export { SettingsPage as default } from "@aether/admin-default";
+export { SettingsPage as default } from "@aether-commerce/admin-default";

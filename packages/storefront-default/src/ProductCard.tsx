@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { Bell, Check, Flame, Heart, ShoppingBag, Star } from "lucide-react";
 import type { MouseEvent } from "react";
-import type { Product } from "@aether/schemas";
-import { formatMoney } from "@aether/core";
-import { Skeleton } from "@aether/ui";
+import type { Product } from "@aether-commerce/schemas";
+import { formatMoney } from "@aether-commerce/core";
+import { Skeleton } from "@aether-commerce/ui";
 import { useLanguage } from "./LanguageProvider";
 import { getLocalizedProduct } from "./product-localization";
 import { ProductBadge } from "./ProductBadge";

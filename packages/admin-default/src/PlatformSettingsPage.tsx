@@ -227,12 +227,12 @@ function VersionCard({
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">Deployed</p>
           <p className="font-mono">{shortSha(version.deployed.commitSha)}</p>
-          <p className="text-zinc-500">@aether/api-worker {version.deployed.packageVersion}</p>
+          <p className="text-zinc-500">@aether-commerce/api-worker {version.deployed.packageVersion}</p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">Latest on main</p>
           <p className="font-mono">{version.credentialsConfigured ? shortSha(version.latest.commitSha) : "unknown"}</p>
-          <p className="text-zinc-500">@aether/api-worker {version.latest.packageVersion ?? "unknown"}</p>
+          <p className="text-zinc-500">@aether-commerce/api-worker {version.latest.packageVersion ?? "unknown"}</p>
         </div>
       </div>
       <VersionStatusMessage version={version} upToDate={upToDate} />

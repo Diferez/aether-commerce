@@ -1,13 +1,13 @@
 ---
-"@aether/core": minor
-"@aether/schemas": minor
-"@aether/api-client": minor
-"@aether/ui": minor
-"@aether/i18n": minor
-"@aether/config-schema": minor
-"@aether/api-core": minor
-"@aether/agent-core": minor
-"@aether/observability": minor
+"@aether-commerce/core": minor
+"@aether-commerce/schemas": minor
+"@aether-commerce/api-client": minor
+"@aether-commerce/ui": minor
+"@aether-commerce/i18n": minor
+"@aether-commerce/config-schema": minor
+"@aether-commerce/api-core": minor
+"@aether-commerce/agent-core": minor
+"@aether-commerce/observability": minor
 ---
 
 Introduce the versioned Aether platform foundations, client configuration

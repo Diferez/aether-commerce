@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { isCheckoutSessionPaid } from "@aether/api-core";
-import { addressSchema } from "@aether/schemas";
+import { isCheckoutSessionPaid } from "@aether-commerce/api-core";
+import { addressSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { readCart, writeCart } from "../services/cart";

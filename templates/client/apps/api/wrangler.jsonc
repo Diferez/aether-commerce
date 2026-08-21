@@ -61,7 +61,7 @@
     "EMAIL_FROM": "client-store <onboarding@resend.dev>",
     "OBSERVABILITY_SERVICE_NAME": "client-store-api",
     "AI_ASSISTANT_NAME": "client-store Chat",
-    "AETHER_PACKAGE_OWNER": "aether",
+    "AETHER_PACKAGE_OWNER": "aether-commerce",
     "PLATFORM_GITHUB_WORKFLOW_FILE": "aether-update.yml"
   },
   "triggers": {

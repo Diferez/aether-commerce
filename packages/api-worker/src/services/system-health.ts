@@ -1,4 +1,4 @@
-import { DEFAULT_HEALTH_THRESHOLDS, evaluateSystemHealth, type SystemHealthResult } from "@aether/core";
+import { DEFAULT_HEALTH_THRESHOLDS, evaluateSystemHealth, type SystemHealthResult } from "@aether-commerce/core";
 import type { Env } from "../types";
 import { averageLatencyMs, getTaskRun, sumMetric } from "./metrics";
 

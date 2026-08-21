@@ -1,10 +1,10 @@
-import { formatMoney } from "@aether/core";
-import type { Cart } from "@aether/schemas";
+import { formatMoney } from "@aether-commerce/core";
+import type { Cart } from "@aether-commerce/schemas";
 
 // wa.me expects the phone with country code, digits only - no leading +,
 // spaces or dashes (e.g. "573001234567" for Colombia). The admin-entered
 // number is already validated to that shape server-side
-// (isValidWhatsappNumber in @aether/core), this just guards against a stray
+// (isValidWhatsappNumber in @aether-commerce/core), this just guards against a stray
 // character slipping through into the URL.
 export function buildWhatsappUrl(phone: string, message: string): string {
   const digitsOnly = phone.replace(/\D/g, "");

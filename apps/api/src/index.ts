@@ -1,5 +1,5 @@
 import { withSentry } from "@sentry/cloudflare";
-import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@aether/api-worker";
+import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@aether-commerce/api-worker";
 
 const app = createApiApp();
 

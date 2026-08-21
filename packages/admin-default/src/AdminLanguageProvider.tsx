@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useLayoutEffect, useMemo, useState } from "react";
-import { adminDictionaries, type Locale } from "@aether/i18n";
+import { adminDictionaries, type Locale } from "@aether-commerce/i18n";
 
 type AdminDictionary = (typeof adminDictionaries)[Locale];
 

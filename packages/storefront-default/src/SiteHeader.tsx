@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Heart, Menu, Scale, Search, Settings2, ShoppingCart, Sparkles, UserRound, X } from "lucide-react";
-import type { BrandSettings } from "@aether/core";
-import { Badge } from "@aether/ui";
+import type { BrandSettings } from "@aether-commerce/core";
+import { Badge } from "@aether-commerce/ui";
 import { useStorefrontConfig, useStorefrontPath } from "./AetherStorefrontProvider";
 import { createCartClient } from "./cart-client";
 import { readCompareProducts } from "./compare-client";

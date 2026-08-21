@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { DatabaseError, ValidationError } from "@aether/core";
+import { DatabaseError, ValidationError } from "@aether-commerce/core";
 import type { AppBindings } from "../types";
 import { errorBoundary } from "./errors";
 

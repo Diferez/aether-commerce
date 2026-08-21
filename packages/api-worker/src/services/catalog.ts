@@ -1,6 +1,6 @@
-import { getInventoryStatus, humanizeCategorySlug } from "@aether/core";
-import { foldCatalogText, queryCatalog } from "@aether/api-core";
-import { productSchema, type Product, type ProductQuery } from "@aether/schemas";
+import { getInventoryStatus, humanizeCategorySlug } from "@aether-commerce/core";
+import { foldCatalogText, queryCatalog } from "@aether-commerce/api-core";
+import { productSchema, type Product, type ProductQuery } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { getRuntimeStoreConfig } from "./store-config";
 

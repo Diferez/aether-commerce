@@ -1,13 +1,13 @@
 ---
-"@aether/api-core": minor
-"@aether/config-schema": minor
-"@aether/core": patch
-"@aether/ui": patch
-"@aether/i18n": patch
-"@aether/agent-core": patch
+"@aether-commerce/api-core": minor
+"@aether-commerce/config-schema": minor
+"@aether-commerce/core": patch
+"@aether-commerce/ui": patch
+"@aether-commerce/i18n": patch
+"@aether-commerce/agent-core": patch
 ---
 
-Apply the checkout provider abstraction (phase 6): `@aether/api-core`'s
+Apply the checkout provider abstraction (phase 6): `@aether-commerce/api-core`'s
 `CheckoutProvider` port and `PaidCheckoutSession` are now genuinely
 provider-neutral instead of shaped around Stripe's raw fields
 (`payment_status` -> `status`, `amount_total` -> `amountTotal`,
@@ -22,7 +22,7 @@ Adds `CheckoutProviderId`, `checkoutProviderIds` (`"stripe" | "wompi"`),
 and a `CheckoutSettingsRepository` port for admin-managed, per-provider
 checkout secrets (mode + credentials), and a `WompiWebhookPayload` /
 `parseWompiWebhookPayload` alongside the existing Stripe ones.
-`@aether/config-schema`'s `checkoutConfigSchema.mode` now accepts `"wompi"`
+`@aether-commerce/config-schema`'s `checkoutConfigSchema.mode` now accepts `"wompi"`
 in addition to `"stripe"`.
 
 Also fixes 5 packages (`core`, `ui`, `i18n`, `api-core`, `agent-core`)

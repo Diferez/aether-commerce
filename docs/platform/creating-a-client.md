@@ -1,10 +1,10 @@
 # Creating a client
 
-Run `pnpm create:client client-store`. It creates a sibling directory without changing Aether, pins every `@aether/*` dependency to the versions in this repository and materializes the complete client-safe D1 history. Configure `GITHUB_PACKAGES_TOKEN`, run `pnpm install`, complete `config/`, run `git init`, then `pnpm validate`.
+Run `pnpm create:client client-store`. It creates a sibling directory without changing Aether, pins every `@aether-commerce/*` dependency to the versions in this repository and materializes the complete client-safe D1 history. Configure `GITHUB_PACKAGES_TOKEN`, run `pnpm install`, complete `config/`, run `git init`, then `pnpm validate`.
 
 ## Default skin, or your own
 
-`apps/storefront` and `apps/admin` ship a real, working UI as `@aether/storefront-default` and `@aether/admin-default` - not just config. The generated client's `apps/storefront/page.tsx`, `apps/storefront/layout.tsx`, `apps/admin/page.tsx`, and `apps/admin/layout.tsx` are the override points:
+`apps/storefront` and `apps/admin` ship a real, working UI as `@aether-commerce/storefront-default` and `@aether-commerce/admin-default` - not just config. The generated client's `apps/storefront/page.tsx`, `apps/storefront/layout.tsx`, `apps/admin/page.tsx`, and `apps/admin/layout.tsx` are the override points:
 
 - **Keep the default skin**: leave those files as-is. They already compose the published package's components (`Hero`, `SiteFooter`, `AdminSidebar`, `AdminTopBar`, ...) wired to your `config/`.
 - **Design your own**: edit those files directly. You can still import individual pieces from the package (e.g. keep `AdminSidebar` but write your own storefront `page.tsx` from scratch), or replace everything with your own components.

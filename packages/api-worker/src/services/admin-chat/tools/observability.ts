@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { formatDurationMinutes } from "@aether/core";
+import { formatDurationMinutes } from "@aether-commerce/core";
 import { defineAdminChatTool } from "../define-tool";
 import { computeSystemHealth } from "../../system-health";
 import { listRecentWebhookEvents } from "../../webhooks";

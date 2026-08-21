@@ -1,4 +1,4 @@
-import { ProductDetailClient } from "@aether/storefront-default";
+import { ProductDetailClient } from "@aether-commerce/storefront-default";
 
 // Static export needs generateStaticParams to know which product pages to
 // pre-render at build time, and "output: export" refuses to emit zero pages

@@ -12,7 +12,7 @@ import {
   activityActorClause
 } from "./format";
 import { useAdminLanguage } from "../AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import type {
   ActivityItemArtifact,
   ChatArtifact,

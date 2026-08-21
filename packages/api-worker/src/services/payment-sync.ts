@@ -1,4 +1,4 @@
-import type { StripeWebhookPayload } from "@aether/api-core";
+import type { StripeWebhookPayload } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { applyRefundLocally } from "./refunds";
 import { writeAuditLog } from "./audit";

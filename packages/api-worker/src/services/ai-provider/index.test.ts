@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { encryptSecret } from "@aether/core";
+import { encryptSecret } from "@aether-commerce/core";
 import type { Env } from "../../types";
 import { isGeminiQuotaError, resolveChatModelChain } from "./index";
 

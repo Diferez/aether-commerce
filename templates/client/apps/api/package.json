@@ -14,7 +14,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config ./wrangler.jsonc"
   },
   "dependencies": {
-    "@aether/api-worker": "^0.1.0",
+    "@aether-commerce/api-worker": "^0.1.0",
     "@sentry/cloudflare": "10.70.0"
   },
   "devDependencies": {

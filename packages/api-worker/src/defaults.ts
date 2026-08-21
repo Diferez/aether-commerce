@@ -1,4 +1,4 @@
-import type { ShippingSettings } from "@aether/core";
+import type { ShippingSettings } from "@aether-commerce/core";
 
 /** Used when a store hasn't configured shipping settings yet. */
 export const defaultShippingSettings: ShippingSettings = {

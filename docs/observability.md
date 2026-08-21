@@ -187,7 +187,7 @@ Standard D1 workflow, unchanged by this work:
 ```
 apps/api/migrations/00NN_description.sql   # sequential, lowercase SQL
 pnpm db:migrate:local                       # apply to local D1
-pnpm --filter @aether/api run db:migrate:remote  # apply to production - confirm with the team first
+pnpm --filter @aether-commerce/api run db:migrate:remote  # apply to production - confirm with the team first
 ```
 
 Migration `0020_observability.sql` is additive-only (`ALTER TABLE ADD

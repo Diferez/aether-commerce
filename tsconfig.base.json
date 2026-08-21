@@ -15,19 +15,19 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "preserve",
     "paths": {
-      "@aether/api-client": ["./packages/api-client/src/index.ts"],
-      "@aether/api-core": ["./packages/api-core/src/index.ts"],
-      "@aether/api-worker": ["./packages/api-worker/src/index.ts"],
-      "@aether/agent-core": ["./packages/agent-core/src/index.ts"],
-      "@aether/config-schema": ["./packages/config-schema/src/index.ts"],
-      "@aether/core": ["./packages/core/src/index.ts"],
-      "@aether/i18n": ["./packages/i18n/src/index.ts"],
-      "@aether/observability": ["./packages/observability/src/index.ts"],
-      "@aether/schemas": ["./packages/schemas/src/index.ts"],
-      "@aether/storefront-default": ["./packages/storefront-default/src/index.ts"],
-      "@aether/admin-default": ["./packages/admin-default/src/index.ts"],
-      "@aether/ui": ["./packages/ui/src/index.tsx"],
-      "@aether/ui/theme": ["./packages/ui/src/theme.ts"]
+      "@aether-commerce/api-client": ["./packages/api-client/src/index.ts"],
+      "@aether-commerce/api-core": ["./packages/api-core/src/index.ts"],
+      "@aether-commerce/api-worker": ["./packages/api-worker/src/index.ts"],
+      "@aether-commerce/agent-core": ["./packages/agent-core/src/index.ts"],
+      "@aether-commerce/config-schema": ["./packages/config-schema/src/index.ts"],
+      "@aether-commerce/core": ["./packages/core/src/index.ts"],
+      "@aether-commerce/i18n": ["./packages/i18n/src/index.ts"],
+      "@aether-commerce/observability": ["./packages/observability/src/index.ts"],
+      "@aether-commerce/schemas": ["./packages/schemas/src/index.ts"],
+      "@aether-commerce/storefront-default": ["./packages/storefront-default/src/index.ts"],
+      "@aether-commerce/admin-default": ["./packages/admin-default/src/index.ts"],
+      "@aether-commerce/ui": ["./packages/ui/src/index.tsx"],
+      "@aether-commerce/ui/theme": ["./packages/ui/src/theme.ts"]
     }
   }
 }

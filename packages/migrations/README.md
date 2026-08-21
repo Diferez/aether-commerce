@@ -1,4 +1,4 @@
-# @aether/migrations
+# @aether-commerce/migrations
 
 Keeps a client repository's D1 migration directory synchronized with the immutable, client-safe Aether schema history.
 

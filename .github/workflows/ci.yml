@@ -52,10 +52,10 @@ jobs:
           pnpm changeset status
       - name: Validate LangGraph assistant
         run: |
-          pnpm --filter @aether/ai-assistant typecheck
-          pnpm --filter @aether/ai-assistant lint
-          pnpm --filter @aether/ai-assistant test
-          pnpm --filter @aether/ai-assistant build
+          pnpm --filter @aether-commerce/ai-assistant typecheck
+          pnpm --filter @aether-commerce/ai-assistant lint
+          pnpm --filter @aether-commerce/ai-assistant test
+          pnpm --filter @aether-commerce/ai-assistant build
       - name: Build workspace
         env:
           NEXT_PUBLIC_AETHER_API_URL: https://api.example.com

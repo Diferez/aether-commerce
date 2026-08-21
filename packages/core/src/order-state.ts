@@ -1,4 +1,4 @@
-import type { FulfillmentStatus, OrderState, PaymentStatus } from "@aether/schemas";
+import type { FulfillmentStatus, OrderState, PaymentStatus } from "@aether-commerce/schemas";
 
 const transitions: Record<OrderState, OrderState[]> = {
   draft: ["pending_payment", "cancelled"],

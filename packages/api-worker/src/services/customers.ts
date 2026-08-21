@@ -1,4 +1,4 @@
-import type { Role } from "@aether/schemas";
+import type { Role } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { updateUserRole } from "./clerk";
 import { CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "./orders";

@@ -7,7 +7,7 @@ Accepted.
 ## Decision
 
 Checkout goes through a provider-neutral `CheckoutProvider` port
-(`@aether/api-core`), not a Stripe-specific code path. `apps/api` supplies two
+(`@aether-commerce/api-core`), not a Stripe-specific code path. `apps/api` supplies two
 adapters, Stripe and Wompi, both mapping their own wire format into a shared
 `PaidCheckoutSession` shape (`status`, `amountTotal`, `currency`,
 `customerEmail`, `metadata.cartId/userId`, `providerReference`). Order

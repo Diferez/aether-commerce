@@ -1,7 +1,7 @@
 import type { ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { classifyError, OBSERVABILITY_EVENTS } from "@aether/core";
-import { normalizeErrorStatus } from "@aether/observability";
+import { classifyError, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
+import { normalizeErrorStatus } from "@aether-commerce/observability";
 import type { AppBindings } from "../types";
 import { fail } from "../http";
 import { captureException, getLogger } from "../services/observability";

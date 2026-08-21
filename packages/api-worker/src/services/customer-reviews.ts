@@ -1,7 +1,7 @@
 import {
   CustomerReviewService,
   type CustomerReviewRepository
-} from "@aether/api-core";
+} from "@aether-commerce/api-core";
 
 /** D1 adapter for customer-owned review operations. */
 export function createCustomerReviewService(db: D1Database): CustomerReviewService {

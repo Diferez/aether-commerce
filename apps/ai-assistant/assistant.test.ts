@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { encryptSecret } from "@aether/core";
+import { encryptSecret } from "@aether-commerce/core";
 import worker, { heuristicIntent } from "./worker";
 
 type TestEnv = Parameters<typeof worker.fetch>[1];

@@ -17,10 +17,10 @@ importers:
 
   .:
     devDependencies:
-      '@aether/agent-core':
+      '@aether-commerce/agent-core':
         specifier: workspace:^
         version: link:packages/agent-core
-      '@aether/observability':
+      '@aether-commerce/observability':
         specifier: workspace:^
         version: link:packages/observability
       '@axe-core/playwright':
@@ -83,25 +83,25 @@ importers:
 
   apps/admin:
     dependencies:
-      '@aether/admin-default':
+      '@aether-commerce/admin-default':
         specifier: workspace:*
         version: link:../../packages/admin-default
-      '@aether/api-client':
+      '@aether-commerce/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
-      '@aether/config-schema':
+      '@aether-commerce/config-schema':
         specifier: workspace:*
         version: link:../../packages/config-schema
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:^
         version: link:../../packages/core
-      '@aether/i18n':
+      '@aether-commerce/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
-      '@aether/ui':
+      '@aether-commerce/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@clerk/react':
@@ -153,7 +153,7 @@ importers:
 
   apps/ai-assistant:
     dependencies:
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@langchain/core':
@@ -187,19 +187,19 @@ importers:
 
   apps/api:
     dependencies:
-      '@aether/api-core':
+      '@aether-commerce/api-core':
         specifier: workspace:*
         version: link:../../packages/api-core
-      '@aether/api-worker':
+      '@aether-commerce/api-worker':
         specifier: workspace:*
         version: link:../../packages/api-worker
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@aether/observability':
+      '@aether-commerce/observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
       '@hono/zod-validator':
@@ -242,22 +242,22 @@ importers:
 
   apps/storefront:
     dependencies:
-      '@aether/api-client':
+      '@aether-commerce/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
-      '@aether/config-schema':
+      '@aether-commerce/config-schema':
         specifier: workspace:*
         version: link:../../packages/config-schema
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
-      '@aether/storefront-default':
+      '@aether-commerce/storefront-default':
         specifier: workspace:*
         version: link:../../packages/storefront-default
-      '@aether/ui':
+      '@aether-commerce/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@clerk/react':
@@ -321,16 +321,16 @@ importers:
 
   packages/admin-default:
     dependencies:
-      '@aether/config-schema':
+      '@aether-commerce/config-schema':
         specifier: workspace:*
         version: link:../config-schema
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../core
-      '@aether/i18n':
+      '@aether-commerce/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@aether/ui':
+      '@aether-commerce/ui':
         specifier: workspace:*
         version: link:../ui
       clsx:
@@ -358,7 +358,7 @@ importers:
 
   packages/agent-core:
     dependencies:
-      '@aether/observability':
+      '@aether-commerce/observability':
         specifier: workspace:*
         version: link:../observability
     devDependencies:
@@ -368,7 +368,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
@@ -378,10 +378,10 @@ importers:
 
   packages/api-core:
     dependencies:
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../core
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
@@ -391,16 +391,16 @@ importers:
 
   packages/api-worker:
     dependencies:
-      '@aether/api-core':
+      '@aether-commerce/api-core':
         specifier: workspace:*
         version: link:../api-core
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../core
-      '@aether/observability':
+      '@aether-commerce/observability':
         specifier: workspace:*
         version: link:../observability
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
       '@hono/zod-validator':
@@ -437,7 +437,7 @@ importers:
 
   packages/config:
     dependencies:
-      '@aether/config-schema':
+      '@aether-commerce/config-schema':
         specifier: workspace:*
         version: link:../config-schema
     devDependencies:
@@ -457,7 +457,7 @@ importers:
 
   packages/core:
     dependencies:
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
@@ -491,19 +491,19 @@ importers:
 
   packages/storefront-default:
     dependencies:
-      '@aether/api-client':
+      '@aether-commerce/api-client':
         specifier: workspace:*
         version: link:../api-client
-      '@aether/config-schema':
+      '@aether-commerce/config-schema':
         specifier: workspace:*
         version: link:../config-schema
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../core
-      '@aether/schemas':
+      '@aether-commerce/schemas':
         specifier: workspace:*
         version: link:../schemas
-      '@aether/ui':
+      '@aether-commerce/ui':
         specifier: workspace:*
         version: link:../ui
       lucide-react:
@@ -540,7 +540,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@aether/core':
+      '@aether-commerce/core':
         specifier: workspace:*
         version: link:../core
       clsx:

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 import { readFavoriteProducts, toggleFavoriteProduct, removeFavoriteProduct, migrateGuestFavoritesToCustomer } from "./favorites-client";
 
 export type FavoritesContextValue = {

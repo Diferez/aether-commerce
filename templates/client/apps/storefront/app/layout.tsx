@@ -10,8 +10,8 @@ import {
   SiteFooter,
   SiteHeader,
   WhatsappBubble
-} from "@aether/storefront-default";
-import { themeTokensToCssVariables } from "@aether/ui/theme";
+} from "@aether-commerce/storefront-default";
+import { themeTokensToCssVariables } from "@aether-commerce/ui/theme";
 import { clientConfiguration } from "../../../src/configuration";
 import { legalPolicyVersion } from "../../../config/legal";
 import { AppProviders } from "../components/AppProviders";

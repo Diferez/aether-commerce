@@ -10,7 +10,7 @@ import { PageHeader } from "./PageHeader";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 // admin/next.config.mjs sets output: "export" (static, deployed to Cloudflare
 // Pages) - a dynamic [id] route segment can't work here since product ids

@@ -1,6 +1,6 @@
-import { createCartItem } from "@aether/api-core";
-import { calculateCartTotals } from "@aether/core";
-import type { Cart, CartItemInput, Coupon } from "@aether/schemas";
+import { createCartItem } from "@aether-commerce/api-core";
+import { calculateCartTotals } from "@aether-commerce/core";
+import type { Cart, CartItemInput, Coupon } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";

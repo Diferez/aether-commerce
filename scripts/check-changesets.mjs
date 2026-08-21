@@ -8,7 +8,10 @@ if (!base) {
   process.exit(0);
 }
 
-const changed = execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" })
+// Resolve Git from a fixed, system-owned directory instead of trusting PATH.
+// CI runs on Ubuntu; the Windows path keeps the check usable by maintainers.
+const gitExecutable = process.platform === "win32" ? "C:\\Program Files\\Git\\cmd\\git.exe" : "/usr/bin/git";
+const changed = execFileSync(gitExecutable, ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" })
   .split(/\r?\n/)
   .filter(Boolean);
 const publicDirectories = readdirSync("packages", { withFileTypes: true })

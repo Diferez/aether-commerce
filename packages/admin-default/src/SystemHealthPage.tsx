@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle, RefreshCw, Search, ShieldAlert, XCircle } from "lucide-react";
-import { Skeleton } from "@aether/ui";
-import { formatDurationMinutes } from "@aether/core";
+import { Skeleton } from "@aether-commerce/ui";
+import { formatDurationMinutes } from "@aether-commerce/core";
 import { RequireAdminAuth } from "./RequireAdminAuth";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { PageHeader } from "./PageHeader";
 import { ErrorState } from "./ErrorState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 type HealthLevel = "operational" | "degraded" | "critical" | "unknown";
 type ComponentStatus = { level: HealthLevel; reason?: string };
