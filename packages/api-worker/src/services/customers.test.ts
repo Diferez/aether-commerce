@@ -83,13 +83,39 @@ describe("getCustomerDetail", () => {
     expect(await getCustomerDetail(env, "guest:nobody@example.com")).toBeNull();
   });
 
-  it("builds a guest detail from order payloads when orders exist", async () => {
+  it("builds a guest detail with the current payment and fulfillment columns", async () => {
     const { env } = fakeEnv([
-      { all: [{ payload_json: JSON.stringify({ id: "ord_1", total: 4200 }) }] }
+      {
+        all: [
+          {
+            payload_json: JSON.stringify({ id: "ord_shipped", paymentStatus: "pending" }),
+            state: "paid",
+            channel: "stripe",
+            payment_status: "paid",
+            fulfillment_status: "shipped",
+            tracking_carrier: null,
+            tracking_number: null,
+            tracking_url: null
+          },
+          {
+            payload_json: JSON.stringify({ id: "ord_processing" }),
+            state: "paid",
+            channel: "stripe",
+            payment_status: "paid",
+            fulfillment_status: "processing",
+            tracking_carrier: null,
+            tracking_number: null,
+            tracking_url: null
+          }
+        ]
+      }
     ]);
     const detail = await getCustomerDetail(env, "guest:bob@example.com");
     expect(detail).toMatchObject({ source: "guest", email: "bob@example.com", addresses: [] });
-    expect(detail?.orders).toHaveLength(1);
+    expect(detail?.orders).toEqual([
+      expect.objectContaining({ id: "ord_shipped", paymentStatus: "paid", fulfillmentStatus: "shipped" }),
+      expect.objectContaining({ id: "ord_processing", paymentStatus: "paid", fulfillmentStatus: "processing" })
+    ]);
   });
 
   it("returns null for a real id that has no users row", async () => {
@@ -101,12 +127,25 @@ describe("getCustomerDetail", () => {
     const { env } = fakeEnv([
       { first: { id: "usr_1", name: "Ana", email: "ana@example.com", roles_json: '["admin"]', status: "active", created_at: "2026-01-01" } },
       { all: [{ payload_json: JSON.stringify({ label: "Home" }) }] },
-      { all: [{ payload_json: JSON.stringify({ id: "ord_1" }) }] }
+      {
+        all: [
+          {
+            payload_json: JSON.stringify({ id: "ord_1", fulfillmentStatus: "unfulfilled" }),
+            state: "paid",
+            channel: "stripe",
+            payment_status: "paid",
+            fulfillment_status: "processing",
+            tracking_carrier: null,
+            tracking_number: null,
+            tracking_url: null
+          }
+        ]
+      }
     ]);
     const detail = await getCustomerDetail(env, "usr_1");
     expect(detail).toMatchObject({ source: "registered", roles: ["admin"], status: "active" });
     expect(detail?.addresses).toHaveLength(1);
-    expect(detail?.orders).toHaveLength(1);
+    expect(detail?.orders).toEqual([expect.objectContaining({ id: "ord_1", paymentStatus: "paid", fulfillmentStatus: "processing" })]);
   });
 });
 

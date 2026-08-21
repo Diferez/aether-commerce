@@ -28,7 +28,7 @@ import {
 import { getLatestCommitSha, getLatestPublishedPackageVersion, requireCompleteCredentials, triggerDeployWorkflow } from "../services/github-deploy";
 import { deployedPackageVersion } from "../version";
 import { createUploadSignature } from "../services/cloudinary";
-import { changeOrderState, createManualOrder, withOrderTracking } from "../services/orders";
+import { changeOrderState, createManualOrder, CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "../services/orders";
 import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../services/refunds";
 import { buildRestockStatements } from "../services/inventory";
 import { getCustomerDetail, listCustomersForAdmin, setCustomerRole, setCustomerStatus } from "../services/customers";
@@ -448,25 +448,18 @@ adminRoutes.get(
 
 adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
   const row = await c.env.DB.prepare(
-    "select payload_json, channel, payment_status, fulfillment_status, internal_notes, tracking_carrier, tracking_number, tracking_url from orders where id = ?"
+    `select ${CURRENT_ORDER_SELECT}, internal_notes from orders where id = ?`
   )
     .bind(c.req.param("id"))
-    .first<{
-      payload_json: string;
-      channel: string;
-      payment_status: string;
-      fulfillment_status: string;
+    .first<StoredOrderRow & {
       internal_notes: string | null;
-      tracking_carrier: string | null;
-      tracking_number: string | null;
-      tracking_url: string | null;
     }>();
   if (!row) return fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 
   // The columns (not the payload_json blob) are the source of truth for
   // these fields - orders created before migration 0015 have them
   // backfilled onto the columns but not into their already-stored JSON.
-  const parsed = JSON.parse(row.payload_json) as Record<string, unknown>;
+  const parsed = orderWithCurrentData(row);
   const history = await c.env.DB.prepare(
     "select id, previous_state, new_state, actor_id, reason, created_at from order_status_history where order_id = ? order by created_at asc"
   )
@@ -474,10 +467,7 @@ adminRoutes.get("/orders/:id", requirePermission("orders.read"), async (c) => {
     .all();
 
   return ok(c, {
-    ...withOrderTracking(parsed, row),
-    channel: row.channel,
-    paymentStatus: row.payment_status,
-    fulfillmentStatus: row.fulfillment_status,
+    ...parsed,
     internalNotes: row.internal_notes,
     history: history.results
   });
