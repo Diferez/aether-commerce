@@ -4,6 +4,14 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createClient } from "./create-client.mjs";
 
+// Resolve pnpm's absolute path once rather than letting every execFileSync
+// call below search PATH for a bare "pnpm" - PATH can contain writable
+// directories, so spawning by name is a search-path injection risk (Sonar
+// javascript:S4036).
+const pnpmBinary = execFileSync(process.platform === "win32" ? "where" : "which", ["pnpm"], { encoding: "utf8" })
+  .trim()
+  .split(/\r?\n/)[0];
+
 const root = process.cwd();
 const required = [
   "config/brand.ts", "config/store.ts", "config/features.ts", "config/theme.ts", "config/checkout.ts", "config/integrations.ts", "config/agent.ts", "config/navigation.ts", "src/configuration.ts",
@@ -28,7 +36,7 @@ const distributablePackages = [
   ["@aether/admin-default", "packages/admin-default"]
 ];
 for (const entry of required) if (!existsSync(resolve(template, entry))) throw new Error(`Client template is missing ${entry}`);
-execFileSync("pnpm", ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+execFileSync(pnpmBinary, ["exec", "tsc", "-p", "templates/client/tsconfig.validation.json", "--noEmit"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
 
 const temporaryParent = mkdtempSync(join(tmpdir(), "aether-client-template-"));
 try {
@@ -51,13 +59,13 @@ try {
     // consumer (as @aether/i18n and @aether/agent-core have) while still
     // needing to work for external client consumers, so build it explicitly
     // here rather than trusting it was already built.
-    execFileSync("pnpm", ["build"], {
+    execFileSync(pnpmBinary, ["build"], {
       cwd: resolve(root, packageDirectory),
       stdio: "inherit",
       shell: process.platform === "win32"
     });
     const existingArchives = new Set(existsSync(archivesDirectory) ? readdirSync(archivesDirectory) : []);
-    execFileSync("pnpm", ["pack", "--pack-destination", archivesDirectory], {
+    execFileSync(pnpmBinary, ["pack", "--pack-destination", archivesDirectory], {
       cwd: resolve(root, packageDirectory),
       stdio: "inherit",
       shell: process.platform === "win32"
@@ -118,13 +126,13 @@ try {
     ].join("\n")
   );
 
-  execFileSync("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], {
+  execFileSync(pnpmBinary, ["install", "--prefer-offline", "--ignore-scripts"], {
     cwd: generated,
     stdio: "inherit",
     shell: process.platform === "win32",
     env: { ...process.env, GITHUB_PACKAGES_TOKEN: "template-validation-token" }
   });
-  execFileSync("pnpm", ["validate"], {
+  execFileSync(pnpmBinary, ["validate"], {
     cwd: generated,
     stdio: "inherit",
     shell: process.platform === "win32",
@@ -138,7 +146,7 @@ try {
   // building (both apps require it at module-eval time, matching this
   // repo's own apps/admin and apps/storefront) - stand in a placeholder here.
   for (const appPath of ["./apps/admin", "./apps/storefront"]) {
-    execFileSync("pnpm", ["--filter", appPath, "build"], {
+    execFileSync(pnpmBinary, ["--filter", appPath, "build"], {
       cwd: generated,
       stdio: "inherit",
       shell: process.platform === "win32",
