@@ -69,7 +69,14 @@ export function defineAdminChatTool<Schema extends z.ZodType>(spec: AdminChatToo
     requires: spec.requires,
     async run(rawArgs, ctx) {
       if (spec.requires?.mutation && ctx.env.ADMIN_CHAT_MUTATIONS_ENABLED === "false") {
-        return errorResult("MUTATIONS_DISABLED", pick(ctx.language, "Mutations are temporarily disabled for Aether Chat.", "Las modificaciones están deshabilitadas temporalmente en Aether Chat."));
+        return errorResult(
+          "MUTATIONS_DISABLED",
+          pick(
+            ctx.language,
+            `Mutations are temporarily disabled for ${ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat"}.`,
+            `Las modificaciones están deshabilitadas temporalmente en ${ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat"}.`
+          )
+        );
       }
       if (isDemoMutationBlocked(ctx.actor, spec.requires?.mutation ? "POST" : "GET")) {
         return errorResult("DEMO_MODE", pick(ctx.language, "Public demo mode. Changes are disabled.", "Modo de demostración pública. Los cambios están deshabilitados."));

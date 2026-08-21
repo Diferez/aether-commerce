@@ -53,7 +53,11 @@
     "AI_PROVIDER": "gemini",
     "ADMIN_CHAT_MUTATIONS_ENABLED": "true",
     "ADMIN_CHAT_MAX_INPUT_CHARACTERS": "4000",
-    "ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES": "5"
+    "ADMIN_CHAT_PENDING_ACTION_TTL_MINUTES": "5",
+    "BRAND_NAME": "Aether",
+    "EMAIL_FROM": "Aether Demo <onboarding@resend.dev>",
+    "OBSERVABILITY_SERVICE_NAME": "aether-api",
+    "AI_ASSISTANT_NAME": "Aether Chat"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

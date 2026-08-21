@@ -5,7 +5,7 @@ import type { Env } from "../types";
 import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
 import { createShippingSettingsService } from "./shipping-settings";
-import { aetherDemoShippingSettings } from "../config/aether-demo";
+import { defaultShippingSettings } from "../defaults";
 
 // Reused by every cart-total recalculation below - the flat fee (see
 // packages/core/src/shipping.ts's ShippingSettings) only ever affects the
@@ -14,7 +14,7 @@ import { aetherDemoShippingSettings } from "../config/aether-demo";
 // operator's very next add/remove/quantity change, without the shopper
 // having to start a new cart.
 async function getShippingCents(env: Env): Promise<number> {
-  const settings = await createShippingSettingsService(env.DB).get(aetherDemoShippingSettings);
+  const settings = await createShippingSettingsService(env.DB).get(defaultShippingSettings);
   return settings.enabled === true && typeof settings.amountCents === "number" ? settings.amountCents : 0;
 }
 

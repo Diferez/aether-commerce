@@ -138,8 +138,8 @@ async function createWompiCheckoutSession(
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        name: `Aether cart ${cart.id}`,
-        description: `Aether checkout for cart ${cart.id}`,
+        name: `${env.BRAND_NAME ?? "Aether"} cart ${cart.id}`,
+        description: `${env.BRAND_NAME ?? "Aether"} checkout for cart ${cart.id}`,
         single_use: true,
         collect_shipping: false,
         currency: "COP",

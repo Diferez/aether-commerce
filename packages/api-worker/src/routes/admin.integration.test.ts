@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encryptSecret } from "@aether/core";
 import type { Env } from "../types";
-import worker from "../index";
+import { createApiApp } from "../index";
+
+const worker = createApiApp();
 
 // Exercises the real Hono app end-to-end (worker.fetch -> global middleware
 // chain -> routing -> handler -> D1) instead of testing service functions in

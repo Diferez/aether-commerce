@@ -1,7 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
 import type * as ObservabilityModule from "../services/observability";
-import worker from "../index";
+import { createApiApp } from "../index";
+
+const worker = createApiApp();
 
 // crypto.subtle.timingSafeEqual is a Cloudflare Workers (workerd) extension
 // to WebCrypto, not part of Node's implementation - same backfill

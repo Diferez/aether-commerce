@@ -20,11 +20,12 @@ const ADMIN_CHAT_ROLES = new Set(["support", "catalog_manager", "order_manager",
 
 const requireAdminChatAccess: MiddlewareHandler<AppBindings> = async (c, next) => {
   const actor = c.get("actor");
+  const adminChatName = `${c.env.BRAND_NAME ?? "Aether"} Admin Chat`;
   if (!actor.userId) {
-    return fail(c, 401, "AUTH_REQUIRED", "Sign in before using Aether Admin Chat.");
+    return fail(c, 401, "AUTH_REQUIRED", `Sign in before using ${adminChatName}.`);
   }
   if (!actor.roles.some((role) => ADMIN_CHAT_ROLES.has(role))) {
-    return fail(c, 403, "FORBIDDEN", "An administrative role is required for Aether Admin Chat.");
+    return fail(c, 403, "FORBIDDEN", `An administrative role is required for ${adminChatName}.`);
   }
   await next();
 };
@@ -155,7 +156,7 @@ adminChatRoutes.post("/messages/stream", zValidator("json", chatMessageSchema), 
           metadata: { source: "admin_chat.stream" },
           error
         });
-        controller.enqueue(sse("chat.error", { message: error instanceof Error ? error.message : "Aether Chat hit an unexpected error." }));
+        controller.enqueue(sse("chat.error", { message: error instanceof Error ? error.message : `${c.env.AI_ASSISTANT_NAME ?? "Aether Chat"} hit an unexpected error.` }));
       } finally {
         getLogger(c.env).debug("admin_chat.stream_end", { requestId: ctx.requestId, metadata: { hasFinalMessage: Boolean(finalMessage) } });
         if (finalMessage) {

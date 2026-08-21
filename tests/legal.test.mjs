@@ -43,8 +43,8 @@ test("assistant privacy notice matches storage and deletion behavior", () => {
 
 test("published retention periods have enforcement hooks", () => {
   const assistant = read("apps/ai-assistant/worker.ts");
-  const cart = read("apps/api/src/routes/cart.ts");
-  const contact = read("apps/api/src/routes/contact.ts");
+  const cart = read("packages/api-worker/src/routes/cart.ts");
+  const contact = read("packages/api-worker/src/routes/contact.ts");
 
   assert.match(assistant, /-12 months/);
   assert.match(cart, /-90 days/);

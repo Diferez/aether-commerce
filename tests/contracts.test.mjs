@@ -61,7 +61,7 @@ test("D1 schema includes every required domain table", () => {
 });
 
 test("API response helpers use the documented envelope", () => {
-  const http = read("apps/api/src/http.ts");
+  const http = read("packages/api-worker/src/http.ts");
   assert.match(http, /success: true/);
   assert.match(http, /success: false/);
   assert.match(http, /requestId/);
@@ -69,7 +69,7 @@ test("API response helpers use the documented envelope", () => {
 });
 
 test("public demo admin blocks persistent changes", () => {
-  const adminMiddleware = read("apps/api/src/middleware/admin.ts");
+  const adminMiddleware = read("packages/api-worker/src/middleware/admin.ts");
   const dashboard = read("packages/admin-default/src/AdminDashboard.tsx");
   assert.match(adminMiddleware, /DEMO_MODE/);
   assert.match(dashboard, /Public demo mode\. Changes are disabled\./);
@@ -118,8 +118,8 @@ test("order state machine includes required commerce states", () => {
 });
 
 test("cart reads and mutations require signed cart token", () => {
-  const cartRoutes = read("apps/api/src/routes/cart.ts");
-  const cartTokenService = read("apps/api/src/services/cart-token.ts");
+  const cartRoutes = read("packages/api-worker/src/routes/cart.ts");
+  const cartTokenService = read("packages/api-worker/src/services/cart-token.ts");
   // apps/storefront/components/cart-client.ts is a thin shim since Phase 2a
   // (packages/storefront-default/src/cart-client.ts owns the real
   // implementation now, same move Hero.tsx made in Phase 1) - assert against
@@ -151,21 +151,21 @@ test("cart reads and mutations require signed cart token", () => {
 });
 
 test("sensitive signatures and account order lookup avoid enumeration paths", () => {
-  const secureCompare = read("apps/api/src/services/secure-compare.ts");
-  const stripeService = read("apps/api/src/services/stripe.ts");
-  const wompiService = read("apps/api/src/services/wompi.ts");
-  const accountRoutes = read("apps/api/src/routes/account.ts");
-  const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
+  const secureCompare = read("packages/api-worker/src/services/secure-compare.ts");
+  const stripeService = read("packages/api-worker/src/services/stripe.ts");
+  const wompiService = read("packages/api-worker/src/services/wompi.ts");
+  const accountRoutes = read("packages/api-worker/src/routes/account.ts");
+  const checkoutRoutes = read("packages/api-worker/src/routes/checkout.ts");
   // See the comment above the earlier read() of this same file: the real
   // implementation is now packages/storefront-default/src/cart-client.ts.
   const cartClient = read("packages/storefront-default/src/cart-client.ts");
-  const clerkService = read("apps/api/src/services/clerk.ts");
-  const publicRoutes = read("apps/api/src/routes/public.ts");
+  const clerkService = read("packages/api-worker/src/services/clerk.ts");
+  const publicRoutes = read("packages/api-worker/src/routes/public.ts");
   // apps/storefront/components/ClerkAuthProvider.tsx is gone since Phase 2b-i
   // - packages/storefront-default/src/AetherAuthProvider.tsx owns the real
   // implementation now (same move cart-client.ts made in Phase 2a).
   const clerkProvider = read("packages/storefront-default/src/AetherAuthProvider.tsx");
-  const cors = read("apps/api/src/middleware/cors.ts");
+  const cors = read("packages/api-worker/src/middleware/cors.ts");
 
   assert.match(secureCompare, /timingSafeEqual/);
   assert.match(stripeService, /STRIPE_SIGNATURE_TOLERANCE_SECONDS/);
@@ -204,9 +204,9 @@ test("sensitive signatures and account order lookup avoid enumeration paths", ()
 
 test("checkout provider abstraction covers Stripe and Wompi behind one port", () => {
   const checkoutCore = read("packages/api-core/src/checkout.ts");
-  const checkoutRoutes = read("apps/api/src/routes/checkout.ts");
-  const checkoutSettings = read("apps/api/src/services/checkout-settings.ts");
-  const adminRoutes = read("apps/api/src/routes/admin.ts");
+  const checkoutRoutes = read("packages/api-worker/src/routes/checkout.ts");
+  const checkoutSettings = read("packages/api-worker/src/services/checkout-settings.ts");
+  const adminRoutes = read("packages/api-worker/src/routes/admin.ts");
 
   assert.match(checkoutCore, /export interface CheckoutProvider/);
   assert.match(checkoutCore, /checkoutProviderIds = \["stripe", "wompi"\]/);
@@ -219,17 +219,17 @@ test("checkout provider abstraction covers Stripe and Wompi behind one port", ()
 });
 
 test("readiness and order status updates fail safely", () => {
-  const index = read("apps/api/src/index.ts");
-  const http = read("apps/api/src/http.ts");
-  const admin = read("apps/api/src/routes/admin.ts");
+  const app = read("packages/api-worker/src/app.ts");
+  const http = read("packages/api-worker/src/http.ts");
+  const admin = read("packages/api-worker/src/routes/admin.ts");
   // The state-machine check, history insert, and batched write live in
   // changeOrderState() (services/orders.ts) - shared by this admin route and
   // the customer-facing cancel/return/refund-request routes in user.ts, so
   // this guarantee is checked where the logic actually is, not duplicated.
-  const orders = read("apps/api/src/services/orders.ts");
+  const orders = read("packages/api-worker/src/services/orders.ts");
 
-  assert.match(index, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
-  assert.match(index, /status: "degraded"/);
+  assert.match(app, /fail\(c, 503, "SERVICE_UNAVAILABLE"/);
+  assert.match(app, /status: "degraded"/);
   assert.match(http, /\| 503/);
   assert.match(admin, /orderStateSchema/);
   assert.match(admin, /ORDER_STATE_CONFLICT/);
@@ -269,9 +269,9 @@ test("CI uses deterministic guest auth and the assistant is a LangGraph Worker",
 });
 
 test("API rate limiting uses Cloudflare bindings with local fallback", () => {
-  const middleware = read("apps/api/src/middleware/rate-limit.ts");
-  const index = read("apps/api/src/index.ts");
-  const types = read("apps/api/src/types.ts");
+  const middleware = read("packages/api-worker/src/middleware/rate-limit.ts");
+  const app = read("packages/api-worker/src/app.ts");
+  const types = read("packages/api-worker/src/types.ts");
   const wrangler = read("apps/api/wrangler.jsonc");
   const deployConfig = read("scripts/write-api-wrangler-config.mjs");
 
@@ -296,7 +296,7 @@ test("API rate limiting uses Cloudflare bindings with local fallback", () => {
   assert.doesNotMatch(middleware, /digest\(authorization\)/);
   assert.doesNotMatch(middleware, /digest\(cartToken\)/);
   assert.match(middleware, /Only verified identities receive their own bucket/);
-  assert.ok(index.indexOf('app.use("*", auth())') < index.indexOf('app.use("*", rateLimit())'));
+  assert.ok(app.indexOf('app.use("*", auth())') < app.indexOf('app.use("*", rateLimit())'));
 });
 
 test("storefront assistant CTA keeps readable active and hover colors", () => {
@@ -322,7 +322,7 @@ test("storefront exports a branded custom 404 through Cloudflare static assets",
 });
 
 test("admin product management routes are real (not the old orphaned override stubs)", () => {
-  const admin = read("apps/api/src/routes/admin.ts");
+  const admin = read("packages/api-worker/src/routes/admin.ts");
 
   // The old PATCH/PUT/DELETE .../override routes wrote to product_overrides
   // but catalog.ts never read that table back - "editing" a product from
@@ -342,7 +342,7 @@ test("admin product management routes are real (not the old orphaned override st
 test("products table is the catalog's source of truth, not the bundled JSON snapshot", () => {
   const migration = read("database/core/migrations/0013_products_table.sql");
   const seed = read("database/core/migrations/0014_seed_products_from_json.sql");
-  const catalog = read("apps/api/src/services/catalog.ts");
+  const catalog = read("packages/api-worker/src/services/catalog.ts");
 
   for (const column of ["sku TEXT NOT NULL UNIQUE", "slug TEXT NOT NULL UNIQUE", "visibility TEXT NOT NULL", "details_json TEXT NOT NULL"]) {
     assert.match(migration, new RegExp(column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -353,12 +353,12 @@ test("products table is the catalog's source of truth, not the bundled JSON snap
 });
 
 test("Cloudinary upload signing never sends the api_secret to the browser", () => {
-  const cloudinary = read("apps/api/src/services/cloudinary.ts");
+  const cloudinary = read("packages/api-worker/src/services/cloudinary.ts");
   const form = read("packages/admin-default/src/ProductForm.tsx");
   // The literal env var name lives in integration-settings.ts now (the
   // admin-configurable-secret resolution layer cloudinary.ts reads through -
   // see services/integration-settings.ts), not in cloudinary.ts itself.
-  const integrationSettings = read("apps/api/src/services/integration-settings.ts");
+  const integrationSettings = read("packages/api-worker/src/services/integration-settings.ts");
 
   assert.match(cloudinary, /resolveIntegrationSecrets/);
   assert.match(integrationSettings, /CLOUDINARY_API_SECRET/);
@@ -380,8 +380,8 @@ test("security headers prevent framing and unsafe content sniffing on both stati
 
 test("checkout orders require an immutable server-side snapshot", () => {
   const migration = read("database/core/migrations/0021_security_hardening.sql");
-  const checkout = read("apps/api/src/routes/checkout.ts");
-  const orders = read("apps/api/src/services/orders.ts");
+  const checkout = read("packages/api-worker/src/routes/checkout.ts");
+  const orders = read("packages/api-worker/src/services/orders.ts");
   assert.match(migration, /CREATE TABLE IF NOT EXISTS checkout_snapshots/);
   assert.match(checkout, /createCheckoutSnapshot/);
   assert.match(orders, /loadCheckoutSnapshot/);

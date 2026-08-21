@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AIMessageChunk } from "@langchain/core/messages";
 import type { Env } from "../types";
 import type * as AiProviderModule from "../services/ai-provider";
-import worker from "../index";
+import { createApiApp } from "../index";
+
+const worker = createApiApp();
 
 vi.mock("jose", () => ({
   createRemoteJWKSet: vi.fn(() => vi.fn()),

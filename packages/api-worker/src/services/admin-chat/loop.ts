@@ -50,7 +50,7 @@ const CriticVerdictSchema = z.object({
   feedback: z.string().describe("If ok is false, one or two concrete sentences telling the assistant exactly what it still needs to do to finish the request. Empty string if ok is true.")
 });
 
-const CRITIC_SYSTEM_TEXT = `You are a strict quality reviewer for Aether Chat, an internal admin assistant. You will be shown recent conversation context, what the operator just asked, which tools the assistant called this turn and what each returned, and the assistant's draft reply (which may be empty). Judge only whether this turn actually resolves the operator's current request:
+const criticSystemText = (assistantName: string) => `You are a strict quality reviewer for ${assistantName}, an internal admin assistant. You will be shown recent conversation context, what the operator just asked, which tools the assistant called this turn and what each returned, and the assistant's draft reply (which may be empty). Judge only whether this turn actually resolves the operator's current request:
 - An empty draft reply is FINE when the tool results already fully show what was asked (a list, a card, a confirmed change) - never penalize brevity or silence by itself.
 - An empty draft reply is a FAILURE when a tool call errored and nothing explains it, or when the operator clearly asked for something that still has not happened.
 - If the operator's wording refers to more than one record (plural pronouns like "them"/"las"/"los", "both", "all", or a list shown earlier in the conversation) but the tools called this turn - or the draft reply - only address one of them, that is a failure: say specifically which other record(s) still need action.
@@ -114,7 +114,10 @@ async function agentNode(
   state: AdminAgentStateType,
   config?: AdminChatNodeConfig
 ): Promise<{ messages: BaseMessage[]; data: AdminAgentData }> {
-  const messages = [new SystemMessage(ADMIN_CHAT_SYSTEM_PROMPT.text), ...state.messages];
+  const systemPromptText = ADMIN_CHAT_SYSTEM_PROMPT.text
+    .replaceAll("{{ASSISTANT_NAME}}", state.data.ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat")
+    .replaceAll("{{BRAND_NAME}}", state.data.ctx.env.BRAND_NAME ?? "Aether");
+  const messages = [new SystemMessage(systemPromptText), ...state.messages];
   const stream = (await invokeWithFallback(config?.configurable?.boundModels, (model) => model.stream(messages, config))) as AsyncIterable<AIMessageChunk>;
   let full: AIMessageChunk | undefined;
   for await (const chunk of stream) {
@@ -250,7 +253,7 @@ async function verifyNode(state: AdminAgentStateType, config?: AdminChatNodeConf
     .join("\n");
 
   const criticMessages = [
-    new SystemMessage(CRITIC_SYSTEM_TEXT),
+    new SystemMessage(criticSystemText(state.data.ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat")),
     new HumanMessage(
       `Recent conversation:\n${contextText || "(none)"}\n\nOperator just asked: ${requestText}\n\nTools called this turn:\n${trace}\n\nDraft reply:\n${draftText || "(empty - no closing text)"}`
     )
@@ -311,7 +314,7 @@ const adminAgentGraph = new StateGraph(AdminAgentState)
 export async function* runAdminChatLoop(ctx: AdminChatContext, history: BaseMessage[]): AsyncGenerator<LoopEvent> {
   const models = await resolveChatModelChain(ctx.env);
   if (!models || models.length === 0 || !models[0]?.bindTools) {
-    yield { type: "error", message: "Aether Chat is not configured on this environment." };
+    yield { type: "error", message: `${ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat"} is not configured on this environment.` };
     return;
   }
   const boundModels = models.map((candidate) => candidate.bindTools!(ADMIN_CHAT_LANGCHAIN_TOOLS) as Runnable<BaseMessage[], AIMessageChunk>);
@@ -399,7 +402,7 @@ export async function* runAdminChatLoop(ctx: AdminChatContext, history: BaseMess
       }
     }
   } catch (error) {
-    yield { type: "error", message: error instanceof Error ? error.message : "Aether Chat hit an unexpected error." };
+    yield { type: "error", message: error instanceof Error ? error.message : `${ctx.env.AI_ASSISTANT_NAME ?? "Aether Chat"} hit an unexpected error.` };
     return;
   }
 

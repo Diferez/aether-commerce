@@ -17,6 +17,7 @@
     "paths": {
       "@aether/api-client": ["./packages/api-client/src/index.ts"],
       "@aether/api-core": ["./packages/api-core/src/index.ts"],
+      "@aether/api-worker": ["./packages/api-worker/src/index.ts"],
       "@aether/agent-core": ["./packages/agent-core/src/index.ts"],
       "@aether/config-schema": ["./packages/config-schema/src/index.ts"],
       "@aether/core": ["./packages/core/src/index.ts"],

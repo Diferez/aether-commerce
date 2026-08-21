@@ -21,7 +21,7 @@ async function send(env: Env, payload: EmailPayload) {
       "content-type": "application/json"
     },
     body: JSON.stringify({
-      from: "Aether Demo <onboarding@resend.dev>",
+      from: env.EMAIL_FROM ?? "Aether Demo <onboarding@resend.dev>",
       ...payload
     })
   });
@@ -40,7 +40,7 @@ export async function sendContactEmail(env: Env, message: ContactMessage) {
 
   return send(env, {
     to: env.CONTACT_RECIPIENT_EMAIL,
-    subject: `Aether contact: ${message.subject}`,
+    subject: `${env.BRAND_NAME ?? "Aether"} contact: ${message.subject}`,
     html: `<p><strong>${message.name}</strong> (${message.email})</p><p>${message.message}</p>`
   });
 }
@@ -50,10 +50,11 @@ export async function sendContactEmail(env: Env, message: ContactMessage) {
 // order object, or a fresh DB row) without also having to reassemble a
 // complete, schema-valid Order just to send a status email.
 export async function sendOrderEmail(env: Env, order: Pick<Order, "email" | "number" | "state">) {
+  const brandName = env.BRAND_NAME ?? "Aether";
   return send(env, {
     to: order.email,
-    subject: `Aether order ${order.number}`,
-    html: `<p>Your Aether order <strong>${order.number}</strong> is ${order.state}.</p>`
+    subject: `${brandName} order ${order.number}`,
+    html: `<p>Your ${brandName} order <strong>${order.number}</strong> is ${order.state}.</p>`
   });
 }
 

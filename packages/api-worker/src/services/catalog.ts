@@ -129,7 +129,7 @@ function normalizeRow(env: Env, row: ProductRow): Product {
     specifications,
     flags,
     seo: {
-      title: details.seoTitle || `${row.name} | Aether`,
+      title: details.seoTitle || `${row.name} | ${env.BRAND_NAME ?? "Aether"}`,
       description: details.seoDescription || details.shortDescription.slice(0, 150),
       canonicalPath: `/products/${row.slug}`
     },
@@ -165,7 +165,7 @@ function normalizeRow(env: Env, row: ProductRow): Product {
     newArrival: flags.includes("new"),
     deal: flags.includes("deal"),
     visible: row.visibility === "visible",
-    seoTitle: details.seoTitle || `${row.name} | Aether`,
+    seoTitle: details.seoTitle || `${row.name} | ${env.BRAND_NAME ?? "Aether"}`,
     seoDescription: details.seoDescription || details.shortDescription.slice(0, 150),
     catalogSource: "local",
     externalStock: null,
