@@ -25,6 +25,15 @@ describe("permissionsForRoles", () => {
     expect(permissions).not.toContain("users.write");
     expect(permissions).not.toContain("users.manage_roles");
   });
+
+  it("grants platform.deploy only to admin and super_admin", () => {
+    expect(permissionsForRoles(["admin"])).toContain("platform.deploy");
+    expect(permissionsForRoles(["super_admin"])).toContain("platform.deploy");
+    expect(permissionsForRoles(["support"])).not.toContain("platform.deploy");
+    expect(permissionsForRoles(["catalog_manager"])).not.toContain("platform.deploy");
+    expect(permissionsForRoles(["order_manager"])).not.toContain("platform.deploy");
+    expect(permissionsForRoles(["demo_viewer"])).not.toContain("platform.deploy");
+  });
 });
 
 describe("hasPermission", () => {

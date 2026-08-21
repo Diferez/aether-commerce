@@ -27,7 +27,8 @@ export const permissionSchema = z.enum([
   "coupons.manage",
   "settings.manage",
   "audit.read",
-  "exports.create"
+  "exports.create",
+  "platform.deploy"
 ]);
 
 export const actorSchema = z.object({

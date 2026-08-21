@@ -52,6 +52,12 @@ export type Env = {
   DEMO_SUMMARY_ORDERS?: string;
   DEMO_SUMMARY_CONVERSION_RATE?: string;
   DEMO_SUMMARY_LOW_STOCK?: string;
+  /** The commit SHA that produced the currently-running deploy - set via `wrangler deploy --var` from the deploy workflow's own $GITHUB_SHA, never baked into wrangler.jsonc itself. */
+  DEPLOYED_COMMIT_SHA?: string;
+  PLATFORM_GITHUB_OWNER?: string;
+  PLATFORM_GITHUB_REPO?: string;
+  PLATFORM_GITHUB_WORKFLOW_FILE?: string;
+  PLATFORM_GITHUB_PAT?: string;
 };
 
 export type Variables = {

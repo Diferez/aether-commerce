@@ -20,6 +20,13 @@ import { createReviewModerationService } from "../services/review-moderation";
 import { createCheckoutSettingsService } from "../services/checkout-settings";
 import { summarizeCheckoutSettings } from "../services/checkout-provider";
 import { createIntegrationSettingsService, summarizeIntegrationSecrets } from "../services/integration-settings";
+import {
+  createPlatformDeploySettingsService,
+  resolvePlatformDeployCredentials,
+  summarizePlatformDeployCredentials
+} from "../services/platform-deploy-settings";
+import { getLatestCommitSha, getLatestPublishedPackageVersion, requireCompleteCredentials, triggerDeployWorkflow } from "../services/github-deploy";
+import { deployedPackageVersion } from "../version";
 import { createUploadSignature } from "../services/cloudinary";
 import { changeOrderState, createManualOrder, withOrderTracking } from "../services/orders";
 import { applyRefundLocally, createProviderRefund, isRefundableChannel } from "../services/refunds";
@@ -107,6 +114,23 @@ function sanitizeCheckoutSettingsUpdate(input: z.infer<typeof checkoutSettingsUp
     ...(input.mode !== undefined ? { mode: input.mode } : {}),
     ...(stripe !== undefined ? { stripe } : {}),
     ...(wompi !== undefined ? { wompi } : {})
+  };
+}
+
+const platformDeploySettingsUpdateSchema = z.object({
+  githubOwner: z.string().min(1).optional(),
+  githubRepo: z.string().min(1).optional(),
+  githubWorkflowFile: z.string().min(1).optional(),
+  githubPat: z.string().min(1).optional()
+});
+
+/** Same exactOptionalPropertyTypes stripping as sanitizeIntegrationSecretsUpdate below. */
+function sanitizePlatformDeploySettingsUpdate(input: z.infer<typeof platformDeploySettingsUpdateSchema>) {
+  return {
+    ...(input.githubOwner !== undefined ? { githubOwner: input.githubOwner } : {}),
+    ...(input.githubRepo !== undefined ? { githubRepo: input.githubRepo } : {}),
+    ...(input.githubWorkflowFile !== undefined ? { githubWorkflowFile: input.githubWorkflowFile } : {}),
+    ...(input.githubPat !== undefined ? { githubPat: input.githubPat } : {})
   };
 }
 
@@ -1040,6 +1064,73 @@ adminRoutes.put(
     return ok(c, await summarizeIntegrationSecrets(c.env));
   }
 );
+
+// Credentials for the "platform" panel's real-redeploy trigger - kept under
+// their own permission (platform.deploy) rather than settings.manage, since
+// triggering a production deploy is materially more consequential than
+// saving a Resend/Cloudinary key (see services/platform-deploy-settings.ts).
+adminRoutes.get("/platform/settings", requirePermission("platform.deploy"), async (c) =>
+  ok(c, await summarizePlatformDeployCredentials(c.env))
+);
+adminRoutes.put(
+  "/platform/settings",
+  requirePermission("platform.deploy"),
+  zValidator("json", platformDeploySettingsUpdateSchema),
+  async (c) => {
+    if (!c.env.AETHER_SETTINGS_ENCRYPTION_KEY) {
+      return fail(
+        c,
+        500,
+        "SETTINGS_ENCRYPTION_NOT_CONFIGURED",
+        "AETHER_SETTINGS_ENCRYPTION_KEY is not configured. Set it before storing platform deploy settings from the admin panel."
+      );
+    }
+
+    const input = c.req.valid("json");
+    await createPlatformDeploySettingsService(c.env.DB, c.env.AETHER_SETTINGS_ENCRYPTION_KEY).update(sanitizePlatformDeploySettingsUpdate(input));
+    return ok(c, await summarizePlatformDeployCredentials(c.env));
+  }
+);
+
+// Deployed = what this Worker actually has bundled right now (its own
+// package.json version, plus the commit SHA the deploy workflow stamped in
+// via `wrangler deploy --var` - see types.ts's DEPLOYED_COMMIT_SHA).
+// Latest = live GitHub lookups, best-effort (null on any failure - see
+// services/github-deploy.ts) rather than blocking the page on a GitHub API
+// hiccup.
+adminRoutes.get("/platform/version", requirePermission("platform.deploy"), async (c) => {
+  const credentials = requireCompleteCredentials(await resolvePlatformDeployCredentials(c.env));
+  const [latestCommitSha, latestPackageVersion] = credentials
+    ? await Promise.all([getLatestCommitSha(credentials), getLatestPublishedPackageVersion(credentials)])
+    : [null, null];
+
+  return ok(c, {
+    deployed: {
+      commitSha: c.env.DEPLOYED_COMMIT_SHA ?? null,
+      packageVersion: deployedPackageVersion
+    },
+    latest: {
+      commitSha: latestCommitSha,
+      packageVersion: latestPackageVersion
+    },
+    credentialsConfigured: credentials !== null
+  });
+});
+
+adminRoutes.post("/platform/deploy", requirePermission("platform.deploy"), async (c) => {
+  const credentials = requireCompleteCredentials(await resolvePlatformDeployCredentials(c.env));
+  if (!credentials) {
+    return fail(c, 422, "PLATFORM_DEPLOY_NOT_CONFIGURED", "GitHub owner, repo, workflow file, and a PAT must all be configured before triggering a deploy.");
+  }
+
+  try {
+    await triggerDeployWorkflow(credentials);
+  } catch (error) {
+    return fail(c, 502, "PLATFORM_DEPLOY_TRIGGER_FAILED", error instanceof Error ? error.message : "Could not trigger the deploy workflow.");
+  }
+
+  return ok(c, { triggered: true });
+});
 
 const brandSettingsSchema = z.object({
   name: z.string().min(1).max(60),

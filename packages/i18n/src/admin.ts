@@ -39,6 +39,7 @@ export const adminDictionaries = {
       customers: "Customers",
       settings: "Settings",
       integrations: "Integrations",
+      platform: "Platform",
       activity: "Activity",
       systemHealth: "System health",
       operationsGroup: "Operations",
@@ -462,6 +463,10 @@ export const adminDictionaries = {
       title: "Integrations",
       description: "Payment providers and third-party API keys (Stripe, Wompi, Resend, Gemini, Cloudinary). Secrets are encrypted at rest and never shown again after saving."
     },
+    platformPage: {
+      title: "Platform",
+      description: "Deployed vs. latest version, and a button to trigger a real production redeploy."
+    },
     settingsPage: {
       title: "Settings",
       description: "Branding, checkout method, shipping, and cart reservation hold time.",
@@ -787,6 +792,7 @@ export const adminDictionaries = {
       customers: "Clientes",
       settings: "Configuración",
       integrations: "Integraciones",
+      platform: "Plataforma",
       activity: "Actividad",
       systemHealth: "Estado del sistema",
       operationsGroup: "Operaciones",
@@ -1209,6 +1215,10 @@ export const adminDictionaries = {
     integrationsPage: {
       title: "Integraciones",
       description: "Proveedores de pago y llaves de API de terceros (Stripe, Wompi, Resend, Gemini, Cloudinary). Los secretos se cifran en reposo y nunca se vuelven a mostrar después de guardarlos."
+    },
+    platformPage: {
+      title: "Plataforma",
+      description: "Versión desplegada frente a la última disponible, y un botón para disparar un redeploy real de producción."
     },
     settingsPage: {
       title: "Configuración",

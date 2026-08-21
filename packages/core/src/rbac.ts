@@ -22,7 +22,8 @@ const rolePermissions: Record<Role, Permission[]> = {
     "coupons.manage",
     "settings.manage",
     "audit.read",
-    "exports.create"
+    "exports.create",
+    "platform.deploy"
   ],
   // super_admin is the only role that can change another user's role
   // (users.manage_roles) - that's a privilege-escalation vector, so it's
@@ -44,7 +45,8 @@ const rolePermissions: Record<Role, Permission[]> = {
     "coupons.manage",
     "settings.manage",
     "audit.read",
-    "exports.create"
+    "exports.create",
+    "platform.deploy"
   ]
 };
 
