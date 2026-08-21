@@ -176,6 +176,16 @@ function GitHubSettingsForm({
   );
 }
 
+function VersionStatusMessage({ version, upToDate }: Readonly<{ version: VersionInfo; upToDate: boolean }>) {
+  if (!version.credentialsConfigured) {
+    return <p className="text-xs text-amber-700">Save GitHub deploy credentials above to compare against the latest commit.</p>;
+  }
+  if (upToDate) {
+    return <p className="text-xs text-teal-700">Up to date.</p>;
+  }
+  return <p className="text-xs text-amber-700">A newer commit is available on main.</p>;
+}
+
 function VersionCard({
   version,
   onRefresh,
@@ -225,13 +235,7 @@ function VersionCard({
           <p className="text-zinc-500">@aether/api-worker {version.latest.packageVersion ?? "unknown"}</p>
         </div>
       </div>
-      {!version.credentialsConfigured ? (
-        <p className="text-xs text-amber-700">Save GitHub deploy credentials above to compare against the latest commit.</p>
-      ) : upToDate ? (
-        <p className="text-xs text-teal-700">Up to date.</p>
-      ) : (
-        <p className="text-xs text-amber-700">A newer commit is available on main.</p>
-      )}
+      <VersionStatusMessage version={version} upToDate={upToDate} />
       <div>
         <button
           type="button"
@@ -247,6 +251,44 @@ function VersionCard({
         ) : null}
         {deployStatus === "error" ? <p className="mt-2 text-xs text-red-700">Could not trigger the deploy. Check the credentials above.</p> : null}
       </div>
+    </div>
+  );
+}
+
+function PlatformSettingsBody({
+  status,
+  summary,
+  version,
+  apiBaseUrl,
+  refreshingVersion,
+  deployStatus,
+  onSummarySaved,
+  onRefreshVersion,
+  onRequestDeploy
+}: Readonly<{
+  status: LoadStatus;
+  summary: PlatformSettingsSummary | null;
+  version: VersionInfo | null;
+  apiBaseUrl: string;
+  refreshingVersion: boolean;
+  deployStatus: DeployStatus;
+  onSummarySaved: (next: PlatformSettingsSummary) => void;
+  onRefreshVersion: () => void;
+  onRequestDeploy: () => void;
+}>) {
+  if (status === "forbidden") {
+    return <p className="p-4 text-sm text-zinc-500">Your role does not have the platform.deploy permission.</p>;
+  }
+  if (status === "error") {
+    return <p className="p-4 text-sm text-zinc-500">Could not load platform settings.</p>;
+  }
+  if (status === "loading" || !summary) {
+    return <p className="p-4 text-sm text-zinc-500">Loading...</p>;
+  }
+  return (
+    <div className="grid gap-4 p-4 md:grid-cols-2">
+      <GitHubSettingsForm summary={summary} apiBaseUrl={apiBaseUrl} onSaved={onSummarySaved} />
+      <VersionCard version={version} onRefresh={onRefreshVersion} refreshing={refreshingVersion} onRequestDeploy={onRequestDeploy} deployStatus={deployStatus} />
     </div>
   );
 }
@@ -318,31 +360,20 @@ export function PlatformSettingsPage() {
         </h2>
         <p className="text-sm text-zinc-500">Check the deployed version and trigger a production redeploy.</p>
       </div>
-      {status === "forbidden" ? (
-        <p className="p-4 text-sm text-zinc-500">Your role does not have the platform.deploy permission.</p>
-      ) : status === "error" ? (
-        <p className="p-4 text-sm text-zinc-500">Could not load platform settings.</p>
-      ) : status === "loading" || !summary ? (
-        <p className="p-4 text-sm text-zinc-500">Loading...</p>
-      ) : (
-        <div className="grid gap-4 p-4 md:grid-cols-2">
-          <GitHubSettingsForm
-            summary={summary}
-            apiBaseUrl={apiBaseUrl}
-            onSaved={(next) => {
-              setSummary(next);
-              void loadVersion();
-            }}
-          />
-          <VersionCard
-            version={version}
-            onRefresh={() => void loadVersion()}
-            refreshing={refreshingVersion}
-            onRequestDeploy={() => setDeployStatus("confirming")}
-            deployStatus={deployStatus}
-          />
-        </div>
-      )}
+      <PlatformSettingsBody
+        status={status}
+        summary={summary}
+        version={version}
+        apiBaseUrl={apiBaseUrl}
+        refreshingVersion={refreshingVersion}
+        deployStatus={deployStatus}
+        onSummarySaved={(next) => {
+          setSummary(next);
+          void loadVersion();
+        }}
+        onRefreshVersion={() => void loadVersion()}
+        onRequestDeploy={() => setDeployStatus("confirming")}
+      />
       <ConfirmDialog
         open={deployStatus === "confirming"}
         title="Trigger a production redeploy?"
