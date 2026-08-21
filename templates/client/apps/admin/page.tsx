@@ -1,20 +1,16 @@
-"use client";
-
-import { useState } from "react";
-import { AdminSidebar, AdminTopBar, RequireAdminAuth } from "@aether/admin-default";
+import { AdminDashboard, RequireAdminAuth } from "@aether/admin-default";
 
 /**
- * Default admin shell (sidebar + top bar) - keep as-is, or replace with your
- * own. Business pages (orders/products/customers/...) aren't part of this
- * default skin yet; build those against @aether/api-client the same way
- * apps/admin's own reference pages do.
+ * Default admin home - keep as-is, or replace with your own. Business
+ * pages below (orders/, products/, customers/, ...) show the same
+ * keep-or-replace pattern: each is a one-line re-export from
+ * @aether/admin-default today, and can be edited individually without
+ * touching the rest.
  */
 export default function AdminHomePage() {
-  const [collapsed, setCollapsed] = useState(false);
   return (
     <RequireAdminAuth>
-      <AdminSidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((value) => !value)} />
-      <AdminTopBar onOpenMobileNav={() => {}} onOpenCommandMenu={() => {}} />
+      <AdminDashboard />
     </RequireAdminAuth>
   );
 }

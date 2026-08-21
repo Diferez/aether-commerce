@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+/*
+ * @aether/admin-default and @aether/ui ship the actual styled UI (the
+ * default skin) as a published npm package - Tailwind's automatic content
+ * detection doesn't scan node_modules, so classes used only inside those
+ * packages' compiled output would otherwise vanish from a production
+ * build while still looking fine in `next dev`. These explicit @source
+ * directives are always scanned regardless of that default exclusion.
+ * Adjust the relative path if this file moves within your project.
+ */
+@source "../node_modules/@aether/admin-default/dist";
+@source "../node_modules/@aether/ui/dist";
+
+/*
+ * Admin design tokens. Tailwind v4 @theme is the source of truth; light is
+ * the default theme, dark is an override scoped to html[data-theme="dark"].
+ * --color-accent's default below is overridden at runtime in layout.tsx
+ * from config/theme.ts's `primary` value, so this file doesn't need
+ * editing to rebrand - change the color in config/theme.ts instead.
+ */
+@theme {
+  --color-bg: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0f0f6;
+  --color-border: rgba(15, 23, 42, 0.09);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  --color-ink: #16171d;
+  --color-ink-muted: #5b5f6b;
+  --color-ink-subtle: #6b6f7a;
+  --color-accent: #000000;
+  --color-accent-hover: #262626;
+  --color-accent-soft: rgba(0, 0, 0, 0.08);
+  --color-accent-2: #0e7490;
+  --color-accent-2-soft: rgba(14, 116, 144, 0.1);
+  --color-success: #047857;
+  --color-success-soft: rgba(4, 120, 87, 0.1);
+  --color-warning: #b45309;
+  --color-warning-soft: rgba(180, 83, 9, 0.1);
+  --color-danger: #e11d48;
+  --color-danger-soft: rgba(225, 29, 72, 0.1);
+  /* Semantic "info" tone (order shipped, informational banners), distinct
+     from the configurable brand accent - not driven by config/theme.ts. */
+  --color-info: #2563eb;
+  --color-info-soft: rgba(37, 99, 235, 0.1);
+
+  /* Restrained elevation scale - used only for floating layers (menus,
+     modals, the command palette, the mobile drawer), never for resting
+     cards, which stay flat + bordered. Tailwind v4 turns --shadow-* theme
+     entries directly into shadow-* utilities. */
+  --shadow-elevate-sm: 0 2px 8px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-elevate-md: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="dark"] {
+  --color-bg: #060711;
+  --color-surface: #10121c;
+  --color-surface-hover: #161a29;
+  --color-border: rgba(148, 163, 184, 0.16);
+  --color-border-strong: rgba(148, 163, 184, 0.3);
+  --color-ink: #f8fafc;
+  --color-ink-muted: #a1a1aa;
+  --color-ink-subtle: #71717a;
+  --color-accent-soft: rgba(255, 255, 255, 0.12);
+  --color-accent-2: #22d3ee;
+  --color-accent-2-soft: rgba(34, 211, 238, 0.14);
+  --color-success: #34d399;
+  --color-success-soft: rgba(52, 211, 153, 0.14);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgba(251, 191, 36, 0.14);
+  --color-danger: #fb7185;
+  --color-danger-soft: rgba(251, 113, 133, 0.14);
+  --color-info: #60a5fa;
+  --color-info-soft: rgba(96, 165, 250, 0.14);
+  --shadow-elevate-sm: 0 2px 8px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-elevate-md: 0 16px 40px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+:root {
+  color-scheme: light;
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --muted: var(--color-ink-muted);
+  --line: var(--color-border);
+  --accent: var(--color-accent);
+  --warning: var(--color-warning);
+
+  /* Shell layout constants - read by AdminShell/AdminSidebar for the
+     desktop grid so the numbers live in exactly one place. */
+  --sidebar-w: 264px;
+  --sidebar-w-collapsed: 72px;
+  --header-h: 64px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Percentage-based, not 100vw-based: this sits inside AdminShell's content
+   column, which is already offset by the sidebar width on desktop - a
+   vw-relative calc here would ignore that offset and overflow past the
+   right edge. */
+.admin-shell {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-inline: 16px;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell {
+    padding-inline: 24px;
+  }
+}
+
+.focus-ring:focus-visible {
+  outline: 3px solid var(--color-accent-2);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-hover) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-fade-in {
+  animation: admin-fade-in 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

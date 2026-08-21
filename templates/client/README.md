@@ -10,14 +10,24 @@ copy Aether demo data, provider secrets or deployment resources.
 3. Run `pnpm install`, `pnpm validate`, then `git init`.
 4. `apps/storefront/{layout,page}.tsx` and `apps/admin/{layout,page}.tsx` already
    render a working default skin - `@aether/storefront-default` and
-   `@aether/admin-default` - wired to `config/`. Keep them as-is to use the
-   default skin, or edit those files to design your own (you can still import
-   individual pieces from the packages, or replace everything). This is a
-   per-file choice: keep the default admin panel while redesigning the
-   storefront, or vice versa. `apps/api/adapter.ts` and `apps/ai/adapter.ts`
+   `@aether/admin-default` - wired to `config/`. `apps/admin/` also ships every
+   business page (orders, products, customers, inventory, coupons, reviews,
+   settings, activity, system health) as one-line re-exports, each in its own
+   file under the matching route folder (e.g. `apps/admin/orders/page.tsx`).
+   Keep them as-is to use the default skin, or edit any individual file to
+   design your own (you can still import individual pieces from the packages,
+   or replace everything) - this is a per-file choice: keep the default admin
+   panel while redesigning the storefront, replace one business page while
+   keeping the rest, or vice versa. `apps/api/adapter.ts` and `apps/ai/adapter.ts`
    have no packaged default yet - implement those using their typed
    `adapter.ts`, `src/configuration.ts`, and the versioned `@aether/*`
    packages. Store secrets only in the deployment platform secret manager.
+5. Every file under `apps/admin/` and `apps/storefront/` here is meant to be
+   copied into the equivalent path inside a real Next.js project's `app/`
+   directory (App Router) - this template intentionally doesn't scaffold
+   `next.config`, `package.json` build scripts, or deployment config, since
+   those depend on the hosting platform you choose. Run `create-next-app`
+   (or your platform's equivalent) first, then copy these files in.
 
 `config/` is public configuration (including `config/theme.ts` - colors and
 fonts, separate from `config/brand.ts`'s name/logo); `custom/` contains
