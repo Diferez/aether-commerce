@@ -118,7 +118,14 @@ describe("getCustomerOrderHistoryTool", () => {
               createdAt: "2026-01-05",
               shippingAddress: { line1: "123 Main St" },
               payment: { last4: "4242" }
-            })
+            }),
+            state: "completed",
+            channel: "online",
+            payment_status: "paid",
+            fulfillment_status: "delivered",
+            tracking_carrier: null,
+            tracking_number: null,
+            tracking_url: null
           }
         ]
       }
