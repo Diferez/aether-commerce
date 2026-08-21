@@ -118,7 +118,7 @@ export function ComparePage() {
                 <th className="border-b border-zinc-100 p-4 font-medium text-zinc-500">{t.price}</th>
                 {products.map((product) => (
                   <td key={product.id} className="border-b border-zinc-100 p-4 font-semibold text-zinc-950">
-                    {formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}
+                    {formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}
                   </td>
                 ))}
               </tr>

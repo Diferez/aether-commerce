@@ -9,6 +9,12 @@ export type Env = {
   APP_ORIGIN_STORE?: string;
   APP_ORIGIN_ADMIN?: string;
   APP_STORE_BASE_PATH?: string;
+  /** ISO 4217 code used by catalog and manually-created orders. */
+  STORE_CURRENCY?: string;
+  /** BCP 47 locale used by presentation clients. */
+  STORE_LOCALE?: string;
+  /** ISO 3166-1 alpha-2 country used for checkout address defaults. */
+  STORE_COUNTRY?: string;
   CLERK_SECRET_KEY?: string;
   CLERK_JWT_ISSUER?: string;
   CLERK_WEBHOOK_SECRET?: string;
@@ -58,6 +64,8 @@ export type Env = {
   PLATFORM_GITHUB_REPO?: string;
   PLATFORM_GITHUB_WORKFLOW_FILE?: string;
   PLATFORM_GITHUB_PAT?: string;
+  /** GitHub user or organization that owns the published Aether packages. */
+  AETHER_PACKAGE_OWNER?: string;
 };
 
 export type Variables = {

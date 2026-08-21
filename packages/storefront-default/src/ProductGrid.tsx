@@ -99,7 +99,7 @@ export function ProductGrid({
   onProductOpen?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const syncUrl = !compact;
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
   const { locale, t } = useLanguage();
   const { addItem } = useCart();
   const { favorites, toggleFavorite: toggleFavoriteContext } = useFavorites();
@@ -467,6 +467,8 @@ export function ProductGrid({
                   onAddToCart={(item) => void addToCart(item)}
                   onNotifyRestock={(item) => void notifyRestock(item)}
                   isNotifySubscribed={notifiedIds.includes(product.id)}
+                  wishlistEnabled={config.features.wishlist}
+                  inventoryEnabled={config.features.inventory}
                   {...(onProductOpen ? { onOpenProduct: onProductOpen } : {})}
                 />
               ))}

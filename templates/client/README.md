@@ -42,7 +42,8 @@ copy Aether demo data, provider secrets or deployment resources.
      `WOMPI_SECRET_KEY`, `RESEND_API_KEY`, `CLOUDINARY_*`, and `GEMINI_API_KEY`
      are each optional - every integration already degrades gracefully
      without its secret set, so only configure the providers you actually
-     use. `apps/api/wrangler.jsonc`'s `vars` block also carries `BRAND_NAME`,
+     use. `apps/api/wrangler.jsonc`'s `vars` block also carries
+     `STORE_CURRENCY`, `STORE_LOCALE`, `STORE_COUNTRY`, `BRAND_NAME`,
      `EMAIL_FROM`, `OBSERVABILITY_SERVICE_NAME`, and `AI_ASSISTANT_NAME` -
      override these to replace the "client-store" placeholders `create:client`
      already substituted. `apps/ai/adapter.ts` has no packaged default yet -
@@ -102,12 +103,23 @@ the first run can succeed:
 The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
 (see point 5).
 
+## Aether updates
+
+Add the repository secret `AETHER_PACKAGES_TOKEN` with read access to the
+Aether package registry. Dependabot groups Aether releases into a weekly pull
+request. You can also run **Update Aether platform** manually; it updates every
+workspace dependency, synchronizes D1 migrations, validates the store and opens
+a pull request. The normal deployment synchronizes migrations once more before
+applying them.
+
 `config/` is public configuration (including `config/theme.ts` - colors and
 fonts, separate from `config/brand.ts`'s name/logo); `custom/` contains
 client-only pages, components, styling, animations and assets; `database/`
 contains only client-specific extensions and optional seeds. The generator
 also creates `database/migrations/` from the reusable Aether schema
 migrations; it excludes the Aether demo's historical data migrations.
+Keep `STORE_CURRENCY`, `STORE_LOCALE` and `STORE_COUNTRY` in
+`apps/api/wrangler.jsonc` aligned with `config/store.ts`.
 
 Never put provider secrets in `config/`; runtime secrets belong in the chosen
 deployment platform's secret manager.

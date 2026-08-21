@@ -1,4 +1,4 @@
-import { createCartItem, createEmptyCart } from "@aether/api-core";
+import { createCartItem } from "@aether/api-core";
 import { calculateCartTotals } from "@aether/core";
 import type { Cart, CartItemInput, Coupon } from "@aether/schemas";
 import type { Env } from "../types";
@@ -6,6 +6,7 @@ import { getProductBySlug, getCatalogProducts } from "./catalog";
 import { InsufficientStockError, getAvailableStock, releaseReservation, upsertActiveReservation } from "./inventory";
 import { createShippingSettingsService } from "./shipping-settings";
 import { defaultShippingSettings } from "../defaults";
+import { getRuntimeStoreConfig } from "./store-config";
 
 // Reused by every cart-total recalculation below - the flat fee (see
 // packages/core/src/shipping.ts's ShippingSettings) only ever affects the
@@ -84,17 +85,17 @@ async function findProduct(env: Env, productId: string) {
   return data.find((product) => product.id === productId);
 }
 
-function emptyCart(id: string): Cart {
+function emptyCart(env: Env, id: string): Cart {
   return {
     id,
     items: [],
-    totals: calculateCartTotals([]),
+    totals: calculateCartTotals([], undefined, 0, 0, getRuntimeStoreConfig(env).currency),
     updatedAt: new Date().toISOString()
   };
 }
 
 export async function createCart(env: Env, id = crypto.randomUUID()): Promise<Cart> {
-  return writeCart(env, emptyCart(id));
+  return writeCart(env, emptyCart(env, id));
 }
 
 export async function readCart(env: Env, id: string): Promise<Cart> {
@@ -103,7 +104,7 @@ export async function readCart(env: Env, id: string): Promise<Cart> {
   }>();
 
   if (!row) {
-    return createEmptyCart(id);
+    return emptyCart(env, id);
   }
 
   return JSON.parse(row.payload_json) as Cart;

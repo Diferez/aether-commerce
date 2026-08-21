@@ -42,6 +42,7 @@
     "test:client-template": "node scripts/validate-client-template.mjs",
     "create:client": "node scripts/create-client.mjs",
     "changeset": "changeset",
+    "check:changesets": "node scripts/check-changesets.mjs",
     "version:packages": "changeset version",
     "publish:packages": "changeset publish",
     "validate": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test && pnpm check:boundaries && pnpm test:client-template && pnpm openapi:check"

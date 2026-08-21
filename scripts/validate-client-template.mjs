@@ -18,7 +18,7 @@ const required = [
   "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx", "apps/storefront/package.json", "apps/storefront/next.config.mjs", "apps/storefront/wrangler.jsonc",
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
   "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
-  ".github/workflows/deploy.yml",
+  ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
   "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
   "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
 ];
@@ -34,6 +34,7 @@ const distributablePackages = [
   ["@aether/api-worker", "packages/api-worker"],
   ["@aether/agent-core", "packages/agent-core"],
   ["@aether/observability", "packages/observability"],
+  ["@aether/migrations", "packages/migrations"],
   ["@aether/storefront-default", "packages/storefront-default"],
   ["@aether/admin-default", "packages/admin-default"]
 ];
@@ -47,8 +48,8 @@ try {
     "apps/storefront/adapter.ts", "apps/storefront/app/layout.tsx", "apps/storefront/app/page.tsx",
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
     "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
-    ".github/workflows/deploy.yml",
-    "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", ".npmrc"
+    ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
+    "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", "database/migrations/0023_low_stock_alerts.sql", ".npmrc"
   ]) {
     if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
   }
@@ -116,6 +117,7 @@ try {
       'import { createRequestId } from "@aether/observability";',
       'import { Hero, ProductGrid, CartProvider } from "@aether/storefront-default";',
       'import { AdminSidebar } from "@aether/admin-default";',
+      'import migrationManifest from "@aether/migrations/manifest" with { type: "json" };',
       "",
       "export const packageResolutionSmoke = [",
       "  formatMoney,",
@@ -131,7 +133,8 @@ try {
       "  Hero,",
       "  ProductGrid,",
       "  CartProvider,",
-      "  AdminSidebar",
+      "  AdminSidebar,",
+      "  migrationManifest",
       "] as const;",
       ""
     ].join("\n")

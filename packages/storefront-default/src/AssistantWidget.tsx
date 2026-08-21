@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Loader2, PackageCheck, Send, ShoppingBag, Trash2, X } from "lucide-react";
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import { createCartClient } from "./cart-client";
 import type { Cart, CartItem } from "@aether/schemas";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
@@ -18,7 +18,7 @@ type AssistantProduct = {
   name: string;
   description: string | null;
   price: string;
-  currency: "USD";
+  currency: string;
   image_url: string | null;
   product_url: string;
   available: boolean;
@@ -36,7 +36,7 @@ type AssistantResponse = {
   cart?: {
     item_count: number;
     subtotal: string;
-    currency: "USD";
+    currency: string;
     items: Array<Record<string, unknown>>;
   } | null;
   orders?: AssistantOrderSummary[];
@@ -88,7 +88,7 @@ const privacyStorageKey = "aether.assistant.privacy.v1";
 // depending on unrelated legal content.
 export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVersion: string }>) {
   const { locale } = useLanguage();
-  const { apiBaseUrl, aiAssistantUrl: configuredAiAssistantUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl, aiAssistantUrl: configuredAiAssistantUrl } = useStorefrontConfig();
   const aiAssistantUrl = configuredAiAssistantUrl ?? "";
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const [isOpen, setIsOpen] = useState(false);
@@ -105,7 +105,8 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
   const panelRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const enabled = Boolean(aiAssistantUrl);
+  const enabled = config.features.aiAssistant && Boolean(aiAssistantUrl);
+  const formatUsd = (cents: number, displayLocale: string) => formatMoney(cents, config.store.currency, displayLocale);
 
   const copy = useMemo(
     () =>
@@ -328,7 +329,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       thread_id: threadId,
       message,
       locale: locale === "es" ? "es-CO" : "en-US",
-      currency: "USD",
+      currency: config.store.currency,
       client_context: context,
       privacy_consent: privacyAccepted,
       privacy_version: legalPolicyVersion
@@ -525,7 +526,7 @@ export function AssistantWidget({ legalPolicyVersion }: Readonly<{ legalPolicyVe
       "subtotal" in data &&
       typeof data.subtotal === "string" &&
       "currency" in data &&
-      data.currency === "USD" &&
+      typeof data.currency === "string" &&
       "items" in data &&
       Array.isArray(data.items)
     );

@@ -2,6 +2,7 @@ import { getInventoryStatus, humanizeCategorySlug } from "@aether/core";
 import { foldCatalogText, queryCatalog } from "@aether/api-core";
 import { productSchema, type Product, type ProductQuery } from "@aether/schemas";
 import type { Env } from "../types";
+import { getRuntimeStoreConfig } from "./store-config";
 
 export type ProductDetails = {
   shortDescription: string;
@@ -105,7 +106,7 @@ function normalizeRow(env: Env, row: ProductRow): Product {
     originalPrice: row.compare_at_price_cents ? price : null,
     finalPrice,
     discountPercentage,
-    currency: "USD",
+    currency: getRuntimeStoreConfig(env).currency,
     category: {
       id: row.category,
       externalId: null,

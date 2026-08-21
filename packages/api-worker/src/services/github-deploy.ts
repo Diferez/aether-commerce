@@ -58,15 +58,22 @@ export async function getLatestCommitSha(credentials: RequiredPlatformDeployCred
  * informational data point (see the plan's version-comparison design note),
  * never something that should block the panel or the deploy button.
  */
-export async function getLatestPublishedPackageVersion(credentials: RequiredPlatformDeployCredentials, packageName = "api-worker"): Promise<string | null> {
+export async function getLatestPublishedPackageVersion(
+  credentials: RequiredPlatformDeployCredentials,
+  packageName = "api-worker",
+  packageOwner = credentials.githubOwner
+): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${GITHUB_API_BASE}/orgs/${credentials.githubOwner}/packages/npm/${encodeURIComponent(packageName)}/versions?per_page=1`,
-      { headers: authHeaders(credentials.githubPat) }
-    );
-    if (!response.ok) return null;
-    const payload: Array<{ name?: string }> = await response.json();
-    return payload[0]?.name ?? null;
+    for (const ownerKind of ["orgs", "users"] as const) {
+      const response = await fetch(
+        `${GITHUB_API_BASE}/${ownerKind}/${encodeURIComponent(packageOwner)}/packages/npm/${encodeURIComponent(packageName)}/versions?per_page=1`,
+        { headers: authHeaders(credentials.githubPat) }
+      );
+      if (!response.ok) continue;
+      const payload: Array<{ name?: string }> = await response.json();
+      return payload[0]?.name ?? null;
+    }
+    return null;
   } catch {
     return null;
   }

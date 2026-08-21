@@ -142,7 +142,7 @@ async function createWompiCheckoutSession(
         description: `${env.BRAND_NAME ?? "Aether"} checkout for cart ${cart.id}`,
         single_use: true,
         collect_shipping: false,
-        currency: "COP",
+        currency: cart.totals.currency.toUpperCase(),
         amount_in_cents: amountInCents,
         reference: wompiReference(cart, checkoutSnapshotId),
         redirect_url: redirectUrl

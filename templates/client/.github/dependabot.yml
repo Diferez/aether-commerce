@@ -1,0 +1,23 @@
+version: 2
+
+registries:
+  aether-packages:
+    type: npm-registry
+    url: https://npm.pkg.github.com
+    token: ${{secrets.AETHER_PACKAGES_TOKEN}}
+
+updates:
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/apps/admin"
+      - "/apps/api"
+      - "/apps/storefront"
+    registries:
+      - aether-packages
+    schedule:
+      interval: weekly
+    groups:
+      aether-platform:
+        patterns:
+          - "@aether/*"

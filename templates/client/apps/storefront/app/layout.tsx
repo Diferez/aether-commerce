@@ -4,10 +4,7 @@ import {
   AetherAuthProvider,
   AetherStorefrontProvider,
   AssistantWidget,
-  CartProvider,
-  CompareProvider,
   CookieNotice,
-  FavoritesProvider,
   FloatingCart,
   LanguageProvider,
   SiteFooter,
@@ -17,6 +14,7 @@ import {
 import { themeTokensToCssVariables } from "@aether/ui/theme";
 import { clientConfiguration } from "../../../src/configuration";
 import { legalPolicyVersion } from "../../../config/legal";
+import { AppProviders } from "../components/AppProviders";
 
 export const metadata: Metadata = {
   title: clientConfiguration.brand.name,
@@ -47,9 +45,7 @@ const themeInitScript = `
  * deployment. Using
  * productionBaseUrl unconditionally here is illustrative; a real app
  * typically branches on environment the way apps/storefront's own
- * reference layout does. FavoritesProvider's customerId is null (guest-
- * only) until you wire up your own auth the way AetherAuthProvider's
- * useAetherAuth() below expects.
+ * reference layout does.
  */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -72,21 +68,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           aiAssistantUrl={process.env.NEXT_PUBLIC_AETHER_AI_URL}
         >
           <AetherAuthProvider>
-            <CartProvider>
-              <FavoritesProvider customerId={null}>
-                <CompareProvider>
-                  <LanguageProvider>
-                    <SiteHeader />
-                    {children}
-                    <SiteFooter />
-                    <CookieNotice />
-                    <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
-                    <WhatsappBubble />
-                    <FloatingCart />
-                  </LanguageProvider>
-                </CompareProvider>
-              </FavoritesProvider>
-            </CartProvider>
+            <AppProviders>
+              <LanguageProvider>
+                <SiteHeader />
+                {children}
+                <SiteFooter />
+                <CookieNotice />
+                <AssistantWidget legalPolicyVersion={legalPolicyVersion} />
+                <WhatsappBubble />
+                <FloatingCart />
+              </LanguageProvider>
+            </AppProviders>
           </AetherAuthProvider>
         </AetherStorefrontProvider>
       </body>

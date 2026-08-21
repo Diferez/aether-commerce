@@ -1,4 +1,4 @@
-import { formatUsd } from "@aether/core";
+import { formatMoney } from "@aether/core";
 import type { Cart } from "@aether/schemas";
 
 // wa.me expects the phone with country code, digits only - no leading +,
@@ -20,14 +20,14 @@ export function buildCartWhatsappMessage(cart: Cart, locale: "en" | "es"): strin
   const numberLocale = locale === "es" ? "es-CO" : "en-US";
   const lines = cart.items.map(
     (item) =>
-      `- ${item.name} x${item.quantity} (${formatUsd(item.lineTotal, numberLocale)})`
+      `- ${item.name} x${item.quantity} (${formatMoney(item.lineTotal, item.currency, numberLocale)})`
   );
   const header =
     locale === "es"
       ? "Hola, me gustaria comprar estos productos:"
       : "Hi, I would like to buy these products:";
   const totalLabel = "Total";
-  return [header, "", ...lines, "", `${totalLabel}: ${formatUsd(cart.totals.total, numberLocale)}`].join("\n");
+  return [header, "", ...lines, "", `${totalLabel}: ${formatMoney(cart.totals.total, cart.totals.currency, numberLocale)}`].join("\n");
 }
 
 export function buildInquiryWhatsappMessage(locale: "en" | "es"): string {
@@ -37,7 +37,7 @@ export function buildInquiryWhatsappMessage(locale: "en" | "es"): string {
 }
 
 export function buildProductWhatsappMessage(
-  product: { name: string; finalPrice: number },
+  product: { name: string; finalPrice: number; currency: string },
   quantity: number,
   locale: "en" | "es",
   productUrl: string
@@ -54,7 +54,7 @@ export function buildProductWhatsappMessage(
     header,
     "",
     `${productLabel}: ${product.name}`,
-    `${priceLabel}: ${formatUsd(product.finalPrice, numberLocale)}`,
+    `${priceLabel}: ${formatMoney(product.finalPrice, product.currency, numberLocale)}`,
     `${quantityLabel}: ${quantity}`,
     productUrl
   ].join("\n");

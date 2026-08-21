@@ -21,6 +21,8 @@ export function ProductCard({
   onAddToCart,
   onNotifyRestock,
   isNotifySubscribed,
+  wishlistEnabled = true,
+  inventoryEnabled = true,
   onOpenProduct
 }: {
   product: Product;
@@ -31,6 +33,8 @@ export function ProductCard({
   onAddToCart: (product: Product) => void;
   onNotifyRestock?: (product: Product) => void;
   isNotifySubscribed?: boolean;
+  wishlistEnabled?: boolean;
+  inventoryEnabled?: boolean;
   onOpenProduct?: (event: MouseEvent<HTMLAnchorElement>, product: Product) => void;
 }) {
   const { locale, t } = useLanguage();
@@ -113,14 +117,14 @@ export function ProductCard({
               anchored block again, just like the chip slot below. */}
           <div className="flex min-h-[46px] flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <p className={`text-lg font-semibold ${outOfStock ? "text-ink-muted" : "text-zinc-950"}`}>
-              {formatMoney(product.finalPrice, "USD", priceLocale)}
+              {formatMoney(product.finalPrice, product.currency, priceLocale)}
             </p>
             {product.originalPrice ? (
-              <p className="text-xs text-zinc-500 line-through">{formatMoney(product.originalPrice, "USD", priceLocale)}</p>
+              <p className="text-xs text-zinc-500 line-through">{formatMoney(product.originalPrice, product.currency, priceLocale)}</p>
             ) : null}
             {!outOfStock && product.originalPrice ? (
               <span className="text-xs font-medium text-success [font-variant-numeric:tabular-nums]">
-                {t.savings.replace("{amount}", formatMoney(product.originalPrice - product.finalPrice, "USD", priceLocale))}
+                {t.savings.replace("{amount}", formatMoney(product.originalPrice - product.finalPrice, product.currency, priceLocale))}
               </span>
             ) : null}
           </div>
@@ -129,7 +133,7 @@ export function ProductCard({
               whether this product happens to be low on stock - only the
               chip inside is conditional. */}
           <div className="flex min-h-[26px] items-center">
-            {lowStock ? (
+            {inventoryEnabled && lowStock ? (
               <div
                 role="status"
                 className="inline-flex w-fit items-center gap-1.5 rounded-md bg-warning-tint px-[9px] py-1 text-xs text-warning [font-variant-numeric:tabular-nums]"
@@ -141,7 +145,7 @@ export function ProductCard({
           </div>
 
           <div className="flex gap-2">
-            <button
+            {wishlistEnabled ? <button
               type="button"
               onClick={(event) => {
                 event.preventDefault();
@@ -154,8 +158,8 @@ export function ProductCard({
               aria-pressed={isFavorite}
             >
               <Heart size={16} fill={isFavorite ? "currentColor" : "none"} aria-hidden />
-            </button>
-            {outOfStock ? (
+            </button> : null}
+            {outOfStock && inventoryEnabled ? (
               <button
                 type="button"
                 onClick={(event) => {

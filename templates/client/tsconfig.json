@@ -12,9 +12,8 @@
   "include": ["apps/**/*.ts", "apps/**/*.tsx", "config/**/*.ts", "src/**/*.ts"],
   // apps/api/src needs @sentry/cloudflare (an apps/api-only dependency, not a
   // root one, so unresolvable from a root-level tsc pass under pnpm's
-  // isolated linking) plus Cloudflare Workers' ambient globals (from
-  // apps/api's own @cloudflare/workers-types devDependency + tsconfig -
-  // see apps/api/tsconfig.json). Its real, authoritative check is
+  // isolated linking) plus Cloudflare Workers' generated runtime globals
+  // (created by `wrangler types` in the API app). Its authoritative check is
   // `pnpm --filter ./apps/api typecheck`, run explicitly by
   // validate-client-template.mjs.
   "exclude": ["apps/api/src/**/*.ts"]

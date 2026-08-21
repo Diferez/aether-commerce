@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const currencySchema = z.literal("USD");
+export const currencySchema = z.string().regex(/^[A-Z]{3}$/, "currency must be an ISO 4217 code");
 
 export const productVariantSchema = z.object({
   id: z.string().min(1),

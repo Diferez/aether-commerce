@@ -19,7 +19,7 @@ import { StorefrontLink } from "./StorefrontLink";
 export function CartPage() {
   const { locale, t } = useLanguage();
   const router = useRouter();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
   const storefrontPath = useStorefrontPath();
   const {
     getCartId,
@@ -302,7 +302,7 @@ export function CartPage() {
                       {item.name}
                     </StorefrontLink>
                     <p className="mt-1 text-sm text-zinc-500">
-                      {formatMoney(item.finalUnitPrice, "USD", locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
+                      {formatMoney(item.finalUnitPrice, item.currency, locale === "es" ? "es-CO" : "en-US")} {t.qty.toLowerCase()}
                     </p>
                     {outOfStock ? (
                       <Badge tone="danger" className="mt-2">
@@ -343,7 +343,7 @@ export function CartPage() {
                     </div>
                   </div>
                   <div className="grid justify-items-end gap-3">
-                    <strong className="text-zinc-950">{formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">{formatMoney(item.lineTotal, item.currency, locale === "es" ? "es-CO" : "en-US")}</strong>
                     <button
                       type="button"
                       onClick={() => void removeItem(item.slug, item.name)}
@@ -366,10 +366,10 @@ export function CartPage() {
         <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-5 lg:sticky lg:top-24">
           <h2 className="text-lg font-semibold text-zinc-950">{t.summary}</h2>
           <dl className="mt-4 grid gap-2 text-sm">
-            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatMoney(cart?.totals.subtotal ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatMoney(cart?.totals.discount ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatMoney(cart?.totals.shipping ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
-            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatMoney(cart?.totals.total ?? 0, "USD", locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.subtotal}</dt><dd>{formatMoney(cart?.totals.subtotal ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.discount}</dt><dd>-{formatMoney(cart?.totals.discount ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between"><dt>{t.shipping}</dt><dd>{formatMoney(cart?.totals.shipping ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
+            <div className="flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold"><dt>{t.total}</dt><dd>{formatMoney(cart?.totals.total ?? 0, cart?.totals.currency ?? config.store.currency, locale === "es" ? "es-CO" : "en-US")}</dd></div>
           </dl>
           <div className="mt-5 grid gap-3">
             <div className="grid gap-1.5">

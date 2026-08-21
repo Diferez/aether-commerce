@@ -89,7 +89,7 @@ export function FavoritesPage() {
                   </div>
                   <p className="line-clamp-2 text-sm leading-6 text-zinc-600">{localized.description}</p>
                   <div className="flex items-center justify-between gap-3">
-                    <strong className="text-zinc-950">{formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}</strong>
+                    <strong className="text-zinc-950">{formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}</strong>
                     <div className="flex gap-2">
                       <Button
                         type="button"

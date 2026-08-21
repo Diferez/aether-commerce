@@ -89,7 +89,7 @@ export const integrationConfigSchema = z
       .object({ provider: z.literal("cloudinary") })
       .strict(),
     payments: z
-      .object({ provider: z.literal("stripe") })
+      .object({ provider: z.enum(["stripe", "wompi"]) })
       .strict()
   })
   .strict();

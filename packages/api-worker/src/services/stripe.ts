@@ -134,7 +134,7 @@ async function createStripeCheckoutSession(
 
   cart.items.forEach((item, index) => {
     params.set(`line_items[${index}][quantity]`, String(item.quantity));
-    params.set(`line_items[${index}][price_data][currency]`, "usd");
+    params.set(`line_items[${index}][price_data][currency]`, cart.totals.currency.toLowerCase());
     params.set(`line_items[${index}][price_data][unit_amount]`, String(item.finalUnitPrice));
     params.set(`line_items[${index}][price_data][product_data][name]`, item.name);
   });

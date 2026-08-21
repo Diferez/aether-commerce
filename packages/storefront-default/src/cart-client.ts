@@ -95,7 +95,7 @@ export function createCartClient(apiBaseUrl: string) {
       unitPrice: product.price,
       finalUnitPrice,
       lineTotal: finalUnitPrice,
-      currency: "USD"
+      currency: product.currency
     };
   }
 

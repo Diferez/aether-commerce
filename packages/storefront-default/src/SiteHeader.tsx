@@ -30,7 +30,9 @@ function useQueryParam(name: string) {
 export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
   const { locale, setLocale, t } = useLanguage();
   const router = useRouter();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
+  const wishlistEnabled = config.features.wishlist;
+  const accountsEnabled = config.features.customerAccounts;
   const storefrontPath = useStorefrontPath();
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const { customer, isLoaded: customerLoaded } = useCustomerSession();
@@ -124,12 +126,12 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
   // catches up - that two-step read is what was showing a different count
   // for a moment, i.e. the header "changing twice" on every navigation.
   useLayoutEffect(() => {
-    if (!customerLoaded) return;
+    if (!wishlistEnabled || !customerLoaded) return;
     const syncFavorites = () => setFavoriteCount(readFavoriteProducts(customer?.id ?? null).length);
     syncFavorites();
     window.addEventListener("aether-favorites-changed", syncFavorites);
     return () => window.removeEventListener("aether-favorites-changed", syncFavorites);
-  }, [customerLoaded, customer]);
+  }, [wishlistEnabled, customerLoaded, customer]);
 
   const accountPending = !customerLoaded;
   const accountHref = customer ? "/account" : "/login";
@@ -187,7 +189,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
           <StorefrontLink href="/categories" className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink">
             {t.categories}
           </StorefrontLink>
-          <StorefrontLink
+          {wishlistEnabled ? <StorefrontLink
             href="/account/favorites"
             className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
             aria-label={t.favorites}
@@ -201,7 +203,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
             <Badge tone="accent" className={favoriteCount > 0 ? "" : "invisible"}>
               {favoriteCount}
             </Badge>
-          </StorefrontLink>
+          </StorefrontLink> : null}
           <StorefrontLink
             href="/compare"
             className="focus-ring relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-hover hover:text-ink"
@@ -225,7 +227,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
         </nav>
 
         <SettingsMenu locale={locale} setLocale={setLocale} {...(portfolioUrl !== undefined ? { portfolioUrl } : {})} />
-        {accountPending ? (
+        {!accountsEnabled ? null : accountPending ? (
           <span
             aria-hidden="true"
             className="hidden min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold text-ink lg:inline-flex"
@@ -328,7 +330,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
               >
                 {t.categories}
               </StorefrontLink>
-              <StorefrontLink
+              {wishlistEnabled ? <StorefrontLink
                 href="/account/favorites"
                 onClick={() => setMenuOpen(false)}
                 className="focus-ring inline-flex min-h-11 items-center justify-between gap-3 rounded-md border border-border px-3 text-sm font-semibold text-ink hover:bg-surface-hover"
@@ -338,7 +340,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
                   {t.favorites}
                 </span>
                 {favoriteCount > 0 ? <Badge tone="accent">{favoriteCount}</Badge> : null}
-              </StorefrontLink>
+              </StorefrontLink> : null}
               <StorefrontLink
                 href="/compare"
                 onClick={() => setMenuOpen(false)}
@@ -363,7 +365,7 @@ export function SiteHeader({ portfolioUrl }: { portfolioUrl?: string }) {
               </StorefrontLink>
             </nav>
             <div className="grid gap-2 sm:grid-cols-2">
-              {accountPending ? (
+              {!accountsEnabled ? null : accountPending ? (
                 <span
                   aria-hidden="true"
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent/70 px-3 text-sm font-semibold text-white"

@@ -45,7 +45,11 @@ jobs:
       - name: Typecheck, lint, unit and contract tests, and OpenAPI
         run: pnpm validate
       - name: Verify release metadata
-        run: pnpm changeset status
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          pnpm check:changesets
+          pnpm changeset status
       - name: Validate LangGraph assistant
         run: |
           pnpm --filter @aether/ai-assistant typecheck

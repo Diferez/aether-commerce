@@ -186,7 +186,7 @@ export function OrdersPage() {
                     <p className="mt-1 text-sm text-zinc-500">{new Date(order.createdAt).toLocaleString(locale === "es" ? "es-CO" : "en-US")}</p>
                   </div>
                   <strong className="text-lg text-zinc-950">
-                    {formatMoney(order.totals.total, "USD", locale === "es" ? "es-CO" : "en-US")}
+                    {formatMoney(order.totals.total, order.totals.currency, locale === "es" ? "es-CO" : "en-US")}
                   </strong>
                 </div>
                 <div className="mt-4 grid gap-3">
@@ -196,7 +196,7 @@ export function OrdersPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-zinc-950">{item.name}</p>
                         <p className="text-sm text-zinc-500">
-                          {t.qty} {item.quantity} · {formatMoney(item.lineTotal, "USD", locale === "es" ? "es-CO" : "en-US")}
+                          {t.qty} {item.quantity} · {formatMoney(item.lineTotal, item.currency, locale === "es" ? "es-CO" : "en-US")}
                         </p>
                       </div>
                     </div>

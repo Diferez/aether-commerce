@@ -1091,7 +1091,7 @@ adminRoutes.put(
 adminRoutes.get("/platform/version", requirePermission("platform.deploy"), async (c) => {
   const credentials = requireCompleteCredentials(await resolvePlatformDeployCredentials(c.env));
   const [latestCommitSha, latestPackageVersion] = credentials
-    ? await Promise.all([getLatestCommitSha(credentials), getLatestPublishedPackageVersion(credentials)])
+    ? await Promise.all([getLatestCommitSha(credentials), getLatestPublishedPackageVersion(credentials, "api-worker", c.env.AETHER_PACKAGE_OWNER)])
     : [null, null];
 
   return ok(c, {

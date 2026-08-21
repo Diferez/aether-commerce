@@ -2,6 +2,8 @@
   "name": "@aether/agent-core",
   "version": "0.1.0",
   "private": false,
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": { "type": "git", "url": "git+https://github.com/Diferez/aether-commerce.git", "directory": "packages/agent-core" },
   "type": "module",
   "files": ["dist"],
   "main": "./dist/index.js",
