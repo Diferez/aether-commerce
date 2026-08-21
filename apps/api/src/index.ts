@@ -1,13 +1,5 @@
 import { withSentry } from "@sentry/cloudflare";
-import {
-  buildSentryOptions,
-  createApiApp,
-  recordTaskRun,
-  runScheduledMaintenance,
-  sendDueRestockNotifications,
-  sendLowStockAlerts,
-  type Env
-} from "@aether/api-worker";
+import { buildSentryOptions, createApiApp, runScheduledTasks, type Env } from "@aether/api-worker";
 
 const app = createApiApp();
 
@@ -20,31 +12,6 @@ export default withSentry(buildSentryOptions, {
   fetch: app.fetch,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx must be declared so withSentry's real 3-arg ExecutionContext type is preserved (see index.test.ts)
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext) {
-    try {
-      await runScheduledMaintenance(env);
-      // "System health" reads this back to flag a critical task that's gone
-      // stale (see health-status.ts's scheduledTasks component) - recorded
-      // regardless of whether any row actually needed expiring.
-      await recordTaskRun(env, "inventory_reservation_expiry", "ok");
-    } catch (error) {
-      await recordTaskRun(env, "inventory_reservation_expiry", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
-      throw error;
-    }
-
-    try {
-      await sendDueRestockNotifications(env);
-      await recordTaskRun(env, "restock_notifications", "ok");
-    } catch (error) {
-      await recordTaskRun(env, "restock_notifications", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
-      throw error;
-    }
-
-    try {
-      await sendLowStockAlerts(env);
-      await recordTaskRun(env, "low_stock_alerts", "ok");
-    } catch (error) {
-      await recordTaskRun(env, "low_stock_alerts", "failed", error instanceof Error ? error.message.slice(0, 200) : "Unknown error");
-      throw error;
-    }
+    await runScheduledTasks(env);
   }
 } satisfies ExportedHandler<Env>);
