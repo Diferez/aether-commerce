@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sheet } from "@aether/ui";
+import { Sheet } from "@aether-commerce/ui";
 import { Send, Sparkles, X } from "lucide-react";
 import { useAdminChat } from "./AdminChatProvider";
 import { MessageList } from "./MessageList";
 import { StatusIndicator } from "./StatusIndicator";
 import { buildChatRequestContext } from "./useAdminChatContext";
 import { useAdminLanguage } from "../AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ChatStatusPhase } from "./types";
 
 function getSuggestionsByModule(t: AdminDictionary): Record<string, string[]> {

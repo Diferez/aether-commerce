@@ -1,5 +1,5 @@
-import { humanizeCategorySlug } from "@aether/core";
-import { ProductGrid } from "@aether/storefront-default";
+import { humanizeCategorySlug } from "@aether-commerce/core";
+import { ProductGrid } from "@aether-commerce/storefront-default";
 
 // Static export needs generateStaticParams to know which category pages to
 // pre-render at build time, and "output: export" refuses to emit zero pages

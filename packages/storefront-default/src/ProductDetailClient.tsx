@@ -4,10 +4,10 @@ import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { Heart, MessageCircle, Minus, Plus, Scale, ShoppingBag, Star } from "lucide-react";
-import type { BrandSettings } from "@aether/core";
-import type { Product } from "@aether/schemas";
-import { formatUsd } from "@aether/core";
-import { Badge, Button } from "@aether/ui";
+import type { BrandSettings } from "@aether-commerce/core";
+import type { Product } from "@aether-commerce/schemas";
+import { formatMoney } from "@aether-commerce/core";
+import { Badge, Button } from "@aether-commerce/ui";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
 import { createCartClient } from "./cart-client";
 import { useFavorites } from "./FavoritesProvider";
@@ -29,7 +29,7 @@ export function ProductDetailClient({
   fallbackProduct?: Product | null;
 }) {
   const { locale, t } = useLanguage();
-  const { apiBaseUrl } = useStorefrontConfig();
+  const { config, apiBaseUrl } = useStorefrontConfig();
   const cartClient = useMemo(() => createCartClient(apiBaseUrl), [apiBaseUrl]);
   const { isFavorite: checkIsFavorite, toggleFavorite: toggleFavoriteHook } = useFavorites();
   const { isComparing, toggle: toggleCompareHook } = useCompare();
@@ -242,10 +242,10 @@ export function ProductDetailClient({
             )}
 
             <div className="mt-4 flex items-baseline gap-3">
-              <p className="text-3xl font-semibold text-zinc-950">{formatUsd(product.finalPrice, locale === "es" ? "es-CO" : "en-US")}</p>
+              <p className="text-3xl font-semibold text-zinc-950">{formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}</p>
               {product.originalPrice ? (
                 <>
-                  <p className="text-base text-zinc-500 line-through">{formatUsd(product.originalPrice, locale === "es" ? "es-CO" : "en-US")}</p>
+                  <p className="text-base text-zinc-500 line-through">{formatMoney(product.originalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}</p>
                   <Badge tone="accent">-{product.discountPercentage}%</Badge>
                 </>
               ) : null}
@@ -345,7 +345,7 @@ export function ProductDetailClient({
                   {locale === "es" ? "Comprar ahora" : "Buy now"}
                 </Button>
               ) : null}
-              <Button
+              {config.features.wishlist ? <Button
                 type="button"
                 variant="outline"
                 onClick={toggleFavorite}
@@ -353,7 +353,7 @@ export function ProductDetailClient({
                 className={isFavorite ? "!border-rose-300 !bg-rose-50 !text-rose-700" : undefined}
               >
                 <Heart size={17} fill={isFavorite ? "currentColor" : "none"} aria-hidden />
-              </Button>
+              </Button> : null}
               <Button
                 type="button"
                 variant="outline"
@@ -397,7 +397,7 @@ export function ProductDetailClient({
             </div>
           ) : null}
 
-          {brand?.features.reviews === false ? null : <ReviewsSection productId={product.id} slug={product.slug} />}
+          {!config.features.reviews || brand?.features.reviews === false ? null : <ReviewsSection productId={product.id} slug={product.slug} />}
           </section>
         )}
       </div>

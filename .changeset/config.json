@@ -5,5 +5,5 @@
   "access": "restricted",
   "baseBranch": "develop",
   "updateInternalDependencies": "patch",
-  "ignore": ["@aether/admin", "@aether/api", "@aether/storefront", "@aether/config", "@aether/testing", "@aether/types"]
+  "ignore": ["@aether-commerce/admin", "@aether-commerce/api", "@aether-commerce/storefront", "@aether-commerce/config", "@aether-commerce/testing", "@aether-commerce/types"]
 }

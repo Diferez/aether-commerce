@@ -1,6 +1,6 @@
-import type { Cart } from "@aether/schemas";
-import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession } from "@aether/api-core";
-import { ExternalServiceError, OBSERVABILITY_EVENTS, PaymentError } from "@aether/core";
+import type { Cart } from "@aether-commerce/schemas";
+import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession } from "@aether-commerce/api-core";
+import { ExternalServiceError, OBSERVABILITY_EVENTS, PaymentError } from "@aether-commerce/core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 import { getLogger } from "./observability";
@@ -134,7 +134,7 @@ async function createStripeCheckoutSession(
 
   cart.items.forEach((item, index) => {
     params.set(`line_items[${index}][quantity]`, String(item.quantity));
-    params.set(`line_items[${index}][price_data][currency]`, "usd");
+    params.set(`line_items[${index}][price_data][currency]`, cart.totals.currency.toLowerCase());
     params.set(`line_items[${index}][price_data][unit_amount]`, String(item.finalUnitPrice));
     params.set(`line_items[${index}][price_data][product_data][name]`, item.name);
   });

@@ -7,7 +7,7 @@ import type {
   Order,
   Product,
   ProductQuery
-} from "@aether/schemas";
+} from "@aether-commerce/schemas";
 
 export type CommerceClientOptions = {
   baseUrl: string;

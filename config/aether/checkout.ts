@@ -1,4 +1,4 @@
-import { checkoutConfigSchema } from "@aether/config-schema";
+import { checkoutConfigSchema } from "@aether-commerce/config-schema";
 
 export const aetherCheckoutConfig = checkoutConfigSchema.parse({
   mode: "stripe",

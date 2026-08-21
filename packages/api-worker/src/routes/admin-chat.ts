@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether/core";
+import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { buildClientVisibleContext, type AdminChatContext } from "../services/admin-chat/context";

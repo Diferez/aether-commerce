@@ -1,6 +1,6 @@
 "use client";
 
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 
 // Local-only: the real GET/POST/DELETE /compare routes require a signed-in
 // session, but comparing products is a low-commitment, pre-purchase action a

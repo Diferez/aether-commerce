@@ -1,5 +1,5 @@
 {
-  "name": "@aether/admin",
+  "name": "@aether-commerce/admin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,13 @@
     "lint": "eslint app components"
   },
   "dependencies": {
-    "@aether/admin-default": "workspace:*",
-    "@aether/api-client": "workspace:*",
-    "@aether/config-schema": "workspace:*",
-    "@aether/core": "workspace:^",
-    "@aether/i18n": "workspace:*",
-    "@aether/schemas": "workspace:*",
-    "@aether/ui": "workspace:*",
+    "@aether-commerce/admin-default": "workspace:*",
+    "@aether-commerce/api-client": "workspace:*",
+    "@aether-commerce/config-schema": "workspace:*",
+    "@aether-commerce/core": "workspace:^",
+    "@aether-commerce/i18n": "workspace:*",
+    "@aether-commerce/schemas": "workspace:*",
+    "@aether-commerce/ui": "workspace:*",
     "@clerk/react": "^6.12.3",
     "@sentry/react": "10.70.0",
     "@tanstack/react-query": "^5.90.0",

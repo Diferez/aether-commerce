@@ -1,4 +1,4 @@
-import { integrationConfigSchema } from "@aether/config-schema";
+import { integrationConfigSchema } from "@aether-commerce/config-schema";
 
 export const aetherIntegrationConfig = integrationConfigSchema.parse({
   api: {

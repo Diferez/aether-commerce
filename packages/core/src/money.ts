@@ -1,4 +1,4 @@
-import type { CartItem, CartTotals, Coupon } from "@aether/schemas";
+import type { CartItem, CartTotals, Coupon } from "@aether-commerce/schemas";
 
 export function clampCents(value: number): number {
   if (!Number.isFinite(value)) {

@@ -1,1 +1,1 @@
-export { DataTable, type Column, type TableSelection } from "@aether/admin-default";
+export { DataTable, type Column, type TableSelection } from "@aether-commerce/admin-default";

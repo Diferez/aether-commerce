@@ -1,4 +1,4 @@
-import { brandConfigSchema } from "@aether/config-schema";
+import { brandConfigSchema } from "@aether-commerce/config-schema";
 
 /** Aether demo branding; client stores replace this module, never platform packages. */
 export const aetherBrandConfig = brandConfigSchema.parse({

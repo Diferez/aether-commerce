@@ -1,1 +1,1 @@
-export { WhatsappNumberInput } from "@aether/admin-default";
+export { WhatsappNumberInput } from "@aether-commerce/admin-default";

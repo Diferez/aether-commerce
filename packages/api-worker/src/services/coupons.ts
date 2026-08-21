@@ -1,4 +1,4 @@
-import { CouponService, type CouponRepository } from "@aether/api-core";
+import { CouponService, type CouponRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for coupon administration. */
 export function createCouponService(db: D1Database): CouponService {

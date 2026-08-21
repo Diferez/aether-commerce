@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AdminSidebar, AdminTopBar, AdminChatProvider, AdminChatTrigger, AdminChatPanel, MobileNav, CommandMenu } from "@aether/admin-default";
+import { AdminSidebar, AdminTopBar, AdminChatProvider, AdminChatTrigger, AdminChatPanel, MobileNav, CommandMenu } from "@aether-commerce/admin-default";
 
 const sidebarStorageKey = "admin.sidebar.v1";
 
@@ -9,7 +9,7 @@ const sidebarStorageKey = "admin.sidebar.v1";
  * Default admin shell (sidebar + top bar + command menu + Aether Chat) -
  * wraps every route via app/layout.tsx. Keep as-is, or replace with your
  * own; every piece it composes (AdminSidebar, AdminTopBar, ...) can also be
- * imported individually from @aether/admin-default if you only want to
+ * imported individually from @aether-commerce/admin-default if you only want to
  * restyle part of the shell.
  *
  * Deliberately near-identical to apps/admin/components/AdminShell.tsx in

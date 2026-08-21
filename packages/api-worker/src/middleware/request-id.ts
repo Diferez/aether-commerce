@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { createRequestId } from "@aether/observability";
+import { createRequestId } from "@aether-commerce/observability";
 import type { AppBindings } from "../types";
 
 // Establishes the one id every log line, audit entry, Sentry event, and

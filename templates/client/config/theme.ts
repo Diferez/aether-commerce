@@ -1,4 +1,4 @@
-import { themeConfigSchema } from "@aether/config-schema";
+import { themeConfigSchema } from "@aether-commerce/config-schema";
 
 export const themeConfig = themeConfigSchema.parse({
   primary: "#000000",

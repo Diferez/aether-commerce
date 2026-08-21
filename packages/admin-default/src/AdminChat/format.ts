@@ -1,5 +1,5 @@
 import type { StatusTone } from "../StatusBadge";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 import type { ActivityItemArtifact } from "./types";
 
 // Same formatting/tone conventions as app/products/page.tsx and

@@ -37,6 +37,8 @@ jobs:
       # transitive dependency during CI install.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Synchronize Aether database migrations
+        run: pnpm aether:migrations
       # Gate before any deploy step runs - wrangler types+tsc for apps/api
       # needs no live Cloudflare auth (it only reads wrangler.jsonc locally),
       # same for admin/storefront's next.config-driven typecheck.

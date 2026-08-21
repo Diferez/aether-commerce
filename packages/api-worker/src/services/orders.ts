@@ -1,13 +1,14 @@
-import { canTransitionOrder, OBSERVABILITY_EVENTS } from "@aether/core";
-import type { CheckoutProviderId, PaidCheckoutSession } from "@aether/api-core";
-import { orderStateSchema } from "@aether/schemas";
-import type { Address, Cart, CartItem, OrderState } from "@aether/schemas";
+import { canTransitionOrder, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
+import type { CheckoutProviderId, PaidCheckoutSession } from "@aether-commerce/api-core";
+import { orderStateSchema } from "@aether-commerce/schemas";
+import type { Address, Cart, CartItem, OrderState } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 import { clearCatalogCache, getProductById } from "./catalog";
 import { buildStockDecrementStatements, convertCartReservations, getAvailableStock } from "./inventory";
 import { getLogger } from "./observability";
 import { completeCheckoutSnapshotStatement, loadCheckoutSnapshot } from "./checkout-snapshots";
 import { sendOrderEmail } from "./email";
+import { getRuntimeStoreConfig } from "./store-config";
 
 export type OrderTrackingColumns = {
   tracking_carrier: string | null;
@@ -74,7 +75,7 @@ function demoShippingAddress(env: Env, email: string): Address {
     city: "Demo City",
     region: "Demo",
     postalCode: "00000",
-    country: "US"
+    country: getRuntimeStoreConfig(env).country
   };
 }
 
@@ -272,6 +273,7 @@ export async function createManualOrder(
     return { error: "empty_items" };
   }
 
+  const { currency } = getRuntimeStoreConfig(env);
   const items: CartItem[] = [];
   const stockItems: Array<{ productId: string; sku: string; quantity: number }> = [];
   for (const line of input.items) {
@@ -298,7 +300,7 @@ export async function createManualOrder(
       unitPrice: product.finalPrice,
       finalUnitPrice: product.finalPrice,
       lineTotal: product.finalPrice * quantity,
-      currency: "USD"
+      currency
     });
     stockItems.push({ productId: product.id, sku: product.sku, quantity });
   }
@@ -317,7 +319,7 @@ export async function createManualOrder(
     paymentStatus: "pending",
     fulfillmentStatus: "unfulfilled",
     items,
-    totals: { subtotal, discount: 0, shipping: 0, tax: 0, total: subtotal, currency: "USD" },
+    totals: { subtotal, discount: 0, shipping: 0, tax: 0, total: subtotal, currency },
     shippingAddress: demoShippingAddress(env, input.email),
     internalNotes: input.notes ?? null,
     tracking: null,
@@ -328,8 +330,8 @@ export async function createManualOrder(
   await env.DB.batch([
     env.DB.prepare(
       `insert into orders (id, number, user_id, email, state, channel, payment_status, fulfillment_status, internal_notes, payload_json, total, currency, created_at, updated_at)
-       values (?, ?, null, ?, 'pending_payment', 'whatsapp', 'pending', 'unfulfilled', ?, ?, ?, 'USD', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).bind(id, number, input.email, input.notes ?? null, JSON.stringify(order), subtotal),
+       values (?, ?, null, ?, 'pending_payment', 'whatsapp', 'pending', 'unfulfilled', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).bind(id, number, input.email, input.notes ?? null, JSON.stringify(order), subtotal, currency),
     env.DB.prepare(
       `insert into order_status_history (id, order_id, previous_state, new_state, actor_id, reason, request_id)
        values (?, ?, null, 'pending_payment', ?, 'manual_whatsapp_order', ?)`

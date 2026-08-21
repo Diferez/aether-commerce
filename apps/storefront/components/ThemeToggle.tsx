@@ -1,1 +1,1 @@
-export { ThemeToggle } from "@aether/storefront-default";
+export { ThemeToggle } from "@aether-commerce/storefront-default";

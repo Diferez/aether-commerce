@@ -6,7 +6,7 @@ import { Boxes, ClipboardList, CornerDownLeft, Plus, Search, UsersRound } from "
 import { getNavGroups } from "./nav-items";
 import { useAdminConfig } from "./AetherAdminProvider";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 type Option = { id: string; label: string; sublabel?: string; href: string; group: string; icon: typeof Search };
 

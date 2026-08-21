@@ -1,5 +1,5 @@
 {
-  "name": "@aether/api",
+  "name": "@aether-commerce/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -21,11 +21,11 @@
     "db:seed:remote": "wrangler d1 execute DB --remote --file ../../database/core/migrations/0002_seed_demo.sql --config ./wrangler.production.json && wrangler d1 execute DB --remote --file ../../database/core/migrations/0004_demo_operational_data.sql --config ./wrangler.production.json"
   },
   "dependencies": {
-    "@aether/core": "workspace:*",
-    "@aether/api-core": "workspace:*",
-    "@aether/api-worker": "workspace:*",
-    "@aether/observability": "workspace:*",
-    "@aether/schemas": "workspace:*",
+    "@aether-commerce/core": "workspace:*",
+    "@aether-commerce/api-core": "workspace:*",
+    "@aether-commerce/api-worker": "workspace:*",
+    "@aether-commerce/observability": "workspace:*",
+    "@aether-commerce/schemas": "workspace:*",
     "@hono/zod-validator": "^0.8.0",
     "@langchain/core": "1.2.5",
     "@langchain/google-genai": "2.2.0",

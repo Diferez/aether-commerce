@@ -1,1 +1,1 @@
-export { StickyFormActions } from "@aether/admin-default";
+export { StickyFormActions } from "@aether-commerce/admin-default";

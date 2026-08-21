@@ -1,3 +1,13 @@
 # Upgrading a client
 
-Update `@aether/*` versions, then run `pnpm install`, `pnpm typecheck` and `pnpm build`. Read release notes and apply documented config migrations; no cherry-picks from the demo are required.
+Client repositories receive grouped weekly Dependabot pull requests for `@aether-commerce/*`. An administrator can also run `.github/workflows/aether-update.yml` from GitHub or the platform settings screen; it updates all workspaces, runs `pnpm aether:migrations`, validates the client and opens a pull request only when something changed.
+
+For a manual upgrade:
+
+```sh
+pnpm update --recursive --latest "@aether-commerce/*"
+pnpm aether:migrations
+pnpm validate
+```
+
+The migration synchronizer only adds missing immutable migrations. It stops if a historical client file differs from the published source. Deployment synchronizes migrations again before applying them to D1, so application code cannot deploy ahead of its schema.

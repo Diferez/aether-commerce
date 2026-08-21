@@ -1,4 +1,4 @@
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 
 export const demoProducts: Product[] = [
   {

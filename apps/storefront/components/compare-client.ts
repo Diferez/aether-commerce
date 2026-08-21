@@ -4,5 +4,5 @@ export {
   toggleCompareProduct,
   removeCompareProduct,
   clearCompareProducts
-} from "@aether/storefront-default";
-export type { ToggleCompareResult } from "@aether/storefront-default";
+} from "@aether-commerce/storefront-default";
+export type { ToggleCompareResult } from "@aether-commerce/storefront-default";

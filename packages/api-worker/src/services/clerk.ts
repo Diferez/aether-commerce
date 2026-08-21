@@ -1,5 +1,5 @@
-import type { Actor, Role } from "@aether/schemas";
-import { OBSERVABILITY_EVENTS } from "@aether/core";
+import type { Actor, Role } from "@aether-commerce/schemas";
+import { OBSERVABILITY_EVENTS } from "@aether-commerce/core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 import { getLogger } from "./observability";

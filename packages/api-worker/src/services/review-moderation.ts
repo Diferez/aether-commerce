@@ -1,4 +1,4 @@
-import { ReviewModerationService, type ReviewModerationRepository, type ReviewModerationStatus } from "@aether/api-core";
+import { ReviewModerationService, type ReviewModerationRepository, type ReviewModerationStatus } from "@aether-commerce/api-core";
 
 /**
  * D1 adapter for administrative review moderation. Joins in the product

@@ -1,1 +1,1 @@
-export { CommandMenu } from "@aether/admin-default";
+export { CommandMenu } from "@aether-commerce/admin-default";

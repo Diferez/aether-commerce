@@ -1,1 +1,1 @@
-export { WhatsappBubble } from "@aether/storefront-default";
+export { WhatsappBubble } from "@aether-commerce/storefront-default";

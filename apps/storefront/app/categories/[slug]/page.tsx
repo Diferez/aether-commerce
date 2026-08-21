@@ -1,4 +1,4 @@
-import { humanizeCategorySlug } from "@aether/core";
+import { humanizeCategorySlug } from "@aether-commerce/core";
 import { ProductGrid } from "../../../components/ProductGrid";
 import { demoProducts } from "../../../components/demo-products";
 

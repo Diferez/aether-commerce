@@ -1,5 +1,5 @@
 /**
  * @deprecated Client configuration now belongs to each implementation. Import
- * contracts from `@aether/config-schema` and provide values from `config/`.
+ * contracts from `@aether-commerce/config-schema` and provide values from `config/`.
  */
-export * from "@aether/config-schema";
+export * from "@aether-commerce/config-schema";

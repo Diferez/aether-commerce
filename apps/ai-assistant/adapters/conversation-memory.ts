@@ -1,7 +1,7 @@
 import {
   AgentConversationMemory,
   type AgentConversationMemoryRepository
-} from "@aether/agent-core";
+} from "@aether-commerce/agent-core";
 
 type D1Database = {
   prepare(query: string): D1PreparedStatement;

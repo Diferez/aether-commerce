@@ -1,6 +1,6 @@
 "use client";
 
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 
 // Versioned for the same reason as cart-client.ts's keys.
 const guestFavoritesKey = "aether.favoritesItems.guest.dummyjson.v1";

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { OBSERVABILITY_EVENTS } from "@aether/core";
+import { OBSERVABILITY_EVENTS } from "@aether-commerce/core";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { getLogger } from "../services/observability";

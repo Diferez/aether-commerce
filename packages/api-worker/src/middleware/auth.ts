@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { MiddlewareHandler } from "hono";
-import type { Actor, Permission, Role } from "@aether/schemas";
-import { OBSERVABILITY_EVENTS, permissionsForRoles } from "@aether/core";
+import type { Actor, Permission, Role } from "@aether-commerce/schemas";
+import { OBSERVABILITY_EVENTS, permissionsForRoles } from "@aether-commerce/core";
 import type { AppBindings } from "../types";
 import { getLogger } from "../services/observability";
 

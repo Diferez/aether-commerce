@@ -1,7 +1,7 @@
 import {
   CustomerPreferencesService,
   type CustomerPreferencesRepository
-} from "@aether/api-core";
+} from "@aether-commerce/api-core";
 
 function parseProductIds(value: string | undefined): string[] {
   if (!value) return [];

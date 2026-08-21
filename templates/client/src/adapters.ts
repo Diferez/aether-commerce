@@ -1,4 +1,4 @@
-import type { ClientConfiguration } from "@aether/config-schema";
+import type { ClientConfiguration } from "@aether-commerce/config-schema";
 
 /**
  * Stable, framework-neutral inputs for a client implementation's four app

@@ -1,6 +1,6 @@
 "use client";
 
-import { HomePage } from "@aether/storefront-default";
+import { HomePage } from "@aether-commerce/storefront-default";
 import { ContactForm } from "../components/ContactForm";
 import { legalPolicyVersion } from "../components/legal-content";
 

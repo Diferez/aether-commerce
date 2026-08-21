@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * @aether/admin-default and @aether/ui ship the actual styled UI (the
+ * @aether-commerce/admin-default and @aether-commerce/ui ship the actual styled UI (the
  * default skin) but live outside this app's directory tree, and their
  * compiled dist/ output is gitignored - Tailwind's automatic content
  * detection doesn't reach either, so real classes used only inside those

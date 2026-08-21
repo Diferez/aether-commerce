@@ -1,5 +1,5 @@
 {
-  "name": "@aether/ai-assistant",
+  "name": "@aether-commerce/ai-assistant",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "test": "vitest run --root ../.. apps/ai-assistant/assistant.test.ts"
   },
   "dependencies": {
-    "@aether/core": "workspace:*",
+    "@aether-commerce/core": "workspace:*",
     "@langchain/core": "1.2.5",
     "@langchain/google-genai": "2.2.0",
     "@langchain/langgraph": "1.4.8",

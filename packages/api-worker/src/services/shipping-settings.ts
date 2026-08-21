@@ -1,4 +1,4 @@
-import { ShippingSettingsService, type ShippingSettingsRepository } from "@aether/api-core";
+import { ShippingSettingsService, type ShippingSettingsRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for persisted shipping configuration. */
 export function createShippingSettingsService(db: D1Database): ShippingSettingsService {

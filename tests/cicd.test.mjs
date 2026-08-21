@@ -51,9 +51,9 @@ test("deployments wait for a successful CI run and deploy its exact SHA", () => 
 
 test("CI builds and tests the Cloudflare LangGraph assistant", () => {
   const workflow = read(".github/workflows/ci.yml");
-  assert.match(workflow, /@aether\/ai-assistant typecheck/);
-  assert.match(workflow, /@aether\/ai-assistant test/);
-  assert.match(workflow, /@aether\/ai-assistant build/);
+  assert.match(workflow, /@aether-commerce\/ai-assistant typecheck/);
+  assert.match(workflow, /@aether-commerce\/ai-assistant test/);
+  assert.match(workflow, /@aether-commerce\/ai-assistant build/);
   assert.doesNotMatch(workflow, /docker build -t aether-ai-assistant/);
 });
 

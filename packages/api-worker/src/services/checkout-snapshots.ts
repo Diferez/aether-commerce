@@ -1,4 +1,4 @@
-import type { Cart } from "@aether/schemas";
+import type { Cart } from "@aether-commerce/schemas";
 import type { Env } from "../types";
 
 const CHECKOUT_SNAPSHOT_TTL_MINUTES = 60;

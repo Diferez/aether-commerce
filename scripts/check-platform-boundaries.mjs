@@ -4,19 +4,19 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const policies = new Map([
-  ["api-client", new Set(["@aether/schemas"])],
-  ["api-core", new Set(["@aether/core", "@aether/schemas"])],
-  ["api-worker", new Set(["@aether/core", "@aether/api-core", "@aether/observability", "@aether/schemas"])],
-  ["agent-core", new Set(["@aether/core", "@aether/schemas", "@aether/observability"])],
-  ["config", new Set(["@aether/config-schema"])],
+  ["api-client", new Set(["@aether-commerce/schemas"])],
+  ["api-core", new Set(["@aether-commerce/core", "@aether-commerce/schemas"])],
+  ["api-worker", new Set(["@aether-commerce/core", "@aether-commerce/api-core", "@aether-commerce/observability", "@aether-commerce/schemas"])],
+  ["agent-core", new Set(["@aether-commerce/core", "@aether-commerce/schemas", "@aether-commerce/observability"])],
+  ["config", new Set(["@aether-commerce/config-schema"])],
   ["config-schema", new Set()],
-  ["core", new Set(["@aether/schemas"])],
+  ["core", new Set(["@aether-commerce/schemas"])],
   ["i18n", new Set()],
   ["observability", new Set()],
   ["schemas", new Set()],
-  ["storefront-default", new Set(["@aether/api-client", "@aether/config-schema", "@aether/core", "@aether/schemas", "@aether/ui"])],
-  ["admin-default", new Set(["@aether/config-schema", "@aether/schemas", "@aether/i18n", "@aether/ui", "@aether/core"])],
-  ["ui", new Set(["@aether/core", "@aether/schemas"])],
+  ["storefront-default", new Set(["@aether-commerce/api-client", "@aether-commerce/config-schema", "@aether-commerce/core", "@aether-commerce/schemas", "@aether-commerce/ui"])],
+  ["admin-default", new Set(["@aether-commerce/config-schema", "@aether-commerce/schemas", "@aether-commerce/i18n", "@aether-commerce/ui", "@aether-commerce/core"])],
+  ["ui", new Set(["@aether-commerce/core", "@aether-commerce/schemas"])],
 ]);
 
 function files(directory) {
@@ -28,16 +28,16 @@ function files(directory) {
 }
 
 const violations = [];
-const normalizePackageImport = (value) => value.match(/^@aether\/[^/]+/)?.[0] ?? value;
+const normalizePackageImport = (value) => value.match(/^@aether-commerce\/[^/]+/)?.[0] ?? value;
 for (const [packageName, allowed] of policies) {
   const source = resolve(root, "packages", packageName, "src");
   for (const file of files(source)) {
     const content = readFileSync(file, "utf8");
-    const imports = [...content.matchAll(/(?:from|import)\s*\(?\s*["'](@aether\/[^"']+)["']/g)].map((match) => match[1]);
+    const imports = [...content.matchAll(/(?:from|import)\s*\(?\s*["'](@aether-commerce\/[^"']+)["']/g)].map((match) => match[1]);
     for (const importedPath of imports) {
       const dependency = normalizePackageImport(importedPath);
       if (!allowed.has(dependency)) violations.push(`${file}: ${packageName} may not depend on ${dependency}`);
-      if (importedPath !== dependency && importedPath !== "@aether/ui/theme") {
+      if (importedPath !== dependency && importedPath !== "@aether-commerce/ui/theme") {
         violations.push(`${file}: platform packages must not import non-public subpaths (${importedPath})`);
       }
     }
@@ -52,7 +52,7 @@ for (const appName of ["admin", "api", "ai-assistant", "storefront"]) {
     if (/from\s*["'][^"']*\.\.\/\.\.\/packages\//.test(content)) {
       violations.push(`${file}: apps must consume a package public entrypoint instead of packages/ source`);
     }
-    if (/@aether\/[^"'\/]+\/src(?:\/|["'])/.test(content)) {
+    if (/@aether-commerce\/[^"'\/]+\/src(?:\/|["'])/.test(content)) {
       violations.push(`${file}: apps must not import a package src internal path`);
     }
     if (/from\s*["'][^"']*\.\.\/[^"']*apps\//.test(content)) {

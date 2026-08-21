@@ -1,5 +1,5 @@
-import type { Cart } from "@aether/schemas";
-import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession, type WompiWebhookPayload } from "@aether/api-core";
+import type { Cart } from "@aether-commerce/schemas";
+import { type CheckoutProvider, type CheckoutProviderCredentials, type PaidCheckoutSession, type WompiWebhookPayload } from "@aether-commerce/api-core";
 import type { Env } from "../types";
 import { timingSafeEqualText } from "./secure-compare";
 
@@ -142,7 +142,7 @@ async function createWompiCheckoutSession(
         description: `${env.BRAND_NAME ?? "Aether"} checkout for cart ${cart.id}`,
         single_use: true,
         collect_shipping: false,
-        currency: "COP",
+        currency: cart.totals.currency.toUpperCase(),
         amount_in_cents: amountInCents,
         reference: wompiReference(cart, checkoutSnapshotId),
         redirect_url: redirectUrl

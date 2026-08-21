@@ -41,7 +41,7 @@ function openUserMenuUnlessAlreadyOnTrigger(event: React.SyntheticEvent<HTMLElem
   event.currentTarget.querySelector<HTMLButtonElement>(".cl-userButtonTrigger")?.click();
 }
 
-function useModuleCounts(apiBaseUrl: string) {
+function useModuleCounts(apiBaseUrl: string, inventoryEnabled: boolean, reviewsEnabled: boolean) {
   const { getToken } = useAuth();
   const [counts, setCounts] = useState<{ pendingOrders: number | null; lowStock: number | null; pendingReviews: number | null }>({
     pendingOrders: null,
@@ -56,13 +56,13 @@ function useModuleCounts(apiBaseUrl: string) {
       const headers = token ? { authorization: `Bearer ${token}` } : {};
       const [ordersRes, stockRes, reviewsRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/admin/orders?fulfillmentStatus=unfulfilled&pageSize=1`, { headers }).catch(() => null),
-        fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=1`, { headers }).catch(() => null),
+        inventoryEnabled ? fetch(`${apiBaseUrl}/api/v1/admin/products?stock=low&pageSize=1`, { headers }).catch(() => null) : null,
         // No pageSize/pagination on this endpoint (see routes/admin.ts's
         // GET /reviews) - the count is just the array length. A 403 here
         // (an actor without reviews.moderate) falls through to null exactly
         // like the other two counts already do, hiding the badge rather
         // than showing a wrong number.
-        fetch(`${apiBaseUrl}/api/v1/admin/reviews?status=pending`, { headers }).catch(() => null)
+        reviewsEnabled ? fetch(`${apiBaseUrl}/api/v1/admin/reviews?status=pending`, { headers }).catch(() => null) : null
       ]);
       if (cancelled) return;
       const [ordersPayload, stockPayload, reviewsPayload] = await Promise.all([
@@ -80,20 +80,30 @@ function useModuleCounts(apiBaseUrl: string) {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, getToken]);
+  }, [apiBaseUrl, getToken, inventoryEnabled, reviewsEnabled]);
 
   return counts;
 }
 
 export function AdminSidebar({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
   const pathname = useCurrentPath();
-  const { apiBaseUrl, storefrontUrl } = useAdminConfig();
-  const counts = useModuleCounts(apiBaseUrl);
+  const { config, apiBaseUrl, storefrontUrl } = useAdminConfig();
+  const counts = useModuleCounts(apiBaseUrl, config.features.inventory, config.features.reviews);
   const brand = useBrand();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
   const { t } = useAdminLanguage();
-  const navGroups = getNavGroups(t);
+  const navGroups = getNavGroups(t)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.href === "/inventory/") return config.features.inventory;
+        if (item.href === "/reviews/") return config.features.reviews;
+        if (item.href === "/customers/") return config.features.customerAccounts;
+        return true;
+      })
+    }))
+    .filter((group) => group.items.length > 0);
   const isDemo = pathname.startsWith("/demo");
   const role = (user?.publicMetadata as { roles?: string[] } | undefined)?.roles?.[0];
 

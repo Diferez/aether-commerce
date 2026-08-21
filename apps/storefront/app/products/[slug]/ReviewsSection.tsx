@@ -1,1 +1,1 @@
-export { ReviewsSection } from "@aether/storefront-default";
+export { ReviewsSection } from "@aether-commerce/storefront-default";

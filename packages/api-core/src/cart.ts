@@ -1,5 +1,5 @@
-import { calculateCartTotals } from "@aether/core";
-import type { Cart, CartItem, CartItemInput, Coupon, Product } from "@aether/schemas";
+import { calculateCartTotals } from "@aether-commerce/core";
+import type { Cart, CartItem, CartItemInput, Coupon, Product } from "@aether-commerce/schemas";
 
 export function createEmptyCart(id: string, currency = "USD"): Cart {
   return {

@@ -11,7 +11,7 @@ import { EmptyState } from "./EmptyState";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 import { exportOrdersCsv } from "./admin-list-helpers";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 type ProductSummary = {
   id: string;

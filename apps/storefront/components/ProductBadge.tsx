@@ -1,1 +1,1 @@
-export { ProductBadge } from "@aether/storefront-default";
+export { ProductBadge } from "@aether-commerce/storefront-default";

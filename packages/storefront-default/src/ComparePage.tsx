@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Scale, ShoppingBag, Star, Trash2 } from "lucide-react";
-import { formatMoney } from "@aether/core";
-import type { Product } from "@aether/schemas";
-import { Badge, Button } from "@aether/ui";
+import { formatMoney } from "@aether-commerce/core";
+import type { Product } from "@aether-commerce/schemas";
+import { Badge, Button } from "@aether-commerce/ui";
 import { createCartClient } from "./cart-client";
 import { clearCompareProducts, readCompareProducts, removeCompareProduct } from "./compare-client";
 import { useStorefrontConfig } from "./AetherStorefrontProvider";
@@ -118,7 +118,7 @@ export function ComparePage() {
                 <th className="border-b border-zinc-100 p-4 font-medium text-zinc-500">{t.price}</th>
                 {products.map((product) => (
                   <td key={product.id} className="border-b border-zinc-100 p-4 font-semibold text-zinc-950">
-                    {formatMoney(product.finalPrice, "USD", locale === "es" ? "es-CO" : "en-US")}
+                    {formatMoney(product.finalPrice, product.currency, locale === "es" ? "es-CO" : "en-US")}
                   </td>
                 ))}
               </tr>

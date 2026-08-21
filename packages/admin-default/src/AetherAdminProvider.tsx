@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
-import type { ClientConfiguration } from "@aether/config-schema";
+import type { ClientConfiguration } from "@aether-commerce/config-schema";
 
 export type AdminRuntimeConfig = {
   /** Public config (brand, features, ...) - the admin slice of the same ClientConfiguration the storefront package reads (see templates/client/src/adapters.ts's existing "admin" slice: brand/features/api). */

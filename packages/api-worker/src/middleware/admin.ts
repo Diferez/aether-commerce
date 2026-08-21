@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
-import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether/core";
-import type { Permission } from "@aether/schemas";
+import { hasPermission, isDemoMutationBlocked, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
+import type { Permission } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail } from "../http";
 import { getLogger } from "../services/observability";

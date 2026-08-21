@@ -1,1 +1,1 @@
-export { ReviewsPage as default } from "@aether/admin-default";
+export { ReviewsPage as default } from "@aether-commerce/admin-default";

@@ -14,7 +14,7 @@ import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAdminLanguage } from "./AdminLanguageProvider";
-import type { AdminDictionary } from "@aether/i18n";
+import type { AdminDictionary } from "@aether-commerce/i18n";
 
 // Same reason as products/edit/page.tsx: output: "export" can't route a
 // dynamic [id] segment for runtime-created order ids, so ?id= is read from

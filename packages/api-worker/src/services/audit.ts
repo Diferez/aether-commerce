@@ -1,5 +1,5 @@
-import type { Actor } from "@aether/schemas";
-import { redact } from "@aether/core";
+import type { Actor } from "@aether-commerce/schemas";
+import { redact } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 export type AuditLogEntry = {

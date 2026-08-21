@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "../types";
-import { ExternalServiceError, OBSERVABILITY_EVENTS } from "@aether/core";
-import { parseStripeWebhookPayload, parseWompiWebhookPayload } from "@aether/api-core";
+import { ExternalServiceError, OBSERVABILITY_EVENTS } from "@aether-commerce/core";
+import { parseStripeWebhookPayload, parseWompiWebhookPayload } from "@aether-commerce/api-core";
 import { fail, ok } from "../http";
 import { verifyStripeSignature, mapStripeSessionToPaidCheckoutSession } from "../services/stripe";
 import { verifyWompiSignature, mapWompiTransactionToPaidCheckoutSession } from "../services/wompi";

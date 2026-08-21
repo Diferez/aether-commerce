@@ -2,8 +2,8 @@ import {
   PlatformDeploySettingsService,
   type PlatformDeployCredentials,
   type PlatformDeploySettingsRepository
-} from "@aether/api-core";
-import { decryptSecret, encryptSecret } from "@aether/core";
+} from "@aether-commerce/api-core";
+import { decryptSecret, encryptSecret } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 type StoredPlatformDeployCredentials = {

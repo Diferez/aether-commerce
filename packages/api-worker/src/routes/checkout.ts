@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { isCheckoutSessionPaid } from "@aether/api-core";
-import { addressSchema } from "@aether/schemas";
+import { isCheckoutSessionPaid } from "@aether-commerce/api-core";
+import { addressSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { fail, ok } from "../http";
 import { readCart, writeCart } from "../services/cart";
@@ -12,6 +12,7 @@ import { createOrderFromPaidSession } from "../services/orders";
 import { verifyCartToken } from "../services/cart-token";
 import { CHECKOUT_EXTENSION_MINUTES, extendCartReservations } from "../services/inventory";
 import { bindCheckoutSnapshotToSession, createCheckoutSnapshot } from "../services/checkout-snapshots";
+import { getRuntimeStoreConfig } from "../services/store-config";
 
 export const checkoutRoutes = new Hono<AppBindings>();
 
@@ -55,7 +56,15 @@ checkoutRoutes.post(
       const checkoutCart = await writeCart(c.env, {
         ...cart,
         userId: actor.userId,
-        ...(shippingAddress ? { shippingAddress: { ...shippingAddress, postalCode: shippingAddress.postalCode || "000000", country: "CO" } } : {})
+        ...(shippingAddress
+          ? {
+              shippingAddress: {
+                ...shippingAddress,
+                postalCode: shippingAddress.postalCode || "000000",
+                country: getRuntimeStoreConfig(c.env).country
+              }
+            }
+          : {})
       });
       await extendCartReservations(c.env, cartId, CHECKOUT_EXTENSION_MINUTES);
       const customerEmail = await resolveActorEmail(c.env, actor);

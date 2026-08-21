@@ -1,1 +1,1 @@
-export { ActivityPage as default } from "@aether/admin-default";
+export { ActivityPage as default } from "@aether-commerce/admin-default";

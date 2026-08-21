@@ -1,7 +1,9 @@
 {
-  "name": "@aether/storefront-default",
+  "name": "@aether-commerce/storefront-default",
   "version": "0.1.0",
   "private": false,
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": { "type": "git", "url": "git+https://github.com/Diferez/aether-commerce.git", "directory": "packages/storefront-default" },
   "type": "module",
   "files": ["dist"],
   "main": "./dist/index.js",
@@ -14,11 +16,11 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aether/api-client": "workspace:*",
-    "@aether/config-schema": "workspace:*",
-    "@aether/core": "workspace:*",
-    "@aether/schemas": "workspace:*",
-    "@aether/ui": "workspace:*",
+    "@aether-commerce/api-client": "workspace:*",
+    "@aether-commerce/config-schema": "workspace:*",
+    "@aether-commerce/core": "workspace:*",
+    "@aether-commerce/schemas": "workspace:*",
+    "@aether-commerce/ui": "workspace:*",
     "lucide-react": "^1.24.0"
   },
   "peerDependencies": {

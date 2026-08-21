@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { Product } from "@aether/schemas";
+import type { Product } from "@aether-commerce/schemas";
 import { readCompareProducts, toggleCompareProduct, removeCompareProduct, clearCompareProducts } from "./compare-client";
 import type { ToggleCompareResult } from "./compare-client";
 

@@ -1,4 +1,4 @@
-import { CustomerProfileService, type CustomerProfileRepository } from "@aether/api-core";
+import { CustomerProfileService, type CustomerProfileRepository } from "@aether-commerce/api-core";
 
 /** D1 adapter for the customer profile upsert used by authenticated routes. */
 export function createCustomerProfileService(db: D1Database): CustomerProfileService {

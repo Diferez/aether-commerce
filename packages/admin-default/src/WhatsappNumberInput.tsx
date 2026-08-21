@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ClipboardCopy } from "lucide-react";
-import { DIAL_CODES, defaultDialCodeEntry, dialCodeFlagEmoji, joinWhatsappNumber, splitWhatsappNumber, type DialCodeEntry } from "@aether/core";
+import { DIAL_CODES, defaultDialCodeEntry, dialCodeFlagEmoji, joinWhatsappNumber, splitWhatsappNumber, type DialCodeEntry } from "@aether-commerce/core";
 import { useAdminLanguage } from "./AdminLanguageProvider";
 
 // Stores/emits the same flat "573001234567" digit string the API has always
-// expected (see isValidWhatsappNumber in @aether/core) - this only changes
+// expected (see isValidWhatsappNumber in @aether-commerce/core) - this only changes
 // how the admin *enters* it, splitting the flat value into a searchable
 // country-code picker plus a local-number field.
 export function WhatsappNumberInput({ value, onChange }: Readonly<{ value: string; onChange: (value: string) => void }>) {

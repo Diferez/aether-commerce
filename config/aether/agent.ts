@@ -1,4 +1,4 @@
-import { agentConfigSchema } from "@aether/config-schema";
+import { agentConfigSchema } from "@aether-commerce/config-schema";
 
 export const aetherAgentConfig = agentConfigSchema.parse({
   enabled: true,

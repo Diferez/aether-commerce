@@ -1,4 +1,4 @@
-import { defaultBrandSettings, type BrandSettings } from "@aether/core";
+import { defaultBrandSettings, type BrandSettings } from "@aether-commerce/core";
 import type { Env } from "../types";
 
 // Was inlined once in routes/public.ts before this - now also needed by

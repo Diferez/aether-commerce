@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { contactMessageSchema } from "@aether/schemas";
+import { contactMessageSchema } from "@aether-commerce/schemas";
 import type { AppBindings } from "../types";
 import { ok } from "../http";
 import { sendContactEmail } from "../services/email";
