@@ -15,6 +15,17 @@ export type OrderTrackingColumns = {
   tracking_url: string | null;
 };
 
+export type StoredOrderRow = OrderTrackingColumns & {
+  payload_json: string;
+  state: string;
+  channel: string;
+  payment_status: string;
+  fulfillment_status: string;
+};
+
+export const CURRENT_ORDER_SELECT =
+  "payload_json, state, channel, payment_status, fulfillment_status, tracking_carrier, tracking_number, tracking_url";
+
 /**
  * Overlays the live tracking_carrier/tracking_number/tracking_url columns
  * (set later by an admin via PATCH /admin/orders/:id/tracking) onto an
@@ -29,6 +40,21 @@ export function withOrderTracking(payload: Record<string, unknown>, row: OrderTr
       row.tracking_carrier || row.tracking_number || row.tracking_url
         ? { carrier: row.tracking_carrier, number: row.tracking_number, url: row.tracking_url }
         : null
+  };
+}
+
+/**
+ * payload_json is the checkout snapshot. Status and tracking fields can
+ * change later, so every customer-facing read must overlay the live columns.
+ */
+export function orderWithCurrentData(row: StoredOrderRow): Record<string, unknown> {
+  const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+  return {
+    ...withOrderTracking(payload, row),
+    state: row.state,
+    channel: row.channel,
+    paymentStatus: row.payment_status,
+    fulfillmentStatus: row.fulfillment_status
   };
 }
 

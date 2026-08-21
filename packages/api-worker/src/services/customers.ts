@@ -1,6 +1,7 @@
 import type { Role } from "@aether/schemas";
 import type { Env } from "../types";
 import { updateUserRole } from "./clerk";
+import { CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "./orders";
 
 export type CustomerStatus = "active" | "suspended";
 export type CustomerSource = "registered" | "guest";
@@ -155,10 +156,10 @@ export async function getCustomerDetail(env: Env, id: string): Promise<AdminCust
   if (id.startsWith(GUEST_ID_PREFIX)) {
     const email = id.slice(GUEST_ID_PREFIX.length);
     const rows = await env.DB.prepare(
-      "select payload_json from orders where lower(email) = lower(?) order by created_at desc"
+      `select ${CURRENT_ORDER_SELECT} from orders where lower(email) = lower(?) order by created_at desc`
     )
       .bind(email)
-      .all<{ payload_json: string }>();
+      .all<StoredOrderRow>();
     if (rows.results.length === 0) {
       return null;
     }
@@ -171,7 +172,7 @@ export async function getCustomerDetail(env: Env, id: string): Promise<AdminCust
       status: "active",
       createdAt: null,
       addresses: [],
-      orders: rows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>)
+      orders: rows.results.map(orderWithCurrentData)
     };
   }
 
@@ -200,10 +201,10 @@ export async function getCustomerDetail(env: Env, id: string): Promise<AdminCust
   // Same "match by user_id or email" pattern a shopper's own order history
   // uses (routes/user.ts's GET /orders) - reused here for the admin view.
   const orderRows = await env.DB.prepare(
-    "select payload_json from orders where user_id = ? or email = ? collate nocase order by created_at desc"
+    `select ${CURRENT_ORDER_SELECT} from orders where user_id = ? or email = ? collate nocase order by created_at desc`
   )
     .bind(id, user.email)
-    .all<{ payload_json: string }>();
+    .all<StoredOrderRow>();
 
   return {
     id: user.id,
@@ -214,7 +215,7 @@ export async function getCustomerDetail(env: Env, id: string): Promise<AdminCust
     status: user.status === "suspended" ? "suspended" : "active",
     createdAt: user.created_at,
     addresses: addressRows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>),
-    orders: orderRows.results.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>)
+    orders: orderRows.results.map(orderWithCurrentData)
   };
 }
 

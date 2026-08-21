@@ -13,7 +13,7 @@ import { createCustomerReviewService } from "../services/customer-reviews";
 import { createCustomerProfileService } from "../services/customer-profile";
 import { resolveActorEmail } from "../services/clerk";
 import { readBrandSettings } from "../services/brand-settings";
-import { changeOrderState, withOrderTracking } from "../services/orders";
+import { changeOrderState, CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "../services/orders";
 
 const profileSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -186,19 +186,18 @@ userRoutes.get("/orders", async (c) => {
   const userId = actor.userId;
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view your orders.");
   const email = await resolveActorEmail(c.env, actor);
-  const trackingColumns = "tracking_carrier, tracking_number, tracking_url";
   const rows = email
     ? await c.env.DB.prepare(
-        `select payload_json, ${trackingColumns} from orders
+        `select ${CURRENT_ORDER_SELECT} from orders
          where user_id = ? or email = ? collate nocase
          order by created_at desc`
       )
         .bind(userId, email)
-        .all<{ payload_json: string; tracking_carrier: string | null; tracking_number: string | null; tracking_url: string | null }>()
-    : await c.env.DB.prepare(`select payload_json, ${trackingColumns} from orders where user_id = ? order by created_at desc`)
+        .all<StoredOrderRow>()
+    : await c.env.DB.prepare(`select ${CURRENT_ORDER_SELECT} from orders where user_id = ? order by created_at desc`)
         .bind(userId)
-        .all<{ payload_json: string; tracking_carrier: string | null; tracking_number: string | null; tracking_url: string | null }>();
-  const orders = rows.results.map((row) => withOrderTracking(JSON.parse(row.payload_json) as Record<string, unknown>, row));
+        .all<StoredOrderRow>();
+  const orders = rows.results.map(orderWithCurrentData);
   return collection(c, orders, {
     page: 1,
     pageSize: orders.length,
@@ -212,15 +211,14 @@ userRoutes.get("/orders/:id", async (c) => {
   const userId = actor.userId;
   if (!userId) return fail(c, 401, "AUTH_REQUIRED", "Sign in to view this order.");
   const email = await resolveActorEmail(c.env, actor);
-  const trackingColumns = "tracking_carrier, tracking_number, tracking_url";
   const row = email
-    ? await c.env.DB.prepare(`select payload_json, ${trackingColumns} from orders where id = ? and (user_id = ? or email = ? collate nocase)`)
+    ? await c.env.DB.prepare(`select ${CURRENT_ORDER_SELECT} from orders where id = ? and (user_id = ? or email = ? collate nocase)`)
         .bind(c.req.param("id"), userId, email)
-        .first<{ payload_json: string; tracking_carrier: string | null; tracking_number: string | null; tracking_url: string | null }>()
-    : await c.env.DB.prepare(`select payload_json, ${trackingColumns} from orders where id = ? and user_id = ?`)
+        .first<StoredOrderRow>()
+    : await c.env.DB.prepare(`select ${CURRENT_ORDER_SELECT} from orders where id = ? and user_id = ?`)
         .bind(c.req.param("id"), userId)
-        .first<{ payload_json: string; tracking_carrier: string | null; tracking_number: string | null; tracking_url: string | null }>();
-  return row ? ok(c, withOrderTracking(JSON.parse(row.payload_json) as Record<string, unknown>, row)) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
+        .first<StoredOrderRow>();
+  return row ? ok(c, orderWithCurrentData(row)) : fail(c, 404, "ORDER_NOT_FOUND", "Order not found.");
 });
 
 // Maps each customer-facing action to the order-state machine's target state

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppBindings } from "../types";
 import { collection, fail } from "../http";
 import { resolveActorEmail } from "../services/clerk";
+import { CURRENT_ORDER_SELECT, orderWithCurrentData, type StoredOrderRow } from "../services/orders";
 
 export const accountRoutes = new Hono<AppBindings>();
 
@@ -14,19 +15,17 @@ accountRoutes.get("/orders", async (c) => {
   const email = await resolveActorEmail(c.env, actor);
   const rows = email
     ? await c.env.DB.prepare(
-        `select payload_json from orders
+        `select ${CURRENT_ORDER_SELECT} from orders
          where user_id = ? or email = ? collate nocase
          order by created_at desc`
       )
         .bind(actor.userId, email)
-        .all<{ payload_json: string }>()
-    : await c.env.DB.prepare("select payload_json from orders where user_id = ? order by created_at desc")
+        .all<StoredOrderRow>()
+    : await c.env.DB.prepare(`select ${CURRENT_ORDER_SELECT} from orders where user_id = ? order by created_at desc`)
         .bind(actor.userId)
-        .all<{ payload_json: string }>();
+        .all<StoredOrderRow>();
 
-  const data: Array<Record<string, unknown>> = rows.results.map(
-    (row) => JSON.parse(row.payload_json) as Record<string, unknown>
-  );
+  const data = rows.results.map(orderWithCurrentData);
   return collection(c, data, {
     page: 1,
     pageSize: data.length,

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cart } from "@aether/schemas";
 import type { PaidCheckoutSession } from "@aether/api-core";
 import type { Env } from "../types";
-import { changeOrderState, createManualOrder, createOrderFromPaidSession, withOrderTracking } from "./orders";
+import { changeOrderState, createManualOrder, createOrderFromPaidSession, orderWithCurrentData, withOrderTracking } from "./orders";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -127,6 +127,35 @@ describe("withOrderTracking", () => {
   it("sets tracking to null when no tracking column is set - the admin hasn't entered a shipment yet", () => {
     const result = withOrderTracking({ id: "ord_1" }, { tracking_carrier: null, tracking_number: null, tracking_url: null });
     expect(result.tracking).toBeNull();
+  });
+});
+
+describe("orderWithCurrentData", () => {
+  it("overlays live status and tracking columns onto an old checkout payload", () => {
+    const result = orderWithCurrentData({
+      payload_json: JSON.stringify({
+        id: "ord_1",
+        state: "paid",
+        paymentStatus: "pending",
+        fulfillmentStatus: "unfulfilled"
+      }),
+      state: "processing",
+      channel: "stripe",
+      payment_status: "paid",
+      fulfillment_status: "shipped",
+      tracking_carrier: "DHL",
+      tracking_number: "1Z999",
+      tracking_url: "https://track.example.com/1Z999"
+    });
+
+    expect(result).toMatchObject({
+      id: "ord_1",
+      state: "processing",
+      channel: "stripe",
+      paymentStatus: "paid",
+      fulfillmentStatus: "shipped",
+      tracking: { carrier: "DHL", number: "1Z999", url: "https://track.example.com/1Z999" }
+    });
   });
 });
 
