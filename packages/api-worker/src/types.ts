@@ -40,6 +40,18 @@ export type Env = {
   SENTRY_RELEASE?: string;
   HEALTH_METRICS_RETENTION_DAYS?: string;
   AUDIT_LOG_ENABLED?: string;
+  /** Used in SEO titles, guest-order fallback names, and payment-provider line-item descriptions. */
+  BRAND_NAME?: string;
+  /** "Display Name <address>" sent to Resend as the email `from` field. */
+  EMAIL_FROM?: string;
+  /** Sentry/logger `service` tag. */
+  OBSERVABILITY_SERVICE_NAME?: string;
+  /** The admin-chat assistant's self-identified name in its system prompt and status text. */
+  AI_ASSISTANT_NAME?: string;
+  DEMO_SUMMARY_REVENUE_CENTS?: string;
+  DEMO_SUMMARY_ORDERS?: string;
+  DEMO_SUMMARY_CONVERSION_RATE?: string;
+  DEMO_SUMMARY_LOW_STOCK?: string;
 };
 
 export type Variables = {

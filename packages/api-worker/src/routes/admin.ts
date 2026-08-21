@@ -158,10 +158,10 @@ adminRoutes.get("/demo/summary", (c) =>
       en: "Public demo mode. Changes are disabled.",
       es: "Modo de demostracion publica. Los cambios estan deshabilitados."
     },
-    revenue: 1842500,
-    orders: 128,
-    conversionRate: 4.8,
-    lowStock: 7
+    revenue: Number(c.env.DEMO_SUMMARY_REVENUE_CENTS ?? 1842500),
+    orders: Number(c.env.DEMO_SUMMARY_ORDERS ?? 128),
+    conversionRate: Number(c.env.DEMO_SUMMARY_CONVERSION_RATE ?? 4.8),
+    lowStock: Number(c.env.DEMO_SUMMARY_LOW_STOCK ?? 7)
   })
 );
 

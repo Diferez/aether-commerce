@@ -18,7 +18,7 @@ export function getLogger(env: Env): Logger {
   return createLogger({
     level: resolveLogLevel(env),
     environment: env.AETHER_ENV ?? "development",
-    service: "aether-api",
+    service: env.OBSERVABILITY_SERVICE_NAME ?? "aether-api",
     infoSampleRate: env.LOG_INFO_SAMPLE_RATE !== undefined ? Number(env.LOG_INFO_SAMPLE_RATE) : env.AETHER_ENV === "production" ? 0.1 : 1
   });
 }
@@ -84,7 +84,7 @@ export type ErrorReportContext = {
 export function captureException(env: Env, error: unknown, context: ErrorReportContext = {}): void {
   if (!isSentryEnabled(env)) return;
   Sentry.withScope((scope) => {
-    scope.setTag("service", "aether-api");
+    scope.setTag("service", env.OBSERVABILITY_SERVICE_NAME ?? "aether-api");
     if (context.requestId) scope.setTag("requestId", context.requestId);
     if (context.traceId) scope.setTag("traceId", context.traceId);
     if (context.route) scope.setTag("route", context.route);

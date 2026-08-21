@@ -40,7 +40,7 @@ export function createApiApp(): Hono<AppBindings> {
   app.use("*", auth());
   app.use("*", rateLimit());
 
-  app.get("/", (c) => ok(c, { name: "Aether API", version: "v1", basePath: "/api/v1" }));
+  app.get("/", (c) => ok(c, { name: `${c.env.BRAND_NAME ?? "Aether"} API`, version: "v1", basePath: "/api/v1" }));
 
   const api = new Hono<AppBindings>().basePath("/api/v1");
   api.get("/runtime-config", (c) => {
