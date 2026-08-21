@@ -69,7 +69,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config apps/api/wrangler.jsonc
+        # --var stamps in the commit this deploy is actually building from -
+        # the admin panel's platform page reads it back (DEPLOYED_COMMIT_SHA)
+        # to tell an admin whether main has moved on since the last deploy.
+        run: pnpm exec wrangler deploy --config apps/api/wrangler.jsonc --var DEPLOYED_COMMIT_SHA:${{ github.sha }}
       # Every key below is optional - each integration already degrades
       # gracefully without its secret set (see README's "Deploy" section),
       # so this only ever writes the ones actually configured in this repo's

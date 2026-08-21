@@ -91,7 +91,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config apps/api/wrangler.production.json
+        # --var stamps in the commit this deploy is actually building from -
+        # the admin panel's platform page reads it back (DEPLOYED_COMMIT_SHA)
+        # to tell an admin whether main has moved on since the last deploy.
+        run: pnpm exec wrangler deploy --config apps/api/wrangler.production.json --var DEPLOYED_COMMIT_SHA:${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Configure API secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
