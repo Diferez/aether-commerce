@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
 import { sendContactEmail, sendOrderEmail } from "./email";
 
-const originalFetch = global.fetch;
+const originalFetch = global.fetch.bind(global);
 
 afterEach(() => {
   global.fetch = originalFetch;

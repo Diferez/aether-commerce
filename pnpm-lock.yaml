@@ -190,6 +190,9 @@ importers:
       '@aether/api-core':
         specifier: workspace:*
         version: link:../../packages/api-core
+      '@aether/api-worker':
+        specifier: workspace:*
+        version: link:../../packages/api-worker
       '@aether/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -213,7 +216,7 @@ importers:
         version: 1.4.8(@langchain/core@1.2.5)(react-dom@19.2.3)(react@19.2.3)(zod@4.2.0)
       '@sentry/cloudflare':
         specifier: 10.70.0
-        version: 10.70.0(wrangler@4.120.0)
+        version: 10.70.0(@cloudflare/workers-types@5.20260812.1)(wrangler@4.120.0)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2
@@ -382,6 +385,52 @@ importers:
         specifier: workspace:*
         version: link:../schemas
     devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+
+  packages/api-worker:
+    dependencies:
+      '@aether/api-core':
+        specifier: workspace:*
+        version: link:../api-core
+      '@aether/core':
+        specifier: workspace:*
+        version: link:../core
+      '@aether/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@aether/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+      '@hono/zod-validator':
+        specifier: ^0.8.0
+        version: 0.8.0(hono@4.12.34)(zod@4.2.0)
+      '@langchain/core':
+        specifier: 1.2.5
+        version: 1.2.5
+      '@langchain/google-genai':
+        specifier: 2.2.0
+        version: 2.2.0(@langchain/core@1.2.5)
+      '@langchain/langgraph':
+        specifier: 1.4.8
+        version: 1.4.8(@langchain/core@1.2.5)(react-dom@19.2.3)(react@19.2.3)(zod@4.2.0)
+      '@sentry/cloudflare':
+        specifier: 10.70.0
+        version: 10.70.0(@cloudflare/workers-types@5.20260812.1)(wrangler@4.120.0)
+      hono:
+        specifier: ^4.12.34
+        version: 4.12.34
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
+      zod:
+        specifier: ^4.2.0
+        version: 4.2.0
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260812.1
+        version: 5.20260812.1
       typescript:
         specifier: ^5.9.0
         version: 5.9.2
@@ -2608,7 +2657,7 @@ packages:
       '@sentry/replay-canvas': 10.70.0
     dev: false
 
-  /@sentry/cloudflare@10.70.0(wrangler@4.120.0):
+  /@sentry/cloudflare@10.70.0(@cloudflare/workers-types@5.20260812.1)(wrangler@4.120.0):
     resolution: {integrity: sha512-jlr9txw3lQrbc6KQn9FzlpgC1KcB36u7aIGSlUhXAZ2MB93DgwjuTnHF20qQHxmHbZylg7CtHoMq3rGiTXAgpg==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -2620,6 +2669,7 @@ packages:
       wrangler:
         optional: true
     dependencies:
+      '@cloudflare/workers-types': 5.20260812.1
       '@opentelemetry/api': 1.9.1
       '@sentry/core': 10.70.0
       '@sentry/server-utils': 10.70.0

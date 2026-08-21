@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../types";
-import worker from "../index";
+import { createApiApp } from "../index";
+
+const worker = createApiApp();
 
 // Same real-middleware-chain pattern as admin.integration.test.ts - only
 // the review submission route's new features.reviews gate is covered here

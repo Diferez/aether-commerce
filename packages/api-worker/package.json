@@ -1,0 +1,42 @@
+{
+  "name": "@aether/api-worker",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@aether/core": "workspace:*",
+    "@aether/api-core": "workspace:*",
+    "@aether/observability": "workspace:*",
+    "@aether/schemas": "workspace:*",
+    "@hono/zod-validator": "^0.8.0",
+    "@langchain/core": "1.2.5",
+    "@langchain/google-genai": "2.2.0",
+    "@langchain/langgraph": "1.4.8",
+    "@sentry/cloudflare": "10.70.0",
+    "hono": "^4.12.34",
+    "jose": "^6.1.0",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260812.1",
+    "typescript": "^5.9.0"
+  }
+}

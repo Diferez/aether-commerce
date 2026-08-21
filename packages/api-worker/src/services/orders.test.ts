@@ -335,7 +335,7 @@ describe("createOrderFromPaidSession", () => {
 
   it("sends the shopper a real order-confirmation email when Resend is configured", async () => {
     await mockActiveSnapshot();
-    const originalFetch = global.fetch;
+    const originalFetch = global.fetch.bind(global);
     const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
     global.fetch = fetchSpy as unknown as typeof fetch;
 
@@ -433,7 +433,7 @@ describe("changeOrderState", () => {
   it("emails the shopper the new status when Resend is configured", async () => {
     const { env, db } = fakeEnv([{ first: { state: "paid", payload_json: JSON.stringify({ number: "AETH-1" }), email: "shopper@example.com" } }]);
     db.batch.mockResolvedValueOnce([{ success: true, meta: { changes: 1 } }, { success: true, meta: { changes: 1 } }]);
-    const originalFetch = global.fetch;
+    const originalFetch = global.fetch.bind(global);
     const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
     global.fetch = fetchSpy as unknown as typeof fetch;
 

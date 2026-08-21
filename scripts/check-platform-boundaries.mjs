@@ -6,6 +6,7 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const policies = new Map([
   ["api-client", new Set(["@aether/schemas"])],
   ["api-core", new Set(["@aether/core", "@aether/schemas"])],
+  ["api-worker", new Set(["@aether/core", "@aether/api-core", "@aether/observability", "@aether/schemas"])],
   ["agent-core", new Set(["@aether/core", "@aether/schemas", "@aether/observability"])],
   ["config", new Set(["@aether/config-schema"])],
   ["config-schema", new Set()],

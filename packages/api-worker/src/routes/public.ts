@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { productQuerySchema } from "@aether/schemas";
 import { defaultCheckoutSettings } from "@aether/core";
-import { aetherDemoShippingSettings } from "../config/aether-demo";
+import { defaultShippingSettings } from "../defaults";
 import type { AppBindings } from "../types";
 import { collection, fail, ok } from "../http";
 import { getBrands, getCatalogProducts, getCategories, getProductById, getProductBySlug } from "../services/catalog";
@@ -134,7 +134,7 @@ publicRoutes.get("/products/:id/reviews", async (c) => {
 // (and whether it applies at all) before checkout even starts, to show it in
 // the cart total and to decide whether /checkout's address step is needed.
 publicRoutes.get("/shipping/settings", async (c) => {
-  return ok(c, await createShippingSettingsService(c.env.DB).get(aetherDemoShippingSettings));
+  return ok(c, await createShippingSettingsService(c.env.DB).get(defaultShippingSettings));
 });
 
 // wa.me links are public by nature (the number is visible in the URL once a
