@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+/*
+ * @aether/storefront-default and @aether/ui ship the actual styled UI (the
+ * default skin) as a published npm package - Tailwind's automatic content
+ * detection doesn't scan node_modules, so classes used only inside those
+ * packages' compiled output would otherwise vanish from a production
+ * build while still looking fine in `next dev`. These explicit @source
+ * directives are always scanned regardless of that default exclusion.
+ * Adjust the relative path if this file moves within your project.
+ */
+@source "../node_modules/@aether/storefront-default/dist";
+@source "../node_modules/@aether/ui/dist";
+
+/*
+ * Design tokens. Tailwind v4 @theme is the source of truth; light is the
+ * default theme, dark is an override scoped to html[data-theme="dark"].
+ * --color-accent's default below is overridden at runtime in layout.tsx
+ * from config/theme.ts's `primary` value, so this file doesn't need
+ * editing to rebrand - change the color in config/theme.ts instead.
+ */
+@theme {
+  --color-bg: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0f0f6;
+  --color-border: rgba(15, 23, 42, 0.09);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  --color-ink: #16171d;
+  --color-ink-muted: #5b5f6b;
+  --color-ink-subtle: #6b6f7a;
+  --color-accent: #000000;
+  --color-accent-hover: #262626;
+  --color-accent-soft: rgba(0, 0, 0, 0.08);
+  --color-accent-2: #0e7490;
+  --color-accent-2-soft: rgba(14, 116, 144, 0.1);
+  --color-success: #047857;
+  --color-success-soft: rgba(4, 120, 87, 0.1);
+  --color-warning: #b45309;
+  --color-warning-soft: rgba(180, 83, 9, 0.1);
+  --color-warning-tint: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface));
+  --color-danger: #e11d48;
+  --color-danger-soft: rgba(225, 29, 72, 0.1);
+
+  /* Assistant chat widget - aliased to the shared tokens (not a separate
+     palette) so the chat always matches whichever theme the store is in. */
+  --color-chat-bg: var(--color-bg);
+  --color-chat-surface: var(--color-surface);
+  --color-chat-surface-alt: var(--color-surface-hover);
+  --color-chat-border: var(--color-border);
+  --color-chat-text: var(--color-ink);
+  --color-chat-text-muted: var(--color-ink-muted);
+  --color-chat-accent: var(--color-accent);
+  --color-chat-accent-soft: var(--color-accent-soft);
+  --color-chat-success: var(--color-success);
+  --color-chat-success-soft: var(--color-success-soft);
+  --radius-chat: 14px;
+}
+
+html[data-theme="dark"] {
+  --color-bg: #060711;
+  --color-surface: #10121c;
+  --color-surface-hover: #161a29;
+  --color-border: rgba(148, 163, 184, 0.16);
+  --color-border-strong: rgba(148, 163, 184, 0.3);
+  --color-ink: #f8fafc;
+  --color-ink-muted: #a1a1aa;
+  --color-ink-subtle: #71717a;
+  --color-accent-soft: rgba(255, 255, 255, 0.12);
+  --color-accent-2: #22d3ee;
+  --color-accent-2-soft: rgba(34, 211, 238, 0.14);
+  --color-success: #34d399;
+  --color-success-soft: rgba(52, 211, 153, 0.14);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgba(251, 191, 36, 0.14);
+  --color-warning-tint: color-mix(in srgb, var(--color-warning) 16%, var(--color-surface));
+  --color-danger: #fb7185;
+  --color-danger-soft: rgba(251, 113, 133, 0.14);
+  color-scheme: dark;
+}
+
+:root {
+  color-scheme: light;
+  /* Kept for any inline style="" or non-Tailwind CSS still referencing these. */
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --muted: var(--color-ink-muted);
+  --line: var(--color-border);
+  --accent: var(--color-accent);
+  --accent-2: var(--color-accent-2);
+  --danger: var(--color-danger);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 12%, var(--color-accent-soft), transparent 34vw),
+    radial-gradient(circle at 82% 0%, var(--color-accent-2-soft), transparent 30vw),
+    var(--color-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  color: var(--color-ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: var(--commerce-font-family, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(0, 0, 0, 0.24), transparent 34vw),
+    radial-gradient(circle at 82% 0%, rgba(34, 211, 238, 0.14), transparent 30vw),
+    linear-gradient(180deg, rgba(16, 18, 28, 0.6), transparent 420px),
+    var(--color-bg);
+}
+
+/* No color here: Tailwind's own preflight already sets `a { color: inherit }`
+   correctly inside @layer base. This file's @layer base blocks don't reliably
+   merge into that same layer at build time, so a color declared here stays
+   unlayered - which then wins over every text-* utility (e.g. text-white on
+   an accent button) regardless of specificity, since unlayered normal rules
+   always beat layered ones. Keep only what Tailwind's preflight doesn't
+   already provide. */
+a {
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.aether-shell {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.focus-ring:focus-visible {
+  outline: 3px solid var(--color-accent-2);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-hover) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
