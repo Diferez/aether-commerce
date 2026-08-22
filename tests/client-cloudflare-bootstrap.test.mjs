@@ -27,6 +27,8 @@ test("client deployment bootstraps resources and consumes its outputs", () => {
   assert.match(workflow, /name: Bootstrap Cloudflare resources/);
   assert.match(workflow, /run: pnpm cloudflare:bootstrap/);
   assert.match(workflow, /steps\.cloudflare\.outputs\.api_url/);
-  assert.match(workflow, /steps\.cloudflare\.outputs\.api_config/);
+  assert.match(workflow, /wrangler\.deploy\.jsonc/);
   assert.match(workflow, /push:\s*[\s\S]*branches:\s*[\s\S]*- main/);
+  assert.match(workflow, /pnpm -C apps\/api exec wrangler d1 migrations apply/);
+  assert.match(workflow, /pnpm -C apps\/storefront exec wrangler deploy/);
 });

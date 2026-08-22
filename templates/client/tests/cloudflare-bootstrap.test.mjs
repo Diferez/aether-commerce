@@ -38,6 +38,11 @@ test("deployment bootstraps Cloudflare before builds and uses generated outputs"
   assert.match(workflow, /name: Bootstrap Cloudflare resources/);
   assert.match(workflow, /run: pnpm cloudflare:bootstrap/);
   assert.match(workflow, /steps\.cloudflare\.outputs\.api_url/);
-  assert.match(workflow, /steps\.cloudflare\.outputs\.api_config/);
+  assert.match(workflow, /wrangler\.deploy\.jsonc/);
   assert.match(workflow, /push:\s*[\s\S]*branches:\s*[\s\S]*- main/);
+});
+
+test("runs Wrangler from the workspace that owns its dependency", () => {
+  const script = readFileSync(resolve(root, "scripts/bootstrap-cloudflare.mjs"), "utf8");
+  assert.match(script, /\["-C", "apps\/api", "exec", "wrangler"/);
 });

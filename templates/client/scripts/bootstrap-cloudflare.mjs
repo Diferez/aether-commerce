@@ -53,7 +53,7 @@ function parseWranglerJson(output, command) {
 
 function runWrangler(args) {
   const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-  const result = spawnSync(executable, ["exec", "wrangler", ...args], {
+  const result = spawnSync(executable, ["-C", "apps/api", "exec", "wrangler", ...args], {
     encoding: "utf8",
     env: process.env,
   });

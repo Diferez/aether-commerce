@@ -84,7 +84,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler d1 migrations apply DB --remote --config "${{ steps.cloudflare.outputs.api_config }}"
+        run: pnpm -C apps/api exec wrangler d1 migrations apply DB --remote --config wrangler.deploy.jsonc
       - name: Deploy API Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -92,7 +92,7 @@ jobs:
         # --var stamps in the commit this deploy is actually building from -
         # the admin panel's platform page reads it back (DEPLOYED_COMMIT_SHA)
         # to tell an admin whether main has moved on since the last deploy.
-        run: pnpm exec wrangler deploy --config "${{ steps.cloudflare.outputs.api_config }}" --var DEPLOYED_COMMIT_SHA:${{ github.sha }}
+        run: pnpm -C apps/api exec wrangler deploy --config wrangler.deploy.jsonc --var DEPLOYED_COMMIT_SHA:${{ github.sha }}
       # Every key below is optional - each integration already degrades
       # gracefully without its secret set (see README's "Deploy" section),
       # so this only ever writes the ones actually configured in this repo's
@@ -121,15 +121,15 @@ jobs:
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
           node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
-          pnpm exec wrangler secret bulk .api-secrets.json --config "${{ steps.cloudflare.outputs.api_config }}"
+          pnpm -C apps/api exec wrangler secret bulk ../.api-secrets.json --config wrangler.deploy.jsonc
       - name: Deploy storefront Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config apps/storefront/wrangler.jsonc
+        run: pnpm -C apps/storefront exec wrangler deploy --config wrangler.jsonc
       - name: Deploy admin Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ADMIN_PAGES_PROJECT: ${{ steps.cloudflare.outputs.pages_project }}
-        run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${ADMIN_PAGES_PROJECT}" --branch=main
+        run: pnpm -C apps/api exec wrangler pages deploy ../admin/out --project-name="${ADMIN_PAGES_PROJECT}" --branch=main
