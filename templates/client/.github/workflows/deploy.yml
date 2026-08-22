@@ -1,13 +1,15 @@
 name: Deploy client-store
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
   deployments: write
+  packages: read
 
 concurrency:
   group: client-store-deploy
@@ -15,6 +17,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -22,7 +25,7 @@ jobs:
       url: ${{ vars.APP_ORIGIN_STORE }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8.15.9
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -30,15 +33,32 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
+          registry-url: https://npm.pkg.github.com
+          scope: "@aether-commerce"
       # --ignore-scripts: no dependency here needs a lifecycle script to
       # work (validate-client-template.mjs's own install already proves
       # this template installs and builds clean without them) - skipping
       # them closes off arbitrary code execution from a compromised
       # transitive dependency during CI install.
       - name: Install dependencies
+        env:
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.AETHER_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.AETHER_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Synchronize Aether database migrations
         run: pnpm aether:migrations
+      - name: Bootstrap Cloudflare resources
+        id: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN || github.repository_owner }}
+          D1_LOCATION: ${{ vars.D1_LOCATION || 'enam' }}
+          ADMIN_PAGES_PROJECT: ${{ vars.ADMIN_PAGES_PROJECT }}
+          API_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL }}
+          STORE_PUBLIC_URL: ${{ vars.APP_ORIGIN_STORE }}
+          ADMIN_PUBLIC_URL: ${{ vars.APP_ORIGIN_ADMIN }}
+        run: pnpm cloudflare:bootstrap
       # Gate before any deploy step runs - wrangler types+tsc for apps/api
       # needs no live Cloudflare auth (it only reads wrangler.jsonc locally),
       # same for admin/storefront's next.config-driven typecheck.
@@ -50,23 +70,21 @@ jobs:
       - name: Build admin
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_AETHER_API_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL || steps.cloudflare.outputs.api_url }}
         run: pnpm --filter ./apps/admin build
       - name: Build storefront
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_AETHER_API_URL: ${{ vars.NEXT_PUBLIC_AETHER_API_URL || steps.cloudflare.outputs.api_url }}
           NEXT_PUBLIC_AETHER_BASE_PATH: ${{ vars.NEXT_PUBLIC_AETHER_BASE_PATH }}
         run: pnpm --filter ./apps/storefront build
-      # wrangler.jsonc's database_id/APP_ORIGIN_STORE/APP_ORIGIN_ADMIN are
-      # committed with their real values (see README's "Deploy" section) -
-      # nothing generated here, unlike the Aether reference repo's own
-      # multi-environment wrangler.production.json/.development.json split,
-      # which this template deliberately doesn't need for a single
-      # production deployment.
+      # Bootstrap writes an ignored, account-specific config. The source
+      # config remains portable and never needs an account UUID committed.
       - name: Apply D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler d1 migrations apply DB --remote --config apps/api/wrangler.jsonc
+        run: pnpm -C apps/api exec wrangler d1 migrations apply DB --remote --config wrangler.deploy.jsonc
       - name: Deploy API Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -74,7 +92,7 @@ jobs:
         # --var stamps in the commit this deploy is actually building from -
         # the admin panel's platform page reads it back (DEPLOYED_COMMIT_SHA)
         # to tell an admin whether main has moved on since the last deploy.
-        run: pnpm exec wrangler deploy --config apps/api/wrangler.jsonc --var DEPLOYED_COMMIT_SHA:${{ github.sha }}
+        run: pnpm -C apps/api exec wrangler deploy --config wrangler.deploy.jsonc --var DEPLOYED_COMMIT_SHA:${{ github.sha }}
       # Every key below is optional - each integration already degrades
       # gracefully without its secret set (see README's "Deploy" section),
       # so this only ever writes the ones actually configured in this repo's
@@ -103,20 +121,15 @@ jobs:
           umask 077
           trap 'rm -f .api-secrets.json' EXIT
           node -e "const fs=require('fs'); const keys=['AETHER_CART_TOKEN_SECRET','AETHER_SETTINGS_ENCRYPTION_KEY','CLERK_SECRET_KEY','CLERK_JWT_ISSUER','CLERK_WEBHOOK_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','WOMPI_SECRET_KEY','WOMPI_EVENTS_SECRET','RESEND_API_KEY','CONTACT_RECIPIENT_EMAIL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GEMINI_API_KEY','SENTRY_DSN']; const out={}; for (const key of keys) if (process.env[key]) out[key]=process.env[key]; fs.writeFileSync('.api-secrets.json', JSON.stringify(out));"
-          pnpm exec wrangler secret bulk .api-secrets.json --config apps/api/wrangler.jsonc
+          pnpm -C apps/api exec wrangler secret bulk ../.api-secrets.json --config wrangler.deploy.jsonc
       - name: Deploy storefront Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config apps/storefront/wrangler.jsonc
-      # Admin has no wrangler.jsonc of its own (it's a static export served
-      # from Cloudflare Pages, not a Worker) - the Pages project name isn't
-      # stored anywhere else, so it's the one deploy-time value this
-      # workflow needs as a GitHub variable rather than reading it from a
-      # committed config file.
+        run: pnpm -C apps/storefront exec wrangler deploy --config wrangler.jsonc
       - name: Deploy admin Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ADMIN_PAGES_PROJECT: ${{ vars.ADMIN_PAGES_PROJECT || 'client-store-admin' }}
-        run: pnpm exec wrangler pages deploy apps/admin/out --project-name="${ADMIN_PAGES_PROJECT}" --branch=main
+          ADMIN_PAGES_PROJECT: ${{ steps.cloudflare.outputs.pages_project }}
+        run: pnpm -C apps/api exec wrangler pages deploy ../admin/out --project-name="${ADMIN_PAGES_PROJECT}" --branch=main

@@ -19,6 +19,7 @@ const required = [
   "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx", "apps/admin/package.json", "apps/admin/next.config.mjs",
   "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts", "src/adapters.ts",
   ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
+  "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",
   "custom/animations/.gitkeep", "custom/components/.gitkeep", "custom/pages/.gitkeep", "custom/styles/.gitkeep", "custom/assets/.gitkeep",
   "database/extensions/.gitkeep", "database/seeds/.gitkeep", ".npmrc", ".gitignore", "README.md", "package.json", "pnpm-workspace.yaml", "tsconfig.json", "tsconfig.validation.json"
 ];
@@ -49,6 +50,7 @@ try {
     "apps/admin/adapter.ts", "apps/admin/app/layout.tsx", "apps/admin/app/page.tsx",
     "apps/api/adapter.ts", "apps/api/package.json", "apps/api/wrangler.jsonc", "apps/api/src/index.ts", "apps/ai/adapter.ts",
     ".github/dependabot.yml", ".github/workflows/deploy.yml", ".github/workflows/aether-update.yml",
+    "scripts/bootstrap-cloudflare.mjs", "tests/cloudflare-bootstrap.test.mjs",
     "database/migrations/0001_initial.sql", "database/migrations/0005_ai_assistant.sql", "database/migrations/0023_low_stock_alerts.sql", ".npmrc"
   ]) {
     if (!existsSync(resolve(generated, entry))) throw new Error(`Generated client is missing ${entry}`);
