@@ -49,7 +49,11 @@ jobs:
           GITHUB_BASE_REF: ${{ github.base_ref }}
         run: |
           pnpm check:changesets
-          pnpm changeset status
+          if [ -n "$GITHUB_BASE_REF" ] && git diff --name-status "origin/${GITHUB_BASE_REF}...HEAD" | grep -Eq '^D[[:space:]]+\.changeset/[^/]+\.md$'; then
+            echo "Version release detected; the consumed changesets were validated before versioning."
+          else
+            pnpm changeset status
+          fi
       - name: Validate LangGraph assistant
         run: |
           pnpm --filter @aether-commerce/ai-assistant typecheck
