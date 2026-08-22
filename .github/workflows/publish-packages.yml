@@ -38,7 +38,7 @@ jobs:
       - run: pnpm test:client-template
       - name: Verify package archives
         if: ${{ inputs.dry_run }}
-        run: pnpm --recursive --filter "./packages/*" pack --pack-destination "${{ runner.temp }}/aether-packages"
+        run: pnpm --filter "./packages/*" exec pnpm pack --pack-destination "${{ runner.temp }}/aether-packages"
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
         run: pnpm publish:packages
