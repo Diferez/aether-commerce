@@ -28,7 +28,13 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@aether-commerce"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - name: Build workspace
+        env:
+          NEXT_PUBLIC_AETHER_API_URL: https://api.example.com
+          NEXT_PUBLIC_AETHER_AI_URL: https://ai.example.com
+          NEXT_PUBLIC_PORTFOLIO_URL: https://portfolio.example.com
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+        run: pnpm build
       - run: pnpm test:client-template
       - run: pnpm changeset status
       - name: Verify package archives

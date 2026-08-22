@@ -67,6 +67,16 @@ test("CI accepts version releases that consume existing changesets", () => {
   assert.match(checker, /consumesChangeset/);
 });
 
+test("package publishing builds with deterministic public application configuration", () => {
+  const workflow = read(".github/workflows/publish-packages.yml");
+
+  assert.match(workflow, /NEXT_PUBLIC_AETHER_API_URL: https:\/\/api\.example\.com/);
+  assert.match(workflow, /NEXT_PUBLIC_AETHER_AI_URL: https:\/\/ai\.example\.com/);
+  assert.match(workflow, /NEXT_PUBLIC_PORTFOLIO_URL: https:\/\/portfolio\.example\.com/);
+  assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_/);
+  assert.match(workflow, /run: pnpm build/);
+});
+
 test("AI deployments receive only secrets used by the assistant Worker", () => {
   for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
     const workflow = read(`.github/workflows/${file}`);
