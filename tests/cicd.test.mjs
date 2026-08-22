@@ -75,6 +75,7 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /NEXT_PUBLIC_PORTFOLIO_URL: https:\/\/portfolio\.example\.com/);
   assert.match(workflow, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_/);
   assert.match(workflow, /run: pnpm build/);
+  assert.doesNotMatch(workflow, /pnpm changeset status/);
 });
 
 test("AI deployments receive only secrets used by the assistant Worker", () => {

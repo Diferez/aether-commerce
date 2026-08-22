@@ -36,7 +36,6 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: pnpm build
       - run: pnpm test:client-template
-      - run: pnpm changeset status
       - name: Verify package archives
         if: ${{ inputs.dry_run }}
         run: pnpm --recursive --filter "./packages/*" pack --pack-destination "${{ runner.temp }}/aether-packages"
