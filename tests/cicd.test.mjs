@@ -77,6 +77,7 @@ test("package publishing builds with deterministic public application configurat
   assert.match(workflow, /run: pnpm build/);
   assert.doesNotMatch(workflow, /pnpm changeset status/);
   assert.match(workflow, /pnpm --filter "\.\/packages\/\*" exec pnpm pack --pack-destination/);
+  assert.match(workflow, /git push origin --tags/);
 });
 
 test("AI deployments receive only secrets used by the assistant Worker", () => {
