@@ -32,10 +32,11 @@ copy Aether demo data, provider secrets or deployment resources.
    - `apps/api/` is also a real, deployable Cloudflare Worker -
      `apps/api/src/index.ts` wires up `@aether-commerce/api-worker`'s `createApiApp()`
      (every commerce/admin/admin-chat route, already built) the same way this
-     repo's own `apps/api` does. Before it can run: `wrangler d1 create
-     <name>` and paste the real `database_id` into `apps/api/wrangler.jsonc`
-     (the checked-in one is a local-dev placeholder), then
-     `pnpm --filter ./apps/api db:migrate:local` (or `:remote`). It needs
+     repo's own `apps/api` does. For local development, run
+     `pnpm --filter ./apps/api db:migrate:local`. In production the deploy
+     workflow creates or reuses D1 and writes the real account-specific ID
+     to an ignored generated config; the checked-in config stays portable.
+     It needs
      `CLERK_SECRET_KEY`/`CLERK_JWT_ISSUER` to authenticate admin requests;
      `AETHER_CART_TOKEN_SECRET`/`AETHER_SETTINGS_ENCRYPTION_KEY` for cart
      tokens and encrypted integration secrets; `STRIPE_SECRET_KEY`/
@@ -76,9 +77,7 @@ copy Aether demo data, provider secrets or deployment resources.
 push to `main` (or manually via the Actions tab's "Run workflow"). Before
 the first run can succeed:
 
-1. `wrangler d1 create <name>` and paste the real `database_id` into
-   `apps/api/wrangler.jsonc` (see point 4 above).
-2. In the repo's GitHub Settings -> Secrets and variables -> Actions, add:
+1. In the repo's GitHub Settings -> Secrets and variables -> Actions, add:
    - **Secrets** (`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are
      required - nothing deploys without them; every other one is optional,
      matching what each service already tolerates missing):
@@ -91,14 +90,20 @@ the first run can succeed:
      `GEMINI_API_KEY`, `SENTRY_DSN`.
    - **Variables**: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (required - admin and
      storefront both fail to build without it); `ADMIN_PAGES_PROJECT` if you
-     want a Cloudflare Pages project name other than the default
-     `<name>-admin`; `NEXT_PUBLIC_AETHER_BASE_PATH` only if the storefront
-     isn't served from its domain's root.
-3. After the first successful deploy, Cloudflare will have assigned real
-   URLs to the admin Pages project and the storefront/API Workers - set
-   `APP_ORIGIN_STORE`/`APP_ORIGIN_ADMIN` as GitHub variables (and update the
-   same-named entries in `apps/api/wrangler.jsonc`'s `vars` block) to those
-   real URLs; nothing reads them automatically before that first deploy.
+     want a Pages project name other than `<name>-admin`;
+     `CLOUDFLARE_WORKERS_SUBDOMAIN` only when the account's workers.dev
+     subdomain should not use the repository owner; `D1_LOCATION` to override
+     the default `enam`; and `NEXT_PUBLIC_AETHER_BASE_PATH` only if the
+     storefront isn't served from its domain's root. Optional custom-domain
+     overrides are `NEXT_PUBLIC_AETHER_API_URL`, `APP_ORIGIN_STORE`, and
+     `APP_ORIGIN_ADMIN`.
+2. Push to `main` or run the workflow manually. The bootstrap is idempotent:
+   it creates or reuses the D1 database, Pages project, and workers.dev
+   subdomain, then generates `apps/api/wrangler.deploy.jsonc` for that run.
+   The generated file is ignored and no Cloudflare account UUID is committed.
+3. When you later attach custom domains, set the three URL override variables
+   above. Without them, the first and subsequent deployments automatically use
+   the stable workers.dev and pages.dev URLs returned by Cloudflare.
 
 The workflow doesn't touch `apps/ai/` - there's no AI Worker to deploy yet
 (see point 5).

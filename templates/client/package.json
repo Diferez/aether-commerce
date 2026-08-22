@@ -4,8 +4,10 @@
   "type": "module",
   "scripts": {
     "aether:migrations": "aether-migrations sync database/migrations",
+    "cloudflare:bootstrap": "node scripts/bootstrap-cloudflare.mjs",
+    "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "validate": "pnpm typecheck && pnpm --filter ./apps/admin typecheck && pnpm --filter ./apps/storefront typecheck && pnpm --filter ./apps/api typecheck"
+    "validate": "pnpm test && pnpm typecheck && pnpm --filter ./apps/admin typecheck && pnpm --filter ./apps/storefront typecheck && pnpm --filter ./apps/api typecheck"
   },
   "dependencies": {
     "@aether-commerce/admin-default": "^0.1.0",
