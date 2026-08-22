@@ -1,15 +1,29 @@
 {
   "name": "@aether-commerce/agent-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
-  "repository": { "type": "git", "url": "git+https://github.com/Diferez/aether-commerce.git", "directory": "packages/agent-core" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aether-commerce/aether-commerce.git",
+    "directory": "packages/agent-core"
+  },
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "restricted" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -18,5 +32,7 @@
   "dependencies": {
     "@aether-commerce/observability": "workspace:*"
   },
-  "devDependencies": { "typescript": "^5.9.0" }
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
 }

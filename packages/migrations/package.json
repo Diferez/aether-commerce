@@ -1,14 +1,30 @@
 {
   "name": "@aether-commerce/migrations",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "license": "SEE LICENSE IN LICENSE.md",
-  "repository": { "type": "git", "url": "git+https://github.com/Diferez/aether-commerce.git", "directory": "packages/migrations" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aether-commerce/aether-commerce.git",
+    "directory": "packages/migrations"
+  },
   "type": "module",
-  "files": ["bin", "migrations", "client-migrations.manifest.json", "README.md"],
-  "bin": { "aether-migrations": "./bin/aether-migrations.mjs" },
-  "exports": { "./manifest": "./client-migrations.manifest.json" },
-  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "restricted" },
+  "files": [
+    "bin",
+    "migrations",
+    "client-migrations.manifest.json",
+    "README.md"
+  ],
+  "bin": {
+    "aether-migrations": "./bin/aether-migrations.mjs"
+  },
+  "exports": {
+    "./manifest": "./client-migrations.manifest.json"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
     "build": "node --check bin/aether-migrations.mjs",
     "typecheck": "node --check bin/aether-migrations.mjs",
