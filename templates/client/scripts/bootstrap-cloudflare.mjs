@@ -40,15 +40,21 @@ export function buildApiDeployConfig(
   return result;
 }
 
-function parseWranglerJson(output, command) {
+export function parseWranglerJson(output, command) {
   const normalized = output.replace(ANSI_PATTERN, "").trim();
-  try {
-    return JSON.parse(normalized);
-  } catch (error) {
-    throw new Error(`Wrangler returned invalid JSON for ${command}`, {
-      cause: error,
-    });
+  for (let start = 0; start < normalized.length; start += 1) {
+    if (normalized[start] !== "[" && normalized[start] !== "{") continue;
+    for (let end = normalized.length; end > start; end -= 1) {
+      const closing = normalized[end - 1];
+      if (closing !== "]" && closing !== "}") continue;
+      try {
+        return JSON.parse(normalized.slice(start, end));
+      } catch {
+        // Wrangler and pnpm can write informational text around --json output.
+      }
+    }
   }
+  throw new Error(`Wrangler returned invalid JSON for ${command}`);
 }
 
 function runWrangler(args) {

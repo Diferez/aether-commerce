@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import {
   buildApiDeployConfig,
   extractJsonStringProperty,
+  parseWranglerJson,
   replaceJsonStringProperty
 } from "../scripts/bootstrap-cloudflare.mjs";
 
@@ -45,4 +46,10 @@ test("deployment bootstraps Cloudflare before builds and uses generated outputs"
 test("runs Wrangler from the workspace that owns its dependency", () => {
   const script = readFileSync(resolve(root, "scripts/bootstrap-cloudflare.mjs"), "utf8");
   assert.match(script, /\["-C", "apps\/api", "exec", "wrangler"/);
+});
+
+test("accepts Wrangler JSON surrounded by informational output", () => {
+  assert.deepEqual(parseWranglerJson("warning from pnpm\n[{\"name\":\"client-store\"}]\n", "d1 list"), [
+    { name: "client-store" },
+  ]);
 });
