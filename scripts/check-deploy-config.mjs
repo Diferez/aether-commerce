@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const environment = process.argv[2] || "production";
-const repository = process.env.GITHUB_REPOSITORY || process.argv[3] || "Diferez/aether-commerce";
+const repository = process.env.GITHUB_REPOSITORY || process.argv[3] || "aether-commerce/aether-commerce";
 
 if (!/^[a-z0-9-]+$/i.test(environment)) {
   throw new Error(`Invalid GitHub environment name: ${environment}`);

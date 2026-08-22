@@ -57,6 +57,16 @@ test("CI builds and tests the Cloudflare LangGraph assistant", () => {
   assert.doesNotMatch(workflow, /docker build -t aether-ai-assistant/);
 });
 
+test("CI accepts version releases that consume existing changesets", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  const checker = read("scripts/check-changesets.mjs");
+
+  assert.match(workflow, /git diff --name-status/);
+  assert.match(workflow, /Version release detected/);
+  assert.match(checker, /status === "D"/);
+  assert.match(checker, /consumesChangeset/);
+});
+
 test("AI deployments receive only secrets used by the assistant Worker", () => {
   for (const file of ["deploy-production.yml", "deploy-development.yml"]) {
     const workflow = read(`.github/workflows/${file}`);
